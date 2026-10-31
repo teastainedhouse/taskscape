@@ -1,5 +1,5 @@
-/* theme-netscape.css — the whole 1996 look. Swap the theme by setting
-   "theme" in taskscape.config.json to the name of another theme-<name>.css. */
+/* theme-netscape.css — the 1996 look, kept as an alternative to the default
+   plain theme. Pick it with "theme": "netscape" in taskscape.config.json. */
 
 body {
   font-family: "Times New Roman", Times, serif;
@@ -136,8 +136,11 @@ td input[type="date"] { min-width: 9em; }
 
 /* Footer */
 .site-footer { text-align: center; font-size: 0.9em; }
-.site-footer p { margin: 4px 0; }
+.site-footer p, .site-footer address { margin: 4px 0; }
 .site-footer .badge { display: inline-block; border: 2px outset #ffffff; background: #000080; color: #ffffff; padding: 1px 8px; font-family: Arial, Helvetica, sans-serif; font-size: 0.8em; }
+
+/* Private marker: the padlock picture, not the text. */
+.padlock__text { display: none; }
 
 /* Under construction */
 .under-construction { text-align: center; padding: 16px 0; }

@@ -6,7 +6,7 @@ _Copied from the owner's one-pager on 2026-10-31. Company and vendor names are r
 
 ## What it is
 
-Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags that people edit in a browser and Claude edits through an API. It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. It wears a 1996 Netscape look on purpose.
+Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags that people edit in a browser and Claude edits through an API. It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. It looks like early-90s web on purpose.
 
 ## Goals and non-goals
 
@@ -86,17 +86,21 @@ The browser and Claude never touch the database directly; the API is the only do
 
 Each fork picks its own host and keeps its setup notes in its own fork, not upstream.
 
-## The Netscape look
+## The look
 
-The default theme is 1996 on purpose, and it lives in one swappable CSS file so a team can choose something plainer.
+The default theme makes every page look like nobody designed it: a bare server page or a directory listing. Somebody did. It lives in one swappable CSS file (`theme-plain.css`).
 
-- Gray beveled buttons, Times New Roman, blue underlined links, purple visited links
-- Visible table borders on every list
-- Tiled starfield background and an "Under Construction" GIF on empty projects
-- A scrolling marquee for overdue tasks and a hit counter on each project
-- Comments labeled "Guestbook"; the activity log page is "What's New?"
-- Footer: "Best viewed in Netscape Navigator 3.0 at 800x600"
-- Still accessible: real contrast, keyboard focus, and the marquee stops when reduced motion is on
+- Times New Roman on white, blue underlined links, purple visited links, red while pressed
+- Native buttons, inputs, and selects, left exactly as the browser draws them
+- Header, page, and footer separated by grooved rules, never boxes; no backgrounds, no icons
+- `border=1` tables: an outset frame, inset cells two pixels apart
+- The only nudges: line height 1.35, a 42em measure, left-aligned table headers, a dotted focus outline
+- Overdue tasks on one still line and a hit counter on each project, in plain monospace digits
+- Comments labeled "Guestbook"; the activity log page is "What's New?"; the footer is one italic line, "Taskscape at example.org Port 80"
+- Dark mode that still looks default, following the reader's setting
+- Still accessible: text holds 4.5:1 in both modes, links are always underlined, focus is always visible, nothing moves
+
+The 1996 Netscape theme ships beside it (`theme-netscape.css`, chosen with `"theme": "netscape"`): gray beveled buttons, a starfield, a scrolling marquee, a lime hit counter, an "Under Construction" GIF on empty projects, and "Best viewed in Netscape Navigator 3.0 at 800x600".
 
 **Webring Easter egg.** A hidden footer bar reads "Taskscape Webring: Prev | Random | Next" and links to the other teams' Taskscape copies listed in each fork's config. It stays hidden until someone clicks the hit counter three times.
 
@@ -122,10 +126,10 @@ v0.1 is the smallest copy one team can use every day.
 - [ ] Per-person MCP tokens that can be revoked
 - [ ] Backup and restore steps in the README, tested once (markdown export is not a backup)
 - [ ] MCP server with list, create, update, and delete tools
-- [ ] Netscape theme and markdown export
+- [ ] Plain early-90s theme (with the Netscape theme as an alternative) and markdown export
 - [ ] README with fork-and-deploy steps, plus CLAUDE.md
 
-Later: the webring, a plain theme, more saved views.
+Later: the webring, more saved views.
 
 **Open questions**
 

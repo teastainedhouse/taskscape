@@ -1,6 +1,6 @@
 {
   "site_title": "Taskscape",
-  "theme": "netscape",
+  "theme": "plain",
   "statuses": {
     "project": ["Planned", "Active", "On hold", "Done"],
     "task": ["To do", "Doing", "Blocked", "Done"]

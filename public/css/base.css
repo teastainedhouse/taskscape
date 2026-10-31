@@ -82,7 +82,8 @@ textarea { width: 100%; min-height: 4em; }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
 .tag-chip button { margin-left: 3px; padding: 0 3px; line-height: 1; }
-.padlock { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+.padlock { margin-right: 3px; }
+.padlock img { width: 14px; height: 14px; vertical-align: -2px; }
 .center { text-align: center; }
 .muted { opacity: 0.8; }
 .notes-row textarea { min-height: 5em; }

@@ -38,12 +38,12 @@ export function sayError(err, prefix) {
 
 /**
  * Load the theme named in the config (css/theme-<name>.css), keeping the
- * default theme if the file does not exist.
+ * plain theme the pages link by default if the file does not exist.
  * @param {string} theme
  */
 function applyTheme(theme) {
   const current = document.getElementById('theme-css');
-  if (!current || !theme || theme === 'netscape' || !/^[a-z0-9_-]{1,40}$/i.test(theme)) return;
+  if (!current || !theme || theme === 'plain' || !/^[a-z0-9_-]{1,40}$/i.test(theme)) return;
   const link = el('link', { rel: 'stylesheet', href: `css/theme-${theme}.css` });
   link.addEventListener('load', () => current.remove());
   link.addEventListener('error', () => link.remove());
@@ -71,6 +71,8 @@ export async function boot(opts) {
   const site = config.site_title || 'Taskscape';
   document.title = opts?.title ? `${opts.title} - ${site}` : site;
   for (const n of document.querySelectorAll('[data-site-title]')) n.textContent = site;
+  const port = location.port || (location.protocol === 'https:' ? '443' : '80');
+  for (const n of document.querySelectorAll('[data-served-by]')) n.textContent = `${site} at ${location.hostname} Port ${port}`;
 
   mountDevBanner(document.getElementById('dev-banner'), me, config);
 

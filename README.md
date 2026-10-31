@@ -2,7 +2,7 @@
 
 Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags. People edit it in a browser; Claude edits it through an MCP server. Both go through one HTTP API, which is the only thing that talks to the database. Every write is version-checked, so several people and several Claude sessions can work at once without overwriting each other, and every write lands in an activity log ("What's New?"). Anyone can mark a project or task private; only its owner sees it afterwards.
 
-It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. There is no build step and no framework. It wears a 1996 Netscape look on purpose: gray beveled buttons, Times New Roman, blue links, visible table borders, a starfield, a hit counter, and an "Under Construction" GIF on empty projects. The look lives in one CSS file, so a team that wants something plainer swaps it.
+It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. There is no build step and no framework. It looks like early-90s web on purpose: a page nobody seems to have designed, with Times New Roman on white, blue underlined links that turn purple once visited, native browser controls, grooved rules, `border=1` tables, and a hit counter. It follows the reader's dark mode and never moves. The look lives in one CSS file (`public/css/theme-plain.css`); the older 1996 Netscape theme, with gray beveled buttons, a starfield, a scrolling marquee, and an "Under Construction" GIF, ships beside it as `theme-netscape.css` for a team that wants it.
 
 - Spec: [docs/ONE-PAGER.md](docs/ONE-PAGER.md)
 - Architecture and decisions: [docs/PLAN.md](docs/PLAN.md)
@@ -58,7 +58,7 @@ Environment variables:
 | Key | What it does |
 | --- | --- |
 | `site_title` | Shown in page titles and headers |
-| `theme` | Name of the CSS file the UI loads: `public/css/theme-<name>.css` |
+| `theme` | Name of the CSS file the UI loads: `public/css/theme-<name>.css`. `plain` (default) or `netscape` |
 | `statuses` | Allowed status names for `project` and `task`, in display and sort order |
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |

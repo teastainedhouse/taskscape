@@ -2,7 +2,7 @@
 
 ## What this is
 
-Taskscape is a tiny, self-hosted work tracker: projects, tasks, tags, and an append-only activity log, with a 1996 Netscape look. People edit it in a browser (`public/`); Claude edits it through an MCP server (`mcp/`). Both talk to one HTTP API (`api/`), which is the only thing that touches the SQL database. SQLite for development and tests, PostgreSQL in production. Plain Node 22 ESM with JSDoc types; no build step, no framework, no dev dependencies.
+Taskscape is a tiny, self-hosted work tracker: projects, tasks, tags, and an append-only activity log, with an early-90s look. People edit it in a browser (`public/`); Claude edits it through an MCP server (`mcp/`). Both talk to one HTTP API (`api/`), which is the only thing that touches the SQL database. SQLite for development and tests, PostgreSQL in production. Plain Node 22 ESM with JSDoc types; no build step, no framework, no dev dependencies.
 
 Read in this order when you are new here: `docs/ONE-PAGER.md` (the spec), `docs/PLAN.md` (architecture and the decisions behind it), `docs/API.md` (the HTTP contract, frozen), then this file.
 
@@ -93,7 +93,8 @@ public/                    served as-is; no build step
   trash.html               trashed projects and tasks, restore
   tokens.html              "My MCP tokens": issue (plaintext shown once), revoke
   css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
-  css/theme-netscape.css   the whole look; config.theme picks css/theme-<name>.css (page.js falls back to netscape)
+  css/theme-plain.css      the default look ("looks like nobody designed it"): browser defaults, grooved rules, dark mode, no motion
+  css/theme-netscape.css   the 1996 look, kept as an alternative; config.theme picks css/theme-<name>.css (page.js falls back to plain)
   js/page.js               shared boot: loads /api/config and /api/me, theme swap, nav, dev banner, aria-live say(), attempt() = the 409 handler
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
@@ -156,8 +157,8 @@ A view is a named sort and filter preset.
 
 ### Swap the theme
 
-1. Create `public/css/theme-<name>.css`. Copy `theme-netscape.css` as a starting point and keep every selector it styles; `base.css` stays as it is (layout, focus rings, reduced motion).
-2. `taskscape.config.json`: set `"theme": "<name>"`. `public/js/page.js` loads `css/theme-<config.theme>.css` and keeps the Netscape theme if that file is missing.
+1. Create `public/css/theme-<name>.css`. Copy `theme-plain.css` (or `theme-netscape.css`) as a starting point and keep every selector it styles; `base.css` stays as it is (layout, focus rings, reduced motion). Some markup exists for one theme only, and each theme hides the rest: the padlock is an `img` plus a `code.padlock__text`, the footer has a `.best-viewed` line and an `address`, and the empty-project picture sits in `.under-construction`.
+2. `taskscape.config.json`: set `"theme": "<name>"`. The pages link `theme-plain.css`; `public/js/page.js` swaps in `css/theme-<config.theme>.css` and keeps the plain theme if that file is missing.
 3. Keep contrast and keyboard focus visible; the escaping and accessibility tests do not check CSS, so look at it.
 
 ### Add an identity provider

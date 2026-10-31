@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Project - Taskscape</title>
   <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/theme-netscape.css" id="theme-css">
+  <link rel="stylesheet" href="css/theme-plain.css" id="theme-css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
   <div id="dev-banner"></div>
   <div class="wrap">
     <header class="site-header">
-      <h1 class="site-title"><a href="index.html" data-site-title>Taskscape</a></h1>
+      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
         <a href="index.html">Projects</a> |
         <a href="whats-new.html">What's New?</a> |
@@ -43,7 +43,8 @@
         </div>
         <p id="tasks-empty" hidden>No tasks match these filters.</p>
         <div id="under-construction" class="under-construction" hidden>
-          <img src="img/under-construction.svg" alt="Under construction: this project has no tasks yet" width="320" height="120">
+          <p>This project has no tasks yet.</p>
+          <img src="img/under-construction.svg" alt="" width="320" height="120">
         </div>
 
         <form id="new-task" data-needs-edit>
@@ -60,7 +61,8 @@
     </main>
 
     <footer class="site-footer">
-      <p><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+      <p class="best-viewed"><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+      <address data-served-by>Taskscape</address>
       <div id="webring"></div>
     </footer>
   </div>

@@ -1,0 +1,149 @@
+/* theme-plain.css — the default look: a page that looks like nobody designed it,
+   a bare server page or a directory listing. Browser defaults are kept on purpose
+   (serif text, blue/purple links, native controls, grooved rules); the only changes
+   are line height 1.35, a 42em measure, left-aligned headers, a grey footer, and a
+   dotted focus outline. No panels, no backgrounds, no icons, no motion.
+   Swap the theme by setting "theme" in taskscape.config.json to the name of
+   another theme-<name>.css. */
+
+:root {
+  color-scheme: light dark;
+  --paper: #ffffff;
+  --ink: #000000;
+  --ink-muted: #555555;
+  --link: #0000ee;
+  --link-visited: #551a8b;
+  --link-active: #ee0000;
+  --rule: #9a9a9a;
+  --rule-highlight: #eeeeee;
+  --mark: #ffff00;
+  --mark-ink: #000000;
+  --font-serif: "Times New Roman", Times, "Liberation Serif", serif;
+  --font-mono: "Courier New", Courier, "Liberation Mono", monospace;
+  --space-cell: 2px;
+  --space-body: 8px;
+  --space-paragraph: 16px;
+  --space-indent: 40px;
+  --measure: 42em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121212;
+    --ink: #e8e8e8;
+    --ink-muted: #a8a8a8;
+    --link: #9e9eff;
+    --link-visited: #d0adf0;
+    --link-active: #ff9e9e;
+    --rule: #5c5c5c;
+    --rule-highlight: #2e2e2e;
+  }
+}
+
+body {
+  margin: var(--space-body);
+  min-height: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+/* One column, left-aligned, edge to edge; blocks stop at the measure. */
+.wrap { max-width: none; margin: 0; padding: 0; }
+:is(p, ul, ol, dl, blockquote, form, h1, h2, h3, .filters, .field, .status, .dev-banner, .marquee) { max-width: var(--measure); }
+
+h1, h2, h3, h4, h5, h6 { line-height: 1.15; font-weight: 700; }
+h1 { font-size: 2em; margin: .67em 0; }
+h2 { font-size: 1.5em; margin: .83em 0; }
+h3 { font-size: 1.17em; margin: 1em 0; }
+
+p, ul, ol, dl, table, pre { margin: var(--space-paragraph) 0; }
+ul, ol { padding-left: var(--space-indent); }
+
+a { color: var(--link); text-decoration: underline; }
+a:visited { color: var(--link-visited); }
+a:active { color: var(--link-active); }
+
+/* Focus: a dotted outline in ink on everything focusable. */
+:focus-visible, a:focus-visible, th button.sort:focus-visible { outline: 2px dotted var(--ink); outline-offset: 1px; }
+
+hr {
+  height: 0;
+  margin: var(--space-body) 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-highlight);
+}
+
+pre, code, kbd, samp, tt { font-family: var(--font-mono); font-size: 13px; }
+pre { line-height: 1.25; }
+mark { background: var(--mark); color: var(--mark-ink); }
+address { font-style: italic; color: var(--ink-muted); }
+small { font-size: smaller; color: var(--ink-muted); }
+.muted { opacity: 1; }
+
+/* Native controls, exactly as the browser draws them (base.css makes them inherit the serif). */
+input, select, textarea, button { font: revert; }
+.field label { margin-bottom: 2px; }
+label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: block; margin: 4px 0; }
+
+/* Header and footer: separated from the page by grooved rules, never boxes. */
+.site-header {
+  padding-bottom: var(--space-body);
+  border-bottom: 2px groove var(--rule);
+}
+.site-header > * { display: inline; margin: 0 1em 0 0; }
+.site-title { font-weight: 700; }
+.site-title a, .site-title a:visited { color: var(--ink); text-decoration: none; }
+nav [aria-current="page"] { color: var(--ink); text-decoration: none; font-weight: 700; }
+
+.site-footer {
+  margin-top: var(--space-paragraph);
+  padding-top: var(--space-body);
+  border-top: 2px groove var(--rule);
+}
+.site-footer address { margin: 0; }
+.site-footer .best-viewed { display: none; }
+
+/* Tables: the old border=1 look. An outset frame, inset cells 2px apart, headers left-aligned. */
+table { width: auto; border-collapse: separate; border-spacing: var(--space-cell); border: 1px outset var(--rule); }
+th, td { border: 1px inset var(--rule); padding: 1px 6px; vertical-align: baseline; }
+th { text-align: start; font-weight: 700; }
+th button.sort { color: var(--link); }
+td input[type="text"] { min-width: 10em; }
+tr.overdue td.col-due_date { font-weight: 700; }
+tr.overdue td.col-due_date::after { content: " (overdue)"; font-weight: 400; }
+
+/* The project's key/value header has no frame, like a listing. */
+table.meta, table.meta th, table.meta td { border: 0; }
+table.meta th, table.meta td { padding: 1px var(--space-body) 1px 0; }
+
+/* Status line: a plain sentence. */
+.status:not(:empty) { margin: var(--space-paragraph) 0; }
+.status.error:not(:empty) { font-weight: 700; }
+
+/* Overdue tasks: one still line, nothing moves. */
+.marquee { white-space: normal; margin: var(--space-paragraph) 0; }
+.marquee__track { display: inline; padding-left: 0; animation: none; }
+.marquee__label { font-weight: 700; }
+
+/* Hit counter: the digits as plain monospace text. */
+.hit-counter { font-family: var(--font-mono); font-size: 13px; }
+
+/* Private marker: the old alt text instead of an icon. */
+.padlock img { display: none; }
+
+/* Empty project: the sentence, no picture. */
+.under-construction img { display: none; }
+
+/* Dev mode: a bold notice above the header. */
+.dev-banner { margin: 0 0 var(--space-body); font-weight: 700; }
+.dev-banner select { margin-left: 6px; font-weight: 400; }
+
+/* Tag chips keep the colour their tag was given; no rounded corners. */
+.tag-chip { border-color: var(--ink); border-radius: 0; }
+
+/* A new MCP token: the warning is highlighted, nothing is boxed. */
+.token-box #token-warning b { background: var(--mark); color: var(--mark-ink); }

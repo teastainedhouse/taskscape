@@ -5,7 +5,7 @@ Agreed 2026-10-31. The spec is [ONE-PAGER.md](ONE-PAGER.md); the API contract is
 
 ## Context
 
-Taskscape is a tiny, self-hosted, MIT-licensed work tracker (projects, tasks, tags, activity log) with a 1996 Netscape look. People edit it in a browser; Claude edits it through an MCP server. Both go through one HTTP API, which is the only door to the SQL database. The spec is `docs/ONE-PAGER.md` (copied from the owner's Claude Doc). The repo was empty at the start of this session; it is now a fresh git repo on branch `build/v0.1` with only the one-pager saved and nothing committed.
+Taskscape is a tiny, self-hosted, MIT-licensed work tracker (projects, tasks, tags, activity log) with an early-90s look (originally a 1996 Netscape theme; the plain theme replaced it as the default on 2026-10-31). People edit it in a browser; Claude edits it through an MCP server. Both go through one HTTP API, which is the only door to the SQL database. The spec is `docs/ONE-PAGER.md` (copied from the owner's Claude Doc). The repo was empty at the start of this session; it is now a fresh git repo on branch `build/v0.1` with only the one-pager saved and nothing committed.
 
 This plan was agreed at the end of Phase 0 and committed together with the API contract. Later phases build on it in order.
 
@@ -67,7 +67,8 @@ taskscape/
     trash.html                trashed projects and tasks, restore
     tokens.html               "My MCP tokens": issue (shown once), revoke
     css/base.css              layout and accessibility shared by themes (focus rings, reduced motion)
-    css/theme-netscape.css    the whole look; config.theme names the file (theme-<name>.css)
+    css/theme-plain.css       the default look; config.theme names the file (theme-<name>.css)
+    css/theme-netscape.css    the 1996 look, kept as an alternative
     js/api.js                 fetch wrapper: JSON, error envelope, 409 handling, dev-user cookie
     js/dom.js                 el()/text() helpers; textContent only
     js/projects.js  tasks.js  whats-new.js  trash.js  tokens.js  dev-user.js  hit-counter.js
@@ -329,10 +330,13 @@ Extra seeded activity: Reorg notes is created public, alice's task is added, the
 - **Errors:** handlers never throw. Non-2xx → `{ isError: true, content: [{type:"text", text}] }`. For 409 the text names both versions and embeds the current record so the caller can retry without another read. 404 text: "Not found (it may not exist or may be private to someone else)." 401 says to check `TASKSCAPE_TOKEN`.
 - No hit tool: reading a project through MCP does not count as a visit.
 
-## 9. Netscape UI notes that the API does not cover
+## 9. UI notes that the API does not cover
 
-- `base.css` holds layout, focus rings, and `prefers-reduced-motion`; `theme-netscape.css` holds the look: gray beveled buttons, Times New Roman, blue/purple links, visible table borders, tiled starfield, Under Construction GIF on empty projects, marquee of overdue tasks (stopped under reduced motion), "What's New?" page title, footer "Best viewed in Netscape Navigator 3.0 at 800x600".
-- **Hit counter** (`js/hit-counter.js`): `<span class="hit-counter" role="img" aria-label="You are visitor number 1337">` with one `.digit` span per zero-padded digit (six minimum), styled in the theme as lime monospace digits on black with a beveled border, no GIFs. `project.html` calls `POST /hit` once after the project loads and renders the returned count; if it fails the page still renders with the record's `hit_count`. Three clicks within two seconds reveal the webring footer bar (from `config.webring`, hidden when empty; the webring itself is out of scope, only the hook exists). On private projects a `title` says only the owner's visits are counted.
+- `base.css` holds layout, focus rings, and `prefers-reduced-motion`; a theme file holds the look. The pages link `theme-plain.css`, and `page.js` swaps in `theme-<config.theme>.css` when the config names another one, keeping plain if that file is missing.
+- **Plain theme** (default, since 2026-10-31): browser defaults kept on purpose (Times New Roman, blue/purple/red links, native controls, grooved `hr`-style rules between header, page, and footer, `border=1`-style tables), plus line height 1.35, a 42em measure, left-aligned `th`, a dotted focus outline, and a footer `address` ("Taskscape at <host> Port <port>", filled by `page.js`). No panels, backgrounds, icons, or motion: the overdue line stands still, the padlock shows as `[PRIVATE]`, the Under Construction picture is hidden (its sentence stays). Dark mode follows `prefers-color-scheme`.
+- **Netscape theme** (alternative): gray beveled buttons, Times New Roman, blue/purple links, visible table borders, tiled starfield, Under Construction GIF on empty projects, marquee of overdue tasks (stopped under reduced motion), footer "Best viewed in Netscape Navigator 3.0 at 800x600".
+- Theme-specific markup sits in every page and each theme hides what it does not use: the padlock is an `img` plus a `code` "[PRIVATE]", the footer has the `.best-viewed` line and the `address`.
+- **Hit counter** (`js/hit-counter.js`): `<span class="hit-counter" role="img" aria-label="You are visitor number 1337">` with one `.digit` span per zero-padded digit (six minimum), styled in the theme (plain monospace digits in the plain theme; lime digits on black with a beveled border in the Netscape theme), no GIFs. `project.html` calls `POST /hit` once after the project loads and renders the returned count; if it fails the page still renders with the record's `hit_count`. Three clicks within two seconds reveal the webring footer bar (from `config.webring`, hidden when empty; the webring itself is out of scope, only the hook exists). On private projects a `title` says only the owner's visits are counted.
 - Padlock icon on private rows; confirm dialogs on trash; dev-mode banner with user dropdown; "Session expired" notice on 401; the privacy toggle warns that history becomes visible when flipping public and, when flipping private, that N tasks owned by others will be moved to General (confirm). The General project is listed like any other; a task row offers "Move to…" to pick a project, and General hides its privacy toggle and trash button.
 
 ## 10. Testing (`node:test`, no framework)
