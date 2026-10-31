@@ -36,7 +36,7 @@ The dev provider accepts the header `X-Dev-User` or the cookie `taskscape_dev_us
 Useful variations:
 
 - `npm start` runs the same server without the file watcher.
-- `PORT=3103 npm run dev` picks another port.
+- `PORT=3103 npm run dev` picks another port. The server binds `127.0.0.1`; `HOST=0.0.0.0` listens on every interface.
 - `npm run seed -- --reset` throws the current data away and reseeds. Without `--reset` the seed refuses to touch a database that already has data.
 - A `.env` file in the repo root is read by every script. Copy `.env.example` to start.
 
@@ -49,6 +49,7 @@ Environment variables:
 | `TASKSCAPE_ENV` | `development` | `production` refuses to start with the `dev` provider |
 | `TASKSCAPE_CONFIG` | `./taskscape.config.json` | path to the config file |
 | `PORT` | `3000` | dev server port |
+| `HOST` | `127.0.0.1` | dev server bind address; behind a reverse proxy keep it on loopback so the proxy is the only way in |
 | `TASKSCAPE_URL`, `TASKSCAPE_TOKEN` | — | MCP server only; see [MCP setup](#mcp-setup) |
 
 ## The config file

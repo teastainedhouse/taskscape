@@ -14,6 +14,9 @@ try { process.loadEnvFile('.env'); } catch { /* no .env is fine */ }
 const ROOT = path.resolve('public');
 const MIGRATIONS = path.resolve('migrations');
 const PORT = Number(process.env.PORT || 3000);
+// Loopback by default: behind a reverse proxy the identity headers are only
+// trustworthy if the proxy is the one way in. HOST=0.0.0.0 opens it up.
+const HOST = process.env.HOST || '127.0.0.1';
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.gif': 'image/gif',
@@ -71,8 +74,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Taskscape dev server  http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Taskscape dev server  http://${HOST}:${PORT}`);
   console.log(`  database  ${dbUrl}`);
   console.log(`  identity  ${config.auth.provider}${config.auth.provider === 'dev' ? '  (users: ' + config.auth.dev.users.map((u) => u.id).join(', ') + ')' : ''}`);
   if (config.auth.provider === 'dev') {

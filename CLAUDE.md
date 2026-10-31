@@ -26,7 +26,7 @@ Read in this order when you are new here: `docs/ONE-PAGER.md` (the spec), `docs/
 ```
 taskscape.config.json      site title, statuses, palette, task fields, views, theme, privacy default,
                            permissions, webring, limits, catch-all project, auth (provider, header names, dev users)
-.env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT,
+.env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT, HOST,
                            and TASKSCAPE_URL / TASKSCAPE_TOKEN for the MCP server
 .mcp.example.json          client config pointing at mcp/server.js; token from the environment
 package.json               scripts: dev, start, migrate, seed, backup, mcp, test; deps: pg, @modelcontextprotocol/sdk
@@ -81,7 +81,7 @@ migrations/
   001_init.sql             projects, tasks, tags, project_tags, task_tags, activity, mcp_tokens, schema_migrations
 
 scripts/
-  dev.js                   node:http on PORT: /api/* -> node-bridge -> app.fetch; everything else static from public/
+  dev.js                   node:http on HOST:PORT (loopback by default): /api/* -> node-bridge -> app.fetch; everything else static from public/
   migrate.js               apply pending migrations + ensureCatchAll; run as a deploy step
   seed.js                  demo data through the repo layer with real principals; --reset to replace
   backup.js                SQLite online copy to backups/; PostgreSQL prints pg_dump / pg_restore commands
@@ -190,7 +190,7 @@ npm run backup           # SQLite copy to backups/, or the pg_dump command for P
 npm test                 # node:test over test/*.test.js on in-memory SQLite; must pass before a commit
 ```
 
-Scripts read `.env` from the repo root if present (`.env.example` lists the variables). Use a different port with `PORT=3103 npm run dev`.
+Scripts read `.env` from the repo root if present (`.env.example` lists the variables). Use a different port with `PORT=3103 npm run dev`; `HOST=0.0.0.0` listens beyond loopback.
 
 Switching dev users: the dev provider picks the user from the `X-Dev-User` header, else the `taskscape_dev_user` cookie, else `auth.dev.default_user` (`alice`). Seeded users: `alice`, `bob`, `carol`. In the browser, the DEV MODE banner has a dropdown that sets the cookie and reloads. From the shell:
 
