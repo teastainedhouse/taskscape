@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "taskscape": {
+      "command": "node",
+      "args": ["mcp/server.js"],
+      "env": {
+        "TASKSCAPE_URL": "http://localhost:3000",
+        "TASKSCAPE_TOKEN": "${TASKSCAPE_TOKEN}"
+      }
+    }
+  }
+}

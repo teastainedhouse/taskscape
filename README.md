@@ -25,7 +25,7 @@ npm run seed         # three dev users, five projects, eight tasks, four tags, s
 npm run dev          # http://localhost:3000, restarts on file changes
 ```
 
-Open <http://localhost:3000>. You are signed in as `alice` (the default dev user). To work as someone else, pick a user from the DEV MODE banner at the top of the page (verify after merge), or send the header yourself:
+Open <http://localhost:3000>. You are signed in as `alice` (the default dev user). To work as someone else, pick a user from the DEV MODE banner at the top of the page, or send the header yourself:
 
 ```sh
 curl -H 'x-dev-user: carol' http://localhost:3000/api/projects
@@ -232,7 +232,7 @@ Test a restore once, before you need it.
 
 Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which calls the same HTTP API as the browser, with a personal token. It follows the same privacy rules: a session sees a private item only when the token belongs to that item's owner.
 
-1. Sign in to Taskscape in the browser and open **My MCP tokens** (`tokens.html`) (verify after merge). Give the token a label and create it. The plaintext (`tsk_…`) is shown once; copy it now. The same thing from the command line, while signed in: `POST /api/tokens` with `{"label": "…"}`. Tokens can be revoked on the same page, which ends every session using them. Only people with edit permission can mint one.
+1. Sign in to Taskscape in the browser and open **My MCP tokens** (`tokens.html`). Give the token a label and create it. The plaintext (`tsk_…`) is shown once; copy it now. The same thing from the command line, while signed in: `POST /api/tokens` with `{"label": "…"}`. Tokens can be revoked on the same page, which ends every session using them. Only people with edit permission can mint one.
 
 2. Put the token in your shell environment, not in a file in the repository:
 
@@ -242,7 +242,7 @@ Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which cal
 
 3. Run `npm install` once so `@modelcontextprotocol/sdk` is present.
 
-4. Register the server with your client. For a Claude Code client, a `.mcp.json` in the project root (verify after merge):
+4. Register the server with your client. For a Claude Code client, a `.mcp.json` in the project root:
 
    ```json
    {
@@ -259,9 +259,9 @@ Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which cal
    }
    ```
 
-   `TASKSCAPE_URL` is the origin of your Taskscape (the deployed site, or the dev server). `${TASKSCAPE_TOKEN}` is expanded from your shell environment by the client; never write the token itself into `.mcp.json`, and never commit one. The repo ships `.mcp.example.json` as a starting point (verify after merge). The server exits with one line on stderr if either variable is missing.
+   `TASKSCAPE_URL` is the origin of your Taskscape (the deployed site, or the dev server). `${TASKSCAPE_TOKEN}` is expanded from your shell environment by the client; never write the token itself into `.mcp.json`, and never commit one. The repo ships `.mcp.example.json` as a starting point. The server exits with one line on stderr if either variable is missing.
 
-The server exposes eight tools (verify after merge):
+The server exposes eight tools:
 
 | Tool | Does |
 | --- | --- |

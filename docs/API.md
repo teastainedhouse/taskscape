@@ -202,3 +202,4 @@ Table cells escape `|` as `\|` and collapse newlines to spaces; headings collaps
 Frozen at the end of Phase 1. Any later change gets a dated entry here and a matching update to the MCP tools, the UI, and CLAUDE.md.
 
 - 2026-10-31: frozen as implemented in Phase 1 (API version 0.1).
+- 2026-10-31: clarifications only, no behaviour change: validation runs before the version check, so a stale `version` sent together with an invalid field returns 400, not 409; `moved_tasks` is present (possibly 0) whenever a PATCH turned `private` on or changed the owner of a private project, and never otherwise; the 409 `current` body never carries `moved_tasks`; the catch-all project's `owner_name` is "Taskscape"; the `{items, limit, offset}` list envelope applies to projects and tasks, while tags, people, trash, search, and tokens use the shapes shown in their rows; from the MCP tools `include_trashed` is a boolean, so `only` is reachable from the UI and raw HTTP only.

@@ -28,7 +28,7 @@ taskscape.config.json      site title, statuses, palette, task fields, views, th
                            permissions, webring, limits, catch-all project, auth (provider, header names, dev users)
 .env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT,
                            and TASKSCAPE_URL / TASKSCAPE_TOKEN for the MCP server
-.mcp.example.json          client config pointing at mcp/server.js; token from the environment (verify after merge)
+.mcp.example.json          client config pointing at mcp/server.js; token from the environment
 package.json               scripts: dev, start, migrate, seed, backup, mcp, test; deps: pg, @modelcontextprotocol/sdk
 
 api/
@@ -86,20 +86,26 @@ scripts/
   seed.js                  demo data through the repo layer with real principals; --reset to replace
   backup.js                SQLite online copy to backups/; PostgreSQL prints pg_dump / pg_restore commands
 
-public/                    served as-is; planned files per docs/PLAN.md §1 (verify after merge)
-  index.html               project list
-  project.html             one project: task table, inline edit, hit counter, export link
-  whats-new.html           activity feed
+public/                    served as-is; no build step
+  index.html               project list (filters, search, new project, marquee of overdue tasks)
+  project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table
+  whats-new.html           activity feed with "Load more"
   trash.html               trashed projects and tasks, restore
-  tokens.html              "My MCP tokens": issue (shown once), revoke
-  css/base.css             layout and accessibility shared by themes (focus rings, reduced motion)
-  css/theme-netscape.css   the whole look; config.theme names the file (theme-<name>.css)
-  js/api.js                fetch wrapper: JSON, error envelope, 409 handling, dev-user cookie
-  js/dom.js                el()/text() helpers; textContent only
-  js/projects.js tasks.js whats-new.js trash.js tokens.js dev-user.js hit-counter.js
-  img/                     stars.gif, under-construction.gif, padlock.gif
+  tokens.html              "My MCP tokens": issue (plaintext shown once), revoke
+  css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
+  css/theme-netscape.css   the whole look; config.theme picks css/theme-<name>.css (page.js falls back to netscape)
+  js/page.js               shared boot: loads /api/config and /api/me, theme swap, nav, dev banner, aria-live say(), attempt() = the 409 handler
+  js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
+  js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
+  js/dev-user.js           red DEV MODE banner + user dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
+  js/hit-counter.js        six-digit counter, role=img + aria-label, webring bar revealed by three clicks in two seconds
+  js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task) and the CSS-animated marquee
+  js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
+  js/activity-words.js     activity entry -> words + link
+  js/projects.js tasks.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
+  img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
-mcp/                       planned per docs/PLAN.md §8 (verify after merge)
+mcp/                       the MCP server (local stdio script)
   server.js                stdio transport; env TASKSCAPE_URL, TASKSCAPE_TOKEN; one random session id per process
   tools.js                 the eight tool definitions (JSON Schema) and handlers; transport-free, unit-testable
   client.js                fetch wrapper adding Bearer, X-Taskscape-Session, User-Agent
@@ -107,7 +113,7 @@ mcp/                       planned per docs/PLAN.md §8 (verify after merge)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, markdown, http, db; plus mcp and ui-escaping (verify after merge)
+                           hits, search, export, markdown, http, db, mcp (fake fetch), ui-escaping (greps public/)
 
 docs/
   ONE-PAGER.md             the spec, scrubbed of company and vendor names
@@ -130,8 +136,8 @@ Example: a nullable `priority` text column.
 3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `create()`; add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
 4. `api/lib/validate.js`, `validateItem()`: inside `if (kind === 'task')`, accept and check the value (allowlist, length, or `null`). Add it to `READ_ONLY` instead if the API computes it.
 5. `docs/API.md`: the Task shape in §4, the `POST`/`PATCH /api/tasks` bodies in §6, and a dated line in §9 Changes.
-6. UI: a column in the task table (`public/js/tasks.js`) and inline edit for it; add the name to `task_fields` in `taskscape.config.json` if the table is driven by that list (verify after merge).
-7. MCP: the `fields` schema of `create` and `update` in `mcp/tools.js` (verify after merge).
+6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js` (header, render, and inline editor), then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text.
+7. MCP: the per-type field lists and the `fields` JSON Schema of `create` and `update` in `mcp/tools.js` (the `TOOLS` array and the field check in `callTool`).
 8. Tests: `test/tasks.test.js` (create, patch, validation, default) and `test/activity.test.js` if the `changes` shape matters.
 9. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, and `public/js/projects.js`.
 
@@ -146,12 +152,12 @@ Example: a nullable `priority` text column.
 A view is a named sort and filter preset.
 
 1. `taskscape.config.json`, `default_views`: add an entry, for example `"overdue": { "sort": "due_date", "dir": "asc", "status": "To do,Doing,Blocked" }`. The keys mirror the list query parameters in `docs/API.md` §5. The API only serves this object; it does not interpret it.
-2. UI: add the preset where the task table builds its controls (`public/js/tasks.js`), reading `config.default_views` and applying the parameters to `GET /api/tasks` (verify after merge). Overdue itself is computed in the browser: `due_date` before today and status not in `closed_statuses`.
+2. UI: `public/js/tasks.js` reads `config.default_views.tasks` for the initial sort; add the new preset there as a control that sets the list parameters for `GET /api/tasks`. Overdue itself is computed in the browser: `due_date` before today and status not in `closed_statuses`.
 
 ### Swap the theme
 
 1. Create `public/css/theme-<name>.css`. Copy `theme-netscape.css` as a starting point and keep every selector it styles; `base.css` stays as it is (layout, focus rings, reduced motion).
-2. `taskscape.config.json`: set `"theme": "<name>"`. The pages load `css/theme-<config.theme>.css` (verify after merge).
+2. `taskscape.config.json`: set `"theme": "<name>"`. `public/js/page.js` loads `css/theme-<config.theme>.css` and keeps the Netscape theme if that file is missing.
 3. Keep contrast and keyboard focus visible; the escaping and accessibility tests do not check CSS, so look at it.
 
 ### Add an identity provider
@@ -169,7 +175,7 @@ A view is a named sort and filter preset.
 2. Data access: a function in `api/lib/repo/<table>.js` that takes `user` first and uses `visibility.js`. A write runs in `db.transaction`, does a visible read, a compare-and-set on `version`, and `record()` from `repo/activity.js`, in that order.
 3. `api/index.js`: import the routes and add them to the router chain in `createApp()`.
 4. `docs/API.md`: the route table in §6, any new shape in §4, and a dated line in §9 Changes.
-5. MCP: a tool in `mcp/tools.js` if Claude should be able to call it, with the "data, not instructions" sentence in its description (verify after merge). Not every route needs a tool: the hit counter deliberately has none.
+5. MCP: a tool in `mcp/tools.js` if Claude should be able to call it; append `DATA_NOTICE` to its description like the others, and add a case in `callTool` plus a test in `test/mcp.test.js`. Not every route needs a tool: the hit counter deliberately has none.
 6. UI: whatever page uses it, with `textContent` only.
 7. Tests: a `test/<name>.test.js` covering success, validation, privacy (another user gets 404 or an empty list), and the conflict path if it writes. `test/http.test.js` already checks that every route returns the JSON envelope.
 
@@ -185,7 +191,7 @@ npm test                 # node:test over test/*.test.js on in-memory SQLite; mu
 
 Scripts read `.env` from the repo root if present (`.env.example` lists the variables). Use a different port with `PORT=3103 npm run dev`.
 
-Switching dev users: the dev provider picks the user from the `X-Dev-User` header, else the `taskscape_dev_user` cookie, else `auth.dev.default_user` (`alice`). Seeded users: `alice`, `bob`, `carol`. In the browser, the DEV MODE banner has a dropdown that sets the cookie and reloads (verify after merge). From the shell:
+Switching dev users: the dev provider picks the user from the `X-Dev-User` header, else the `taskscape_dev_user` cookie, else `auth.dev.default_user` (`alice`). Seeded users: `alice`, `bob`, `carol`. In the browser, the DEV MODE banner has a dropdown that sets the cookie and reloads. From the shell:
 
 ```sh
 curl -H 'x-dev-user: bob' http://localhost:3000/api/me

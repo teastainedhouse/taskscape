@@ -58,7 +58,8 @@ test('create project: validation errors name the field only', async () => {
 });
 
 test('list: filters, sorts, and paging', async () => {
-  const t = await createTestApp();
+  let clock = Date.parse('2026-11-01T00:00:00Z');
+  const t = await createTestApp({ now: () => new Date(clock += 1000).toISOString() }); // distinct updated_at values
   const a = t.as('alice');
   const web = (await a.post('/api/tags', { name: 'Web' })).body;
   const p1 = (await a.post('/api/projects', { name: 'Zeta', status: 'Done', tag_ids: [web.id] })).body;

@@ -7,3 +7,4 @@ host/
 *.db-shm
 .DS_Store
 backups/
+.claude/worktrees/
