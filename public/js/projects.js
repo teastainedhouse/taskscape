@@ -1,0 +1,218 @@
+// projects.js — the project list (index.html): sort, filter, search,
+// new project, trash with confirm, overdue marquee, What's New preview.
+
+import { boot, say, sayError, attempt } from './page.js';
+import { get, post, del, projectPath } from './api.js';
+import { el, btn, option, clear, setChildren, padlock, projectLink, tagChip, timeEl } from './dom.js';
+import { fetchOverdue, renderMarquee } from './overdue.js';
+import { allTags } from './tags.js';
+import { describeActivity } from './activity-words.js';
+
+/**
+ * Columns of the project table. Add a column here ("add a field" recipe):
+ * `sort` is one of the API's sort fields or null; `cell` builds the cell.
+ */
+const COLUMNS = [
+  { key: 'name', label: 'Name', sort: 'name', cell: (p) => [p.private ? padlock() : null, projectLink(p.id, p.name)] },
+  { key: 'status', label: 'Status', sort: 'status', cell: (p) => p.status },
+  { key: 'owner', label: 'Owner', sort: 'owner_name', cell: (p) => p.owner_name },
+  { key: 'tags', label: 'Tags', sort: null, cell: (p) => (p.tags ?? []).map((t) => tagChip(t)) },
+  { key: 'updated', label: 'Updated', sort: 'updated_at', cell: (p) => timeEl(p.updated_at) },
+];
+
+const state = {
+  sort: 'updated_at',
+  dir: 'desc',
+  status: '',
+  owner: '',
+  tag: '',
+  projects: /** @type {any[]} */ ([]),
+};
+
+const { config, me } = await boot({ title: 'Projects' });
+const canEdit = !!me.can_edit;
+
+const table = document.getElementById('projects');
+const thead = table.querySelector('thead');
+const tbody = table.querySelector('tbody');
+
+buildFilters();
+buildHeader();
+setupNewProject();
+setupSearch();
+await loadProjects();
+loadMarquee();
+loadPreview();
+
+/** Status / owner / tag filters, data-driven from config and the API. */
+async function buildFilters() {
+  const host = document.getElementById('filters');
+  const status = el('select', { id: 'f-status' }, option('', 'Any status'), config.statuses.project.map((s) => option(s)));
+  const owner = el('select', { id: 'f-owner' }, option('', 'Anyone'), option('me', 'Me'));
+  const tag = el('select', { id: 'f-tag' }, option('', 'Any tag'));
+  setChildren(host, [
+    el('div', { class: 'field' }, el('label', { for: 'f-status' }, 'Status'), status),
+    el('div', { class: 'field' }, el('label', { for: 'f-owner' }, 'Owner'), owner),
+    el('div', { class: 'field' }, el('label', { for: 'f-tag' }, 'Tag'), tag),
+    el('div', { class: 'field' }, btn('Clear filters', () => { status.value = owner.value = tag.value = ''; apply(); })),
+  ]);
+  const apply = () => { state.status = status.value; state.owner = owner.value; state.tag = tag.value; loadProjects(); };
+  for (const s of [status, owner, tag]) s.addEventListener('change', apply);
+  try {
+    const [people, tags] = await Promise.all([get('/api/people'), allTags()]);
+    for (const p of people.items ?? []) if (p.id !== me.id) owner.appendChild(option(p.id, p.name));
+    for (const t of tags) tag.appendChild(option(t.name));
+  } catch (err) { sayError(err, 'Could not load filters'); }
+}
+
+/** Header row with sort buttons. */
+function buildHeader() {
+  const tr = el('tr');
+  for (const c of COLUMNS) {
+    const th = el('th', { scope: 'col' });
+    if (c.sort) {
+      const active = state.sort === c.sort;
+      th.setAttribute('aria-sort', active ? (state.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+      const b = btn(`${c.label}${active ? (state.dir === 'asc' ? ' ▲' : ' ▼') : ''}`, () => {
+        if (state.sort === c.sort) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+        else { state.sort = c.sort; state.dir = ['name'].includes(c.sort) ? 'asc' : 'desc'; }
+        buildHeader();
+        loadProjects();
+      }, { class: 'sort', 'aria-label': `Sort by ${c.label}` });
+      th.appendChild(b);
+    } else th.textContent = c.label;
+    tr.appendChild(th);
+  }
+  if (canEdit) tr.appendChild(el('th', { scope: 'col' }, 'Actions'));
+  setChildren(thead, [tr]);
+}
+
+/** Fetch and render the list with the current sort and filters. */
+async function loadProjects() {
+  try {
+    const res = await get('/api/projects', { sort: state.sort, dir: state.dir, status: state.status, owner: state.owner, tag: state.tag });
+    state.projects = res.items ?? [];
+  } catch (err) { sayError(err, 'Could not load projects'); return; }
+  renderRows();
+}
+
+function renderRows() {
+  clear(tbody);
+  for (const p of state.projects) tbody.appendChild(row(p));
+  document.getElementById('projects-empty').hidden = state.projects.length > 0;
+}
+
+/** One table row. @param {any} p */
+function row(p) {
+  const tr = el('tr', { id: `project-${p.id}` });
+  for (const c of COLUMNS) tr.appendChild(el('td', { class: `col-${c.key}` }, c.cell(p)));
+  if (canEdit) {
+    const actions = el('td', { class: 'row-actions' });
+    if (p.id !== config.catch_all_project_id) {
+      actions.appendChild(btn('Trash', () => trashProject(p), { class: 'danger', 'aria-label': `Move project ${p.name} to the trash` }));
+    }
+    tr.appendChild(actions);
+  }
+  return tr;
+}
+
+/** Trash with confirm; on 409 reload the row from the live record. @param {any} p */
+async function trashProject(p) {
+  if (!confirm(`Move the project "${p.name}" to the trash?\nIts tasks go with it. You can restore it from the Trash page.`)) return;
+  const rec = await attempt(() => del(projectPath(p.id), { version: p.version }), (current) => replaceRow(current));
+  if (rec) {
+    state.projects = state.projects.filter((x) => x.id !== p.id);
+    renderRows();
+    say(`"${rec.name}" moved to the trash.`);
+  }
+}
+
+/** @param {any} current */
+function replaceRow(current) {
+  const i = state.projects.findIndex((x) => x.id === current.id);
+  if (i >= 0) state.projects[i] = current;
+  renderRows();
+}
+
+/** The "New project" form. */
+function setupNewProject() {
+  const form = document.getElementById('new-project');
+  const status = document.getElementById('np-status');
+  for (const s of config.statuses.project) status.appendChild(option(s, s, s === config.default_status.project));
+  document.getElementById('np-private').checked = !!config.privacy?.default_private;
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const body = {
+      name: document.getElementById('np-name').value.trim(),
+      description: document.getElementById('np-description').value,
+      status: status.value,
+      private: document.getElementById('np-private').checked,
+    };
+    if (!body.name) return;
+    try {
+      const p = await post('/api/projects', body);
+      form.reset();
+      status.value = config.default_status.project;
+      say(`Project "${p.name}" created.`);
+      await loadProjects();
+      document.getElementById(`project-${p.id}`)?.querySelector('a')?.focus();
+    } catch (err) { sayError(err, 'Could not create the project'); }
+  });
+}
+
+/** Search box over /api/search (2+ characters). */
+function setupSearch() {
+  const form = document.getElementById('search-form');
+  const input = document.getElementById('search-q');
+  const results = document.getElementById('search-results');
+  let timer = null;
+  const run = async () => {
+    const q = input.value.trim();
+    if (q.length < 2) { clear(results); return; }
+    try {
+      const res = await get('/api/search', { q });
+      renderSearch(res, q);
+    } catch (err) { sayError(err, 'Search failed'); }
+  };
+  form.addEventListener('submit', (ev) => { ev.preventDefault(); run(); });
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 300); });
+  document.getElementById('search-clear').addEventListener('click', () => { input.value = ''; clear(results); input.focus(); });
+
+  function renderSearch(res, q) {
+    const projects = res.projects ?? [], tasks = res.tasks ?? [];
+    if (!projects.length && !tasks.length) { setChildren(results, [el('p', null, `Nothing found for "${q}".`)]); return; }
+    const out = [];
+    if (projects.length) {
+      out.push(el('h3', null, `Projects (${projects.length})`));
+      out.push(el('ul', null, projects.map((p) => el('li', null, p.private ? padlock() : null, projectLink(p.id, p.name), ` — ${p.status}, ${p.owner_name}`))));
+    }
+    if (tasks.length) {
+      out.push(el('h3', null, `Tasks (${tasks.length})`));
+      out.push(el('ul', null, tasks.map((t) => el('li', null, t.private ? padlock() : null, projectLink(t.project_id, t.title, `task-${t.id}`),
+        ` — ${t.status}, ${t.owner_name}, in `, projectLink(t.project_id, t.project_name)))));
+    }
+    setChildren(results, out);
+  }
+}
+
+/** Overdue marquee across all visible projects. */
+async function loadMarquee() {
+  try {
+    renderMarquee(document.getElementById('marquee'), await fetchOverdue(config), { showProject: true });
+  } catch (err) { console.error(err); }
+}
+
+/** Five latest activity entries. */
+async function loadPreview() {
+  const ul = document.getElementById('activity-preview');
+  try {
+    const res = await get('/api/activity', { limit: 5 });
+    const items = res.items ?? [];
+    if (!items.length) { setChildren(ul, [el('li', null, 'Nothing yet.')]); return; }
+    const names = new Map(state.projects.map((p) => [p.id, p.name]));
+    setChildren(ul, items.map((a) => {
+      const d = describeActivity(a, { projectNames: names });
+      return el('li', null, timeEl(a.created_at), ' — ', el('b', null, a.actor_name), ` (${d.via}) `, d.what, d.link ? [' — ', d.link] : null);
+    }));
+  } catch (err) { setChildren(ul, [el('li', null, 'Could not load activity.')]); }
+}

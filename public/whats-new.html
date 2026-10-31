@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>What's New? - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-netscape.css" id="theme-css">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <h1 class="site-title"><a href="index.html" data-site-title>Taskscape</a></h1>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>What's New?</h1>
+      <p class="muted">Every change, newest first. Entries about private items show only to their owner.</p>
+      <div class="filters" role="group" aria-label="Filter activity">
+        <div class="field">
+          <label for="f-via">Via</label>
+          <select id="f-via" name="via">
+            <option value="">Anyone</option>
+            <option value="ui">UI (browser)</option>
+            <option value="mcp">Claude (MCP)</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="feed">
+          <caption class="visually-hidden">Activity log</caption>
+          <thead>
+            <tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Via</th><th scope="col">What changed</th><th scope="col">Item</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="feed-empty" hidden>Nothing yet.</p>
+      <p><button type="button" id="load-more" hidden>Load more</button></p>
+    </main>
+
+    <footer class="site-footer">
+      <p><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+    </footer>
+  </div>
+  <script type="module" src="js/whats-new.js"></script>
+</body>
+</html>
