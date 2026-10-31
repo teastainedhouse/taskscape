@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Projects - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-netscape.css" id="theme-css">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <h1 class="site-title"><a href="index.html" data-site-title>Taskscape</a></h1>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+    </header>
+
+    <div id="marquee" hidden></div>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>Projects</h1>
+
+      <section aria-labelledby="search-h">
+        <h2 id="search-h">Search</h2>
+        <form id="search-form" class="inline-form" role="search">
+          <label for="search-q">Find projects and tasks (2+ characters)</label>
+          <input type="search" id="search-q" name="q" autocomplete="off" size="30">
+          <button type="submit">Search</button>
+          <button type="button" id="search-clear">Clear</button>
+        </form>
+        <div id="search-results" aria-live="polite"></div>
+      </section>
+
+      <section aria-labelledby="list-h">
+        <h2 id="list-h">All projects</h2>
+        <div class="filters" id="filters" role="group" aria-label="Filter projects"></div>
+        <div class="table-wrap">
+          <table id="projects">
+            <caption class="visually-hidden">Projects. Column headers sort the list.</caption>
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="projects-empty" hidden>No projects match.</p>
+      </section>
+
+      <section aria-labelledby="new-h" data-needs-edit>
+        <h2 id="new-h">New project</h2>
+        <form id="new-project">
+          <div class="field"><label for="np-name">Name</label><input type="text" id="np-name" name="name" required maxlength="200" size="40"></div>
+          <div class="field"><label for="np-description">Description</label><textarea id="np-description" name="description" rows="3"></textarea></div>
+          <div class="field"><label for="np-status">Status</label><select id="np-status" name="status"></select></div>
+          <div class="field"><label><input type="checkbox" id="np-private" name="private"> Private (only you can see it)</label></div>
+          <button type="submit">Create project</button>
+        </form>
+      </section>
+
+      <section aria-labelledby="wn-h">
+        <h2 id="wn-h"><a href="whats-new.html">What's New?</a></h2>
+        <ul id="activity-preview"></ul>
+        <p><a href="whats-new.html">See the whole activity log &raquo;</a></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+      <div id="webring"></div>
+    </footer>
+  </div>
+  <script type="module" src="js/projects.js"></script>
+</body>
+</html>

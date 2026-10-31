@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My MCP tokens - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-netscape.css" id="theme-css">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <h1 class="site-title"><a href="index.html" data-site-title>Taskscape</a></h1>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>My MCP tokens</h1>
+      <p>A token lets Claude (through the MCP server) act as you. Each token belongs to one person and sees exactly what that person sees. Revoke a token at any time.</p>
+
+      <section aria-labelledby="issue-h">
+        <h2 id="issue-h">Issue a token</h2>
+        <form id="issue-form" class="inline-form">
+          <label for="tok-label">Label (where it will be used)</label>
+          <input type="text" id="tok-label" name="label" required maxlength="80" size="30">
+          <button type="submit">Issue token</button>
+        </form>
+        <div id="token-reveal"></div>
+      </section>
+
+      <section aria-labelledby="use-h">
+        <h2 id="use-h">Using a token</h2>
+        <p>Set these in the shell that starts the MCP server, then run it:</p>
+        <pre id="env-block"></pre>
+      </section>
+
+      <section aria-labelledby="list-h">
+        <h2 id="list-h">Your tokens</h2>
+        <div class="table-wrap">
+          <table id="tokens">
+            <caption class="visually-hidden">Your MCP tokens</caption>
+            <thead><tr><th scope="col">Label</th><th scope="col">Prefix</th><th scope="col">Created</th><th scope="col">Last used</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="tokens-empty" hidden>You have no tokens yet.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+    </footer>
+  </div>
+  <script type="module" src="js/tokens.js"></script>
+</body>
+</html>

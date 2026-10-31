@@ -1,0 +1,156 @@
+/* theme-netscape.css — the whole 1996 look. Swap the theme by setting
+   "theme" in taskscape.config.json to the name of another theme-<name>.css. */
+
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 16px;
+  color: #000000;
+  background: #000000 url("../img/stars.png") repeat;
+}
+
+/* Text never sits directly on the starfield: every panel is solid. */
+.panel, .site-header, .site-footer {
+  background: #c0c0c0;
+  color: #000000;
+  border: 2px outset #ffffff;
+  padding: 8px 12px;
+  margin: 10px 0;
+}
+.panel { background: #ffffff; }
+.site-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.site-title { font-size: 2em; margin: 0; font-weight: bold; }
+.site-title a { color: #000000; text-decoration: none; }
+.site-title a::before { content: "\2605  "; color: #000080; }
+nav a, nav span { margin: 0 2px; }
+nav [aria-current="page"] { font-weight: bold; text-decoration: none; color: #000000; }
+
+h1, h2, h3 { font-family: "Times New Roman", Times, serif; margin: 0.6em 0 0.3em; }
+h1 { font-size: 1.7em; }
+h2 { font-size: 1.3em; border-bottom: 1px solid #808080; }
+hr { border: 0; border-top: 1px solid #808080; border-bottom: 1px solid #ffffff; }
+
+a { color: #0000ee; text-decoration: underline; }
+a:visited { color: #551a8b; }
+a:active { color: #ff0000; }
+
+/* Gray beveled buttons */
+button, input[type="submit"], input[type="button"], .button {
+  background: #c0c0c0;
+  color: #000000;
+  border: 2px outset #ffffff;
+  padding: 2px 10px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+button:active { border-style: inset; }
+button:disabled { color: #808080; cursor: default; }
+button.danger { color: #800000; }
+
+input[type="text"], input[type="search"], input[type="date"], input[type="url"], select, textarea {
+  background: #ffffff;
+  color: #000000;
+  border: 2px inset #808080;
+  padding: 2px 4px;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 1em;
+}
+input[readonly] { background: #e0e0e0; }
+
+/* Visible borders on every list, the border=1 cellpadding=3 feel. */
+table { border: 1px outset #808080; background: #ffffff; }
+th, td { border: 1px inset #c0c0c0; }
+th { background: #c0c0c0; font-weight: bold; }
+tbody tr:nth-child(even) td { background: #f4f4f4; }
+tr.overdue td.col-due_date { color: #c00000; font-weight: bold; }
+tr.trashed td { color: #606060; font-style: italic; }
+td input[type="text"] { width: 100%; min-width: 10em; }
+td input[type="date"] { min-width: 9em; }
+
+/* Status message */
+.status { font-family: Arial, Helvetica, sans-serif; font-size: 0.95em; }
+.status:not(:empty) { background: #ffffcc; border: 1px solid #808000; padding: 4px 8px; }
+.status.error:not(:empty) { background: #ffdddd; border-color: #800000; color: #600000; }
+
+/* Marquee of overdue tasks */
+.marquee {
+  background: #000000;
+  color: #ffff00;
+  border: 2px inset #808080;
+  padding: 3px 0;
+  margin: 8px 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+}
+.marquee a { color: #ffff00; }
+.marquee a:visited { color: #ffcc66; }
+.marquee__label { color: #ff6666; }
+
+/* Hit counter: lime monospace digits on black with a beveled border, no GIFs. */
+.hit-counter {
+  display: inline-block;
+  background: #000000;
+  border: 3px outset #808080;
+  padding: 2px 3px;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
+}
+.hit-counter .digit {
+  display: inline-block;
+  min-width: 0.8em;
+  margin: 0 1px;
+  padding: 2px 3px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 1.4em;
+  font-weight: bold;
+  color: #00ff00;
+  background: #101010;
+  border: 1px solid #333333;
+  text-align: center;
+}
+.hit-caption { font-family: Arial, Helvetica, sans-serif; font-size: 0.8em; }
+
+/* Webring bar (hidden until the counter is clicked three times) */
+.webring {
+  background: #000080;
+  color: #ffffff;
+  border: 2px outset #c0c0c0;
+  padding: 6px 10px;
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.webring a { color: #ffff00; }
+.webring a:visited { color: #ffcc66; }
+
+/* Dev mode banner */
+.dev-banner {
+  background: #ff0000;
+  color: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  text-align: center;
+  padding: 4px 16px;
+}
+.dev-banner select { margin-left: 6px; font-weight: normal; }
+
+/* Footer */
+.site-footer { text-align: center; font-size: 0.9em; }
+.site-footer p { margin: 4px 0; }
+.site-footer .badge { display: inline-block; border: 2px outset #ffffff; background: #000080; color: #ffffff; padding: 1px 8px; font-family: Arial, Helvetica, sans-serif; font-size: 0.8em; }
+
+/* Under construction */
+.under-construction { text-align: center; padding: 16px 0; }
+.under-construction img { max-width: 100%; height: auto; }
+
+/* Tag chips */
+.tag-chip { font-family: Arial, Helvetica, sans-serif; font-size: 0.85em; }
+
+/* Token plaintext box */
+.token-box { background: #ffffcc; border: 2px inset #808000; padding: 8px 12px; margin: 10px 0; }
+.token-box code, pre { font-family: "Courier New", Courier, monospace; }
+pre { background: #f0f0f0; border: 1px inset #c0c0c0; padding: 6px 8px; }
+
+/* Activity feed */
+.via-mcp { color: #800080; font-weight: bold; }
+.via-ui { color: #000080; font-weight: bold; }

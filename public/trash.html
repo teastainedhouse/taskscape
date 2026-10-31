@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trash - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-netscape.css" id="theme-css">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <h1 class="site-title"><a href="index.html" data-site-title>Taskscape</a></h1>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>Trash</h1>
+      <p class="muted">Nothing is ever deleted for good in Taskscape; restore anything from here. Tasks of a trashed project come back with it.</p>
+
+      <section aria-labelledby="tp-h">
+        <h2 id="tp-h">Projects</h2>
+        <div class="table-wrap">
+          <table id="trash-projects">
+            <caption class="visually-hidden">Trashed projects</caption>
+            <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Trashed</th><th scope="col" data-needs-edit>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="trash-projects-empty" hidden>No trashed projects.</p>
+      </section>
+
+      <section aria-labelledby="tt-h">
+        <h2 id="tt-h">Tasks</h2>
+        <div class="table-wrap">
+          <table id="trash-tasks">
+            <caption class="visually-hidden">Trashed tasks</caption>
+            <thead><tr><th scope="col">Title</th><th scope="col">Project</th><th scope="col">Status</th><th scope="col">Owner</th><th scope="col">Trashed</th><th scope="col" data-needs-edit>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="trash-tasks-empty" hidden>No trashed tasks.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
+    </footer>
+  </div>
+  <script type="module" src="js/trash.js"></script>
+</body>
+</html>
