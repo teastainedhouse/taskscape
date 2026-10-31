@@ -1,0 +1,244 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createTestApp, NOT_FOUND_BODY } from './helpers.js';
+
+/** alice: public project P {T1 public, T2 private}; carol: private project S {S1}. bob is the outsider. */
+async function seed(t) {
+  const a = t.as('alice'); const c = t.as('carol');
+  const P = (await a.post('/api/projects', { name: 'Public plan', description: 'open to all' })).body;
+  const T1 = (await a.post('/api/tasks', { title: 'Visible task', project_id: P.id, notes: 'hello world' })).body;
+  const T2 = (await a.post('/api/tasks', { title: 'Hidden task', project_id: P.id, private: true, notes: 'secret notes' })).body;
+  const S = (await c.post('/api/projects', { name: 'Secret reorg', private: true, description: 'confidential' })).body;
+  const S1 = (await c.post('/api/tasks', { title: 'Secret task', project_id: S.id, notes: 'classified' })).body;
+  return { a, c, b: t.as('bob'), P, T1, T2, S, S1 };
+}
+
+test('every read path hides other people\'s private items, and 404s are byte-identical to missing ids', async () => {
+  const t = await createTestApp();
+  const { b, c, P, T1, T2, S, S1 } = await seed(t);
+  const missing = await b.get('/api/projects/no-such-id');
+  const ids = (list) => list.map((x) => x.id);
+
+  // lists
+  assert.deepEqual(ids((await b.get('/api/projects')).body.items).sort(), [P.id, 'general'].sort());
+  assert.deepEqual(ids((await b.get('/api/tasks')).body.items), [T1.id]);
+  assert.deepEqual(ids((await b.get(`/api/tasks?project=${S.id}`)).body.items), []);
+  assert.deepEqual(ids((await b.get('/api/tasks?include_trashed=true')).body.items), [T1.id]);
+  // gets: same bytes as a missing id
+  for (const path of [`/api/projects/${S.id}`, `/api/tasks/${T2.id}`, `/api/tasks/${S1.id}`, `/api/projects/${S.id}/export.md`]) {
+    const r = await b.get(path);
+    assert.equal(r.status, 404, path);
+    assert.equal(r.text, missing.text, path);
+    assert.deepEqual(r.body, NOT_FOUND_BODY);
+  }
+  // search
+  const s = (await b.get('/api/search?q=secret')).body;
+  assert.deepEqual(s, { projects: [], tasks: [] });
+  const s2 = (await b.get('/api/search?q=classified')).body;
+  assert.deepEqual(s2.tasks, []);
+  assert.deepEqual(ids((await b.get('/api/search?q=hidden')).body.tasks), []);
+  assert.deepEqual(ids((await b.get('/api/search?q=visible')).body.tasks), [T1.id]);
+  // export of the public project omits the private task
+  const md = (await b.get(`/api/projects/${P.id}/export.md`)).text;
+  assert.ok(md.includes('Visible task'));
+  assert.equal(md.includes('Hidden task'), false);
+  assert.equal(md.includes('secret notes'), false);
+  // activity: nothing about S, S1, or T2 for bob; everything for the owners
+  const bobAct = (await b.get('/api/activity')).body.items;
+  assert.equal(bobAct.some((e) => [S.id, S1.id, T2.id].includes(e.item_id)), false);
+  assert.equal(bobAct.some((e) => e.item_id === T1.id), true);
+  const carolAct = (await c.get('/api/activity')).body.items;
+  assert.equal(carolAct.some((e) => e.item_id === S1.id), true);
+  // activity filtered by project id does not leak either
+  assert.deepEqual((await b.get(`/api/activity?project=${S.id}`)).body.items, []);
+  // trash: carol trashes S1; bob's trash is empty
+  await c.delete(`/api/tasks/${S1.id}`, { version: 1 });
+  assert.deepEqual((await b.get('/api/trash')).body, { projects: [], tasks: [] });
+  assert.deepEqual(ids((await c.get('/api/trash')).body.tasks), [S1.id]);
+  // error messages never mention the item
+  const all = JSON.stringify([missing.body, s, bobAct]);
+  for (const word of ['Secret', 'Hidden', 'classified', 'confidential']) assert.equal(all.includes(word), false, word);
+  await t.close();
+});
+
+test('write paths against a private item are the same 404', async () => {
+  const t = await createTestApp();
+  const { b, a, S, S1, T2, T1 } = await seed(t);
+  const tag = (await b.post('/api/tags', { name: 'x' })).body;
+  const missing = (await b.get('/api/projects/no-such-id')).text;
+  const attempts = [
+    b.patch(`/api/projects/${S.id}`, { version: 1, name: 'pwned' }),
+    b.delete(`/api/projects/${S.id}`, { version: 1 }),
+    b.post(`/api/projects/${S.id}/restore`, { version: 1 }),
+    b.put(`/api/projects/${S.id}/tags/${tag.id}`, { version: 1 }),
+    b.post(`/api/projects/${S.id}/hit`),
+    b.post('/api/tasks', { title: 'sneak in', project_id: S.id }),
+    b.patch(`/api/tasks/${T1.id}`, { version: 1, project_id: S.id }),
+    b.patch(`/api/tasks/${T2.id}`, { version: 1, title: 'pwned' }),
+    b.patch(`/api/tasks/${S1.id}`, { version: 1, title: 'pwned' }),
+    b.delete(`/api/tasks/${T2.id}`, { version: 1 }),
+    b.put(`/api/tasks/${T2.id}/tags/${tag.id}`, { version: 1 }),
+  ];
+  for (const r of await Promise.all(attempts)) {
+    assert.equal(r.status, 404);
+    assert.equal(r.text, missing);
+  }
+  // nothing changed
+  assert.equal((await a.get(`/api/tasks/${T2.id}`)).body.title, 'Hidden task');
+  assert.equal((await a.get(`/api/tasks/${T1.id}`)).body.project_id, (await a.get(`/api/tasks/${T1.id}`)).body.project_id);
+  await t.close();
+});
+
+test('a private task in a public project is hidden; tags on it do not surface it via tag filters', async () => {
+  const t = await createTestApp();
+  const { a, b, P, T2 } = await seed(t);
+  const tag = (await a.post('/api/tags', { name: 'q4' })).body;
+  await a.put(`/api/tasks/${T2.id}/tags/${tag.id}`, { version: 1 });
+  assert.equal((await b.get(`/api/projects/${P.id}`)).status, 200);
+  assert.deepEqual((await b.get('/api/tasks?tag=q4')).body.items, []);
+  const tags = (await b.get('/api/tags')).body.items;
+  assert.deepEqual(tags.map((x) => x.name), ['q4']); // names are public, counts do not exist
+  assert.equal('count' in tags[0], false);
+  await t.close();
+});
+
+test('only the owner can flip private; flipping hides and reveals the full history', async () => {
+  const t = await createTestApp();
+  const { a, b, T1 } = await seed(t);
+  let r = await b.patch(`/api/tasks/${T1.id}`, { version: 1, private: true });
+  assert.equal(r.status, 403);
+  assert.equal(r.body.error.code, 'forbidden');
+  await b.patch(`/api/tasks/${T1.id}`, { version: 1, status: 'Doing' }); // bob may still edit other fields
+  const entriesBefore = (await b.get(`/api/activity?item_id=${T1.id}`)).body.items.length;
+  assert.equal(entriesBefore, 2);
+  r = await a.patch(`/api/tasks/${T1.id}`, { version: 2, private: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.private, true);
+  assert.deepEqual((await b.get('/api/tasks')).body.items, []);
+  assert.deepEqual((await b.get(`/api/activity?item_id=${T1.id}`)).body.items, []);
+  assert.equal((await b.get(`/api/tasks/${T1.id}`)).status, 404);
+  r = await a.patch(`/api/tasks/${T1.id}`, { version: 3, private: false });
+  assert.equal(r.status, 200);
+  assert.equal((await b.get(`/api/tasks/${T1.id}`)).status, 200);
+  const after = (await b.get(`/api/activity?item_id=${T1.id}`)).body.items;
+  assert.equal(after.length, 4); // create, bob's edit, flip on, flip off: all visible again
+  await t.close();
+});
+
+test('reassigning a private item passes it, and its history, to the new owner', async () => {
+  const t = await createTestApp();
+  const { a, b, T2 } = await seed(t);
+  const r = await a.patch(`/api/tasks/${T2.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bob Ortiz' });
+  assert.equal(r.status, 200); // the writer sees the result once
+  assert.equal(r.body.owner_id, 'bob');
+  assert.equal((await a.get(`/api/tasks/${T2.id}`)).status, 404);
+  assert.equal((await b.get(`/api/tasks/${T2.id}`)).status, 200);
+  assert.equal((await b.get(`/api/activity?item_id=${T2.id}`)).body.items.length, 2);
+  assert.deepEqual((await a.get(`/api/activity?item_id=${T2.id}`)).body.items, []);
+  // bob, now the owner, can make it public; alice could not have
+  assert.equal((await b.patch(`/api/tasks/${T2.id}`, { version: 2, private: false })).status, 200);
+  await t.close();
+});
+
+test('creating a private item for someone else is refused', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  let r = await a.post('/api/projects', { name: 'Gift', private: true, owner_id: 'bob', owner_name: 'Bob' });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.code, 'invalid_state');
+  r = await a.post('/api/tasks', { title: 'Gift', private: true, owner_id: 'bob', owner_name: 'Bob' });
+  assert.equal(r.status, 400);
+  assert.equal((await t.as('bob').get('/api/trash')).body.projects.length, 0);
+  assert.equal((await a.get('/api/projects')).body.items.length, 1); // only General
+  await t.close();
+});
+
+test('a private project only contains its owner\'s tasks: flipping moves the others to the catch-all', async () => {
+  const t = await createTestApp();
+  const { a, b, P } = await seed(t);
+  const B1 = (await b.post('/api/tasks', { title: 'Bob in P', project_id: P.id })).body;
+  const B2 = (await b.post('/api/tasks', { title: 'Bob trashed in P', project_id: P.id })).body;
+  await b.delete(`/api/tasks/${B2.id}`, { version: 1 });
+  const r = await a.patch(`/api/projects/${P.id}`, { version: 1, private: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.private, true);
+  assert.equal(r.body.moved_tasks, 2);
+  // bob still owns them, now under General, with a visible activity entry written by alice
+  const b1 = (await b.get(`/api/tasks/${B1.id}`)).body;
+  assert.equal(b1.project_id, 'general');
+  assert.equal(b1.version, 2);
+  const entry = (await b.get(`/api/activity?item_id=${B1.id}`)).body.items[0];
+  assert.equal(entry.actor_id, 'alice');
+  assert.deepEqual(entry.changes, { project_id: { from: P.id, to: 'general' } });
+  const b2 = (await b.get(`/api/tasks/${B2.id}`)).body;
+  assert.equal(b2.project_id, 'general');
+  assert.ok(b2.deleted_at);
+  // alice's own tasks stayed; bob sees nothing of P now
+  assert.deepEqual((await a.get(`/api/tasks?project=${P.id}`)).body.items.map((x) => x.title).sort(), ['Hidden task', 'Visible task']);
+  assert.equal((await b.get(`/api/projects/${P.id}`)).status, 404);
+  assert.equal((await b.get(`/api/activity?item_id=${P.id}`)).body.items.length, 0);
+  // the invariant is enforced on the other doors
+  let x = await a.post('/api/tasks', { title: 'for bob', project_id: P.id, owner_id: 'bob', owner_name: 'Bob' });
+  assert.equal(x.status, 400); assert.equal(x.body.error.code, 'invalid_state');
+  const mine = (await a.post('/api/tasks', { title: 'mine', project_id: P.id })).body;
+  x = await a.patch(`/api/tasks/${mine.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bob' });
+  assert.equal(x.status, 400); assert.equal(x.body.error.code, 'invalid_state');
+  x = await a.patch(`/api/tasks/${B1.id}`, { version: 2, project_id: P.id });
+  assert.equal(x.status, 400); assert.equal(x.body.error.code, 'invalid_state');
+  assert.equal(JSON.stringify(x.body).includes('Bob'), false);
+  // flipping back public: no moves, no count
+  const back = await a.patch(`/api/projects/${P.id}`, { version: 2, private: false });
+  assert.equal(back.body.moved_tasks, undefined);
+  await t.close();
+});
+
+test('reassigning a private project moves tasks the new owner does not own', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Mine', private: true })).body;
+  const mine = (await a.post('/api/tasks', { title: 'mine', project_id: P.id })).body;
+  const r = await a.patch(`/api/projects/${P.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bob Ortiz' });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.owner_id, 'bob');
+  assert.equal(r.body.moved_tasks, 1);
+  assert.equal((await a.get(`/api/projects/${P.id}`)).status, 404);
+  assert.equal((await a.get(`/api/tasks/${mine.id}`)).body.project_id, 'general');
+  assert.equal((await t.as('bob').get(`/api/projects/${P.id}`)).status, 200);
+  await t.close();
+});
+
+test('the catch-all project is always public and always there', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  for (const body of [{ version: 1, private: true }, { version: 1, owner_id: 'alice' }]) {
+    const r = await a.patch('/api/projects/general', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal(r.body.error.code, 'invalid_state');
+  }
+  const ok = await a.patch('/api/projects/general', { version: 1, name: 'Inbox', status: 'Active' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.name, 'Inbox');
+  assert.equal((await a.post('/api/tasks', { title: 'orphan' })).body.project_name, 'Inbox');
+  await t.close();
+});
+
+test('people never includes owners known only through private items', async () => {
+  const t = await createTestApp({ config: { auth: { provider: 'headers' } } });
+  const as = (id, name) => t.withHeaders({ 'x-forwarded-user': id, 'x-forwarded-preferred-username': name });
+  await as('ghost', 'Ghost').post('/api/projects', { name: 'Haunted', private: true });
+  await as('dave', 'Dave').post('/api/projects', { name: 'Open' });
+  const seen = (await as('bob', 'Bob').get('/api/people')).body.items.map((p) => p.id).sort();
+  assert.deepEqual(seen, ['bob', 'dave']);
+  await t.close();
+});
+
+test('a token sees exactly what its owner sees', async () => {
+  const t = await createTestApp();
+  const { a, b, T2, S } = await seed(t);
+  const { plaintext: aliceTok } = (await a.post('/api/tokens', { label: 'a' })).body;
+  const { plaintext: bobTok } = (await b.post('/api/tokens', { label: 'b' })).body;
+  assert.equal((await t.tokenAs(aliceTok).get(`/api/tasks/${T2.id}`)).status, 200);
+  assert.equal((await t.tokenAs(bobTok).get(`/api/tasks/${T2.id}`)).status, 404);
+  assert.equal((await t.tokenAs(aliceTok).get(`/api/projects/${S.id}`)).status, 404);
+  await t.close();
+});

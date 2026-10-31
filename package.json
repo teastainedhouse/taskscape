@@ -1,0 +1,24 @@
+{
+  "name": "taskscape",
+  "version": "0.1.0",
+  "description": "A tiny self-hosted work tracker with a 1996 look. Browser and Claude share one API.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "node --disable-warning=ExperimentalWarning --watch scripts/dev.js",
+    "start": "node --disable-warning=ExperimentalWarning scripts/dev.js",
+    "migrate": "node --disable-warning=ExperimentalWarning scripts/migrate.js",
+    "seed": "node --disable-warning=ExperimentalWarning scripts/seed.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
+    "mcp": "node mcp/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "pg": "^8.23.1"
+  }
+}

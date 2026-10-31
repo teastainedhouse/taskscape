@@ -1,0 +1,51 @@
+{
+  "site_title": "Taskscape",
+  "theme": "netscape",
+  "statuses": {
+    "project": ["Planned", "Active", "On hold", "Done"],
+    "task": ["To do", "Doing", "Blocked", "Done"]
+  },
+  "closed_statuses": {
+    "project": ["Done"],
+    "task": ["Done"]
+  },
+  "default_status": {
+    "project": "Planned",
+    "task": "To do"
+  },
+  "tag_palette": ["#000080", "#008000", "#800000", "#808000", "#800080", "#008080", "#ff0000", "#0000ff"],
+  "task_fields": ["title", "status", "owner", "due_date", "tags", "private"],
+  "default_views": {
+    "tasks": { "sort": "due_date", "dir": "asc" }
+  },
+  "privacy": { "default_private": false },
+  "permissions": { "edit": "everyone", "groups": [] },
+  "webring": [],
+  "limits": { "page_size": 500, "max_page_size": 1000, "body_bytes": 262144 },
+  "catch_all_project": { "id": "general", "name": "General", "description": "Tasks that belong to no other project." },
+  "auth": {
+    "provider": "dev",
+    "headers": {
+      "id": "x-forwarded-user",
+      "name": "x-forwarded-preferred-username",
+      "email": "x-forwarded-email",
+      "groups": "x-forwarded-groups",
+      "principal": null,
+      "id_path": "userId",
+      "name_path": "userDetails",
+      "email_path": "claims.email",
+      "groups_path": "userRoles",
+      "claims_path": "claims",
+      "claim_type_key": "typ",
+      "claim_value_key": "val"
+    },
+    "dev": {
+      "default_user": "alice",
+      "users": [
+        { "id": "alice", "name": "Alice Lin", "email": "alice@example.test", "groups": ["editors"] },
+        { "id": "bob", "name": "Bob Ortiz", "email": "bob@example.test", "groups": ["editors"] },
+        { "id": "carol", "name": "Carol Nkemelu", "email": "carol@example.test", "groups": ["editors"] }
+      ]
+    }
+  }
+}

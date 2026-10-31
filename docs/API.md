@@ -25,7 +25,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | HTTP | code | When |
 | --- | --- | --- |
 | 400 | `validation_failed` | bad JSON, missing/invalid field, missing `version`, missing `X-Taskscape-Session` on a token write, read-only field sent |
-| 400 | `invalid_state` | create a task in a trashed project; restore a task whose project is trashed; restore a live item; trash a trashed item; hit a trashed project; putting someone else's task into a private project (create for another owner, reassign to another owner, move, or restore); making the catch-all project private, reassigning it, or trashing it |
+| 400 | `invalid_state` | edit, tag, or hit a trashed item; create a task in a trashed project; restore a task whose project is trashed; restore a live item; trash a trashed item; create a private item owned by someone else; putting someone else's task into a private project (create for another owner, reassign to another owner, move, or restore); making the catch-all project private, reassigning it, or trashing it |
 | 401 | `unauthorized` | no principal; unknown/revoked token; unknown dev user. `WWW-Authenticate: Bearer realm="taskscape"` |
 | 403 | `forbidden` | non-owner flipping `private`; non-editor writing; token principal on a human-only route |
 | 404 | `not_found` | unknown route, unknown id, or an item the caller may not see. Body is always `{"error":{"code":"not_found","message":"Not found."}}` |
@@ -86,7 +86,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | `tag` | tag name(s), comma = any of | names, not ids |
 | `q` | substring | case-insensitive on name/title and description/notes; `%` `_` `\` literal |
 | `due_before`, `due_after` | `YYYY-MM-DD` | tasks only, inclusive; `due_before` excludes null due dates |
-| `include_trashed` | `false` (default), `true`, `only` | `only` is what the trash page uses |
+| `include_trashed` | `false` (default), `true`, `only` | tasks of a trashed project are excluded by default and under `only` (they carry no `deleted_at` of their own); `true` includes everything |
 | `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date` | `status` sorts in config order; `due_date` nulls last |
 | `dir` | `asc`, `desc` | default `desc`, except `asc` for `name`, `title`, `due_date` |
 | `limit`, `offset` | default `limits.page_size` (500), max 1000 | no total count |
@@ -103,17 +103,17 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/people` | any | — | `200 {"items":[{"id","name"}]}` derived from items visible to the caller | 401 |
 | GET | `/api/projects` | any | query section 5 | `200 {items:[Project]}` | 400 |
 | POST | `/api/projects` | any | `{name, description?, status?, owner_id?, owner_name?, private?, tag_ids?}` | `201 Project` | 400, 403 |
-| GET | `/api/projects/:id` | any | — | `200 Project` | 404 |
+| GET | `/api/projects/:id` | any | — | `200 Project` (trashed ones too, with `deleted_at` set) | 404 |
 | PATCH | `/api/projects/:id` | any | `{version, name?, description?, status?, owner_id?, owner_name?, private?}` | `200 Project`; when `private` went true the body also has `moved_tasks: n` | 400, 403, 404, 409 |
 | DELETE | `/api/projects/:id` | any | `{version}` | `200 Project` (with `deleted_at`) | 400 invalid_state, 404, 409 |
 | POST | `/api/projects/:id/restore` | any | `{version}` | `200 Project` | 400 invalid_state, 404, 409 |
 | PUT | `/api/projects/:id/tags/:tagId` | any | `{version}` | `200 Project` (idempotent attach) | 404, 409 |
 | DELETE | `/api/projects/:id/tags/:tagId` | any | `{version}` | `200 Project` (idempotent detach) | 404, 409 |
-| GET | `/api/projects/:id/export.md` | any | — | `200 text/markdown; charset=utf-8`, `Content-Disposition: attachment; filename="<ascii-slug>.md"` | 404 |
+| GET | `/api/projects/:id/export.md` | any | — | `200 text/markdown; charset=utf-8`, `Content-Disposition: attachment; filename="<ascii-slug>.md"`; tasks ordered by due date, undated last | 404 |
 | POST | `/api/projects/:id/hit` | human | — | `200 {"project_id":"…","hit_count":1338}` | 400 invalid_state (trashed), 403 (token), 404 |
 | GET | `/api/tasks` | any | query section 5 | `200 {items:[Task]}` | 400 |
-| POST | `/api/tasks` | any | `{project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
-| GET | `/api/tasks/:id` | any | — | `200 Task` | 404 |
+| POST | `/api/tasks` | any | `{project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent or `null` = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
+| GET | `/api/tasks/:id` | any | — | `200 Task` (trashed ones too) | 404 |
 | PATCH | `/api/tasks/:id` | any | `{version, title?, status?, owner_id?, owner_name?, private?, due_date?, notes?, project_id?}` | `200 Task` | 400, 403, 404, 409 |
 | DELETE | `/api/tasks/:id` | any | `{version}` | `200 Task` | 400, 404, 409 |
 | POST | `/api/tasks/:id/restore` | any | `{version}` | `200 Task` | 400 invalid_state, 404, 409 |
@@ -130,7 +130,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **Create defaults:** `status` = `default_status.<type>`; owner = caller; `private` = `privacy.default_private`. If `owner_id` is the caller, `owner_name` is overwritten from the principal; otherwise `owner_name` is required with `owner_id`.
 
-**Privacy rules on write, in order:** (1) load the target through the visibility predicate, else 404; (2) `private` changing and caller is not the owner → 403; (3) compare-and-set on `version`, else 409 (or 404 if no longer visible); (4) reassigning a private item is possible only for the owner, which step 1 guarantees.
+**Privacy rules on write, in order:** (1) load the target through the visibility predicate, else 404; (2) `private` changing and caller is not the owner → 403; (3) compare-and-set on `version`, else 409 (or 404 if no longer visible); (4) reassigning a private item is possible only for the owner, which step 1 guarantees. Creating an item that is private and owned by someone else is `400 invalid_state`. Reassigning a private item to someone else succeeds and returns the record once; every later read by the previous owner is 404. Reassigning a private project to someone else also moves tasks not owned by the new owner to the catch-all, like a privacy flip, and the response carries `moved_tasks`.
 
 **Task in a private project:** visible only if the task and its project are both visible to the caller. Project privacy wins regardless of the task's own flag, for get, list, create (`project_id` must be visible), move, activity, search, export, trash, and tags.
 
@@ -200,3 +200,5 @@ Table cells escape `|` as `\|` and collapse newlines to spaces; headings collaps
 ## 9. Changes
 
 Frozen at the end of Phase 1. Any later change gets a dated entry here and a matching update to the MCP tools, the UI, and CLAUDE.md.
+
+- 2026-10-31: frozen as implemented in Phase 1 (API version 0.1).
