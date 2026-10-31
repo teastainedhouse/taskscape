@@ -25,7 +25,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | HTTP | code | When |
 | --- | --- | --- |
 | 400 | `validation_failed` | bad JSON, missing/invalid field, missing `version`, missing `X-Taskscape-Session` on a token write, read-only field sent |
-| 400 | `invalid_state` | create a task in a trashed project; restore a task whose project is trashed; restore a live item; trash a trashed item; hit a trashed project; putting someone else's task into a private project (create for another owner, reassign to another owner, move, or restore) |
+| 400 | `invalid_state` | create a task in a trashed project; restore a task whose project is trashed; restore a live item; trash a trashed item; hit a trashed project; putting someone else's task into a private project (create for another owner, reassign to another owner, move, or restore); making the catch-all project private, reassigning it, or trashing it |
 | 401 | `unauthorized` | no principal; unknown/revoked token; unknown dev user. `WWW-Authenticate: Bearer realm="taskscape"` |
 | 403 | `forbidden` | non-owner flipping `private`; non-editor writing; token principal on a human-only route |
 | 404 | `not_found` | unknown route, unknown id, or an item the caller may not see. Body is always `{"error":{"code":"not_found","message":"Not found."}}` |
@@ -56,7 +56,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Task**
 ```json
-{ "id": "9a2e…", "project_id": "6f1c…", "project_name": "Website refresh",   // both null when unfiled
+{ "id": "9a2e…", "project_id": "6f1c…", "project_name": "Website refresh",
   "title": "Fix broken GIFs", "status": "To do", "owner_id": "alice", "owner_name": "Alice Lin",
   "private": false, "due_date": "2026-10-30", "notes": "", "version": 1,
   "created_at": "…", "updated_at": "…", "deleted_at": null,
@@ -80,7 +80,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 | Param | Values | Notes |
 | --- | --- | --- |
-| `project` | project id, or `none` for unfiled tasks | tasks only |
+| `project` | project id | tasks only |
 | `status` | comma-separated names | unknown names ignored |
 | `owner` | owner id, or `me` | |
 | `tag` | tag name(s), comma = any of | names, not ids |
@@ -104,7 +104,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/projects` | any | query section 5 | `200 {items:[Project]}` | 400 |
 | POST | `/api/projects` | any | `{name, description?, status?, owner_id?, owner_name?, private?, tag_ids?}` | `201 Project` | 400, 403 |
 | GET | `/api/projects/:id` | any | — | `200 Project` | 404 |
-| PATCH | `/api/projects/:id` | any | `{version, name?, description?, status?, owner_id?, owner_name?, private?}` | `200 Project`; when `private` went true the body also has `unfiled_tasks: n` | 400, 403, 404, 409 |
+| PATCH | `/api/projects/:id` | any | `{version, name?, description?, status?, owner_id?, owner_name?, private?}` | `200 Project`; when `private` went true the body also has `moved_tasks: n` | 400, 403, 404, 409 |
 | DELETE | `/api/projects/:id` | any | `{version}` | `200 Project` (with `deleted_at`) | 400 invalid_state, 404, 409 |
 | POST | `/api/projects/:id/restore` | any | `{version}` | `200 Project` | 400 invalid_state, 404, 409 |
 | PUT | `/api/projects/:id/tags/:tagId` | any | `{version}` | `200 Project` (idempotent attach) | 404, 409 |
@@ -112,7 +112,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/projects/:id/export.md` | any | — | `200 text/markdown; charset=utf-8`, `Content-Disposition: attachment; filename="<ascii-slug>.md"` | 404 |
 | POST | `/api/projects/:id/hit` | human | — | `200 {"project_id":"…","hit_count":1338}` | 400 invalid_state (trashed), 403 (token), 404 |
 | GET | `/api/tasks` | any | query section 5 | `200 {items:[Task]}` | 400 |
-| POST | `/api/tasks` | any | `{project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` null or absent = unfiled) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
+| POST | `/api/tasks` | any | `{project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
 | GET | `/api/tasks/:id` | any | — | `200 Task` | 404 |
 | PATCH | `/api/tasks/:id` | any | `{version, title?, status?, owner_id?, owner_name?, private?, due_date?, notes?, project_id?}` | `200 Task` | 400, 403, 404, 409 |
 | DELETE | `/api/tasks/:id` | any | `{version}` | `200 Task` | 400, 404, 409 |
@@ -132,9 +132,11 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **Privacy rules on write, in order:** (1) load the target through the visibility predicate, else 404; (2) `private` changing and caller is not the owner → 403; (3) compare-and-set on `version`, else 409 (or 404 if no longer visible); (4) reassigning a private item is possible only for the owner, which step 1 guarantees.
 
-**Task in a private project:** visible only if the task and its project are both visible to the caller. Project privacy wins regardless of the task's own flag, for get, list, create (`project_id` must be visible), move, activity, search, export, trash, and tags. An unfiled task (`project_id: null`) is governed by its own flag alone.
+**Task in a private project:** visible only if the task and its project are both visible to the caller. Project privacy wins regardless of the task's own flag, for get, list, create (`project_id` must be visible), move, activity, search, export, trash, and tags.
 
-**A private project only contains its owner's tasks.** Setting `private: true` on a project unfiles, in the same transaction, every task in it (live or trashed) owned by someone else: `project_id` becomes `null`, the task's `version` increments, and an activity entry `update {"project_id": {"from": "<project id>", "to": null}}` is written by the flipping user so the task's owner sees it in What's New. Nothing else on those tasks changes; that unlink is the only edit a project owner makes to another person's task through this route. The response includes `unfiled_tasks` (integer). Afterwards the API refuses with `400 invalid_state` any write that would put someone else's task into a private project: creating a task there with another `owner_id`, reassigning a task in it to another owner, moving another person's task into it, or restoring a trashed task there whose owner differs. The message names the count only, never titles or people.
+**A private project only contains its owner's tasks.** Setting `private: true` on a project moves, in the same transaction, every task in it (live or trashed) owned by someone else to the catch-all project: `project_id` becomes the catch-all id, the task's `version` increments, and an activity entry `update {"project_id": {"from": "<project id>", "to": "<catch-all id>"}}` is written by the flipping user so the task's owner sees it in What's New. Nothing else on those tasks changes; that move is the only edit a project owner makes to another person's task through this route. The response includes `moved_tasks` (integer). Afterwards the API refuses with `400 invalid_state` any write that would put someone else's task into a private project: creating a task there with another `owner_id`, reassigning a task in it to another owner, moving another person's task into it, or restoring a trashed task there whose owner differs. The message names the count only, never titles or people.
+
+**The catch-all project** is an ordinary project row with a fixed id (`config.catch_all_project_id`, default `general`), created by `npm run migrate` if missing, owned by the system principal (`owner_id: "system"`), and exposed as `catch_all_project_id` in `/api/config`. It is always public and always present: `PATCH` with `private: true` or a new `owner_id`, and `DELETE`, return `400 invalid_state`. Its name, description, status, and tags are editable like any project. `POST /api/tasks` without `project_id` files the task there.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
 
@@ -156,6 +158,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "permissions": { "edit": "everyone" },
   "webring": [],
   "limits": { "page_size": 500 },
+  "catch_all_project_id": "general",
   "auth": { "provider": "dev", "dev_users": [ { "id": "alice", "name": "Alice Lin" } ] } }
 ```
 
