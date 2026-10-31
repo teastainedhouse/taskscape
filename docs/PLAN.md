@@ -24,7 +24,7 @@ This plan was agreed at the end of Phase 0 and committed together with the API c
 
 ## Where the one-pager is silent: assumptions (veto any)
 
-1. **A public task owned by B inside A's private project is hidden from B too.** "A private project hides the project and every task in it" is taken literally; showing the task would reveal the project. The UI warns the owner when making a project private that it contains tasks owned by others.
+1. **A private project only ever contains its owner's tasks.** Making a project private unfiles every task in it that belongs to someone else: the task's `project_id` becomes `null`, its owner keeps it and sees an activity entry saying it was unfiled, and nothing else on the task changes. The project owner's only power over other people's tasks is cutting that link; general edit permission is unchanged. The invariant is then enforced on every other door: creating a task in a private project for someone else, reassigning a task inside a private project to someone else, moving someone else's task into a private project, and restoring a trashed task whose owner differs from the project's into a now-private project all fail with 400. Unfiled tasks live in an "Unfiled" section and can be filed into any project the task owner can see.
 2. **Tags are a public, shared vocabulary.** Names and colors are visible to everyone, with no usage counts, so a tag attached only to private items reveals nothing about them. The tag editor says so.
 3. **Trashing a project does not stamp its tasks.** They disappear because the project is trashed and reappear on restore. A task trashed on its own stays trashed after its project is restored.
 4. **"Delete" means trash everywhere.** No hard delete in v0.1, not even in the API.
@@ -127,7 +127,7 @@ CREATE INDEX idx_projects_updated ON projects (updated_at);
 
 CREATE TABLE tasks (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL REFERENCES projects (id),
+  project_id TEXT REFERENCES projects (id),  -- NULL = unfiled (see unfiling rule)
   title TEXT NOT NULL,
   status TEXT NOT NULL,
   owner_id TEXT NOT NULL,
@@ -198,12 +198,14 @@ Notes:
 
 ```js
 projectVisible(alias, user) // { sql: `(${alias}.private = 0 OR ${alias}.owner_id = ?)`, params: [user.id] }
-taskVisible(t, p, user)     // task predicate AND project predicate
+taskVisible(t, p, user)     // task predicate AND (t.project_id IS NULL OR project predicate)
 live(alias)                 // `${alias}.deleted_at IS NULL`
 trashState(alias, mode)     // include_trashed: false | true | only
 ```
 
-Every task query joins `projects p` so both predicates apply. Default trash predicate: projects `live('p')`; tasks `live('t') AND live('p')`.
+Every task query left-joins `projects p` so both predicates apply; an unfiled task passes the project half. Default trash predicate: projects `live('p')`; tasks `live('t') AND (t.project_id IS NULL OR live('p'))`.
+
+**Unfiling on flip-private** (`repo.projects.update` when `private` goes 0 → 1): inside the same transaction, every task in the project (live or trashed) whose `owner_id` differs from the project owner gets `project_id = NULL`, `version + 1`, `updated_at`, and an activity entry `update {"project_id": {"from": id, "to": null}}` by the flipping user. The response carries `unfiled_tasks: n`. Nothing else on those tasks is touched.
 
 | Read path | Mechanism |
 | --- | --- |
@@ -299,9 +301,9 @@ Dev users: `alice` (Alice Lin, default), `bob` (Bob Ortiz), `carol` (Carol Nkeme
 | Office move | Count chairs | bob | Blocked | +3d | no | |
 | Office move | Negotiate lease | bob | To do | — | yes | second private owner |
 | Reorg notes | Draft org chart | carol | Doing | +10d | no | hidden by project privacy |
-| Reorg notes | Review comp bands | alice | To do | +2d | no | alice's public task in carol's private project (assumption 1) |
+| (unfiled) | Review comp bands | alice | To do | +2d | no | created in Reorg notes, unfiled when carol made it private (assumption 1) |
 
-Extra seeded activity: a status change by bob via `ui`, a notes edit by carol via `mcp` with a session id, one trash and restore, so the feed shows every `via` and action.
+Extra seeded activity: Reorg notes is created public, alice's task is added, then carol flips it private (which unfiles that task); a status change by bob via `ui`; a notes edit by carol via `mcp` with a session id; one trash and restore. The feed then shows every `via` and action, including an unfiling.
 
 ## 8. MCP server (`/mcp`)
 
@@ -329,7 +331,7 @@ Extra seeded activity: a status change by bob via `ui`, a notes edit by carol vi
 
 - `base.css` holds layout, focus rings, and `prefers-reduced-motion`; `theme-netscape.css` holds the look: gray beveled buttons, Times New Roman, blue/purple links, visible table borders, tiled starfield, Under Construction GIF on empty projects, marquee of overdue tasks (stopped under reduced motion), "What's New?" page title, footer "Best viewed in Netscape Navigator 3.0 at 800x600".
 - **Hit counter** (`js/hit-counter.js`): `<span class="hit-counter" role="img" aria-label="You are visitor number 1337">` with one `.digit` span per zero-padded digit (six minimum), styled in the theme as lime monospace digits on black with a beveled border, no GIFs. `project.html` calls `POST /hit` once after the project loads and renders the returned count; if it fails the page still renders with the record's `hit_count`. Three clicks within two seconds reveal the webring footer bar (from `config.webring`, hidden when empty; the webring itself is out of scope, only the hook exists). On private projects a `title` says only the owner's visits are counted.
-- Padlock icon on private rows; confirm dialogs on trash; dev-mode banner with user dropdown; "Session expired" notice on 401; the privacy toggle warns that history becomes visible when flipping public and that a private project hides tasks owned by others.
+- Padlock icon on private rows; confirm dialogs on trash; dev-mode banner with user dropdown; "Session expired" notice on 401; the privacy toggle warns that history becomes visible when flipping public and, when flipping private, that N tasks owned by others will be unfiled (confirm). The project list page has an "Unfiled" section for tasks with no project, and a task row offers "File under…" to pick a project.
 
 ## 10. Testing (`node:test`, no framework)
 
@@ -338,7 +340,7 @@ Extra seeded activity: a status change by bob via `ui`, a notes edit by carol vi
 | File | Cases |
 | --- | --- |
 | `versions.test.js` | stale PATCH → 409 with `current`; version +1 on PATCH, DELETE, restore, tag attach/detach; missing version → 400; 409 `current` is re-read visibly (becomes 404 if flipped private meanwhile); two writers, second loses |
-| `privacy.test.js` | per path (list projects, list tasks, get, search, export, activity, trash list, tag attach, task create in project, task move, hit): bob gets 404/empty for alice's private items; 404 body byte-equals a random-id 404; private task in public project hidden; public task in private project hidden from its own owner; non-owner flipping private → 403; flip private → vanishes from lists and activity; flip back → reappears with history; reassign private task → old owner 404, new owner 200; export omits others' private tasks; tag list has no counts; config exposes no header names; people list derived from visible items only |
+| `privacy.test.js` | per path (list projects, list tasks, get, search, export, activity, trash list, tag attach, task create in project, task move, hit): bob gets 404/empty for alice's private items; 404 body byte-equals a random-id 404; private task in public project hidden; flipping a project private unfiles others' tasks (owner still sees them, unfiled, with an activity entry; project owner no longer sees them; versions bumped; `unfiled_tasks` count returned); create-for-other / reassign-to-other / move-other's-task / restore-other's-task into a private project → 400 invalid_state; unfiled tasks visible to their owner and to everyone when public; non-owner flipping private → 403; flip private → vanishes from lists and activity; flip back → reappears with history; reassign private task → old owner 404, new owner 200; export omits others' private tasks; tag list has no counts; config exposes no header names; people list derived from visible items only |
 | `trash.test.js` | trash project hides its tasks; restore brings them back; task trashed alone stays trashed after project restore; restore task in trashed project → 400; create in trashed project → 400; `include_trashed` modes; DELETE twice → 400 |
 | `activity.test.js` | one entry per write with actor/via/session/changes; `changes` shapes; keyset pagination stable under equal timestamps; filters; `item_title` after rename |
 | `tokens.test.js` | plaintext shown once, list shows prefix only; DB holds hash; Bearer sets via=mcp and session_id; token write without session header → 400; revoked → 401; token on `/api/tokens` → 403; invalid Bearer does not fall back to headers |
@@ -378,7 +380,7 @@ Commit "Phase 1: foundation".
 ## 12. Verification
 
 - `npm test` green on SQLite after Phase 1 and after every merge.
-- `npm run dev` then: as alice, see 3 projects and no trace of Reorg notes; as carol, see it and both its tasks; as alice, Review comp bands is invisible; `GET /api/projects/<reorg id>` as bob returns the generic 404.
+- `npm run dev` then: as alice, see 3 projects and no trace of Reorg notes; as carol, see it and both its tasks; as alice, Review comp bands shows under Unfiled with a What's New entry saying carol unfiled it; `GET /api/projects/<reorg id>` as bob returns the generic 404.
 - Two MCP sessions: both `get` a task, both `update` with the same version; the second receives the conflict text with the current record and succeeds on retry.
 - Counter on Website refresh starts at 001337 and increments on reload; `GET /api/projects` leaves it unchanged.
 - Backup and restore per README: back up, edit a task, restore, confirm the edit is gone.
