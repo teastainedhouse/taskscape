@@ -31,13 +31,13 @@
       "email": "x-forwarded-email",
       "groups": "x-forwarded-groups",
       "principal": null,
-      "id_path": "userId",
-      "name_path": "userDetails",
-      "email_path": "claims.email",
-      "groups_path": "userRoles",
-      "claims_path": "claims",
-      "claim_type_key": "typ",
-      "claim_value_key": "val"
+      "id_path": "id",
+      "name_path": "name",
+      "email_path": "email",
+      "groups_path": "groups",
+      "claims_path": null,
+      "claim_type_key": "type",
+      "claim_value_key": "value"
     },
     "dev": {
       "default_user": "alice",

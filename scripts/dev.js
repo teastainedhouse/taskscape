@@ -39,11 +39,15 @@ async function serveStatic(req, res) {
     const s = await stat(file);
     if (!s.isFile()) throw new Error('not a file');
     const body = await readFile(file);
-    res.writeHead(200, {
+    const headers = {
       'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream',
       'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
-    });
+    };
+    if (path.extname(file) === '.html') {
+      headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+    }
+    res.writeHead(200, headers);
     res.end(body);
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -71,4 +75,7 @@ server.listen(PORT, () => {
   console.log(`Taskscape dev server  http://localhost:${PORT}`);
   console.log(`  database  ${dbUrl}`);
   console.log(`  identity  ${config.auth.provider}${config.auth.provider === 'dev' ? '  (users: ' + config.auth.dev.users.map((u) => u.id).join(', ') + ')' : ''}`);
+  if (config.auth.provider === 'dev') {
+    console.log('  WARNING   dev identity: anyone who can reach this port can act as any dev user. Keep it on your machine; set TASKSCAPE_ENV=production and TASKSCAPE_AUTH_PROVIDER=headers on a host.');
+  }
 });

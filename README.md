@@ -157,7 +157,7 @@ Taskscape has no users table and no passwords. Identity arrives on every request
 | `email` | `x-forwarded-email` |
 | `groups` | `x-forwarded-groups` (comma-separated) |
 
-Some hosts send one header with a base64-encoded JSON document instead. Set `auth.headers.principal` to that header's name and the `*_path` keys to dot paths inside the document (`id_path`, `name_path`, `email_path`, `groups_path`). If the document keeps claims as an array of `{type, value}` pairs, `claims_path` plus `claim_type_key` / `claim_value_key` flatten them so `claims.email` style paths work. For each field, the plain header wins if present, then the document. No id means 401.
+Some hosts send one header with a base64-encoded JSON document instead. Set `auth.headers.principal` to that header's name and the `*_path` keys to dot paths inside the document (`id_path`, `name_path`, `email_path`, `groups_path`). If the document keeps claims as an array of `{type, value}` pairs, `claims_path` plus `claim_type_key` / `claim_value_key` flatten them so `claims.email` style paths work. When `principal` is set, the plain header names are ignored and only the document is read, so a header a client can add never overrides the host's signed identity. No id means 401.
 
 **The `headers` provider is safe ONLY behind a sign-in layer that strips client-supplied copies of those headers. If a browser can reach the API directly and set `x-forwarded-user` itself, anyone can be anyone. Confirm with your host that these headers are overwritten, not merged, before going live.**
 

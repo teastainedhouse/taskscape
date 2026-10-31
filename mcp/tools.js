@@ -256,7 +256,7 @@ function validate(schema, value, path, errors) {
     }
     for (const [key, v] of Object.entries(value)) {
       if (v === undefined) continue;
-      if (props[key]) validate(props[key], v, `${path}.${key}`, errors);
+      if (Object.hasOwn(props, key)) validate(props[key], v, `${path}.${key}`, errors);
       else if (schema.additionalProperties === false) errors.push(`${path}.${key}: unknown field`);
     }
   }
@@ -506,13 +506,13 @@ const handlers = {
       if (!isOk(res)) {
         const result = errorResult(res, { ...args, sentVersion: version });
         if (applied.length > 0) {
-          result.content[0].text += `\nApplied before the error: ${applied.join(', ')}.`;
+          result.content[0].text += `\nApplied before the error (JSON): ${JSON.stringify(applied)}`;
         }
         return result;
       }
       record = res.body;
       version = record?.version ?? version + 1;
-      applied.push(`${step.method === 'PUT' ? 'added' : 'removed'} "${step.tag.name}"`);
+      applied.push({ action: step.method === 'PUT' ? 'added' : 'removed', tag: step.tag.name });
     }
     if (!record) {
       // Only removals of tags that do not exist: nothing changed; return the record as it is.

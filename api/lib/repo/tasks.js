@@ -72,9 +72,19 @@ function checkInvariant(project, ownerId) {
   }
 }
 
+/**
+ * Load a project visibly, after taking its row lock. The no-op UPDATE makes a
+ * concurrent privacy flip (which updates the same row) finish first, so the
+ * invariant check below sees the project's committed state on both databases.
+ */
+async function lockedProject(tx, user, projectId) {
+  await tx.query('UPDATE projects SET version = version WHERE id = ?', [projectId]);
+  return projects.mustGet(tx, user, projectId);
+}
+
 /** Load the target project visibly; refuse trashed targets. */
 async function targetProject(tx, user, projectId) {
-  const p = await projects.mustGet(tx, user, projectId);
+  const p = await lockedProject(tx, user, projectId);
   if (p.deleted_at) throw invalidState('That project is in the trash.');
   return p;
 }
@@ -143,14 +153,14 @@ export async function update(db, user, id, input, config, now) {
     const projectChanged = next.project_id !== before.project_id;
     const ownerChanged = next.owner_id !== before.owner_id;
     if (projectChanged || ownerChanged) {
-      const project = projectChanged ? await targetProject(tx, user, next.project_id) : await projects.mustGet(tx, user, before.project_id);
+      const project = projectChanged ? await targetProject(tx, user, next.project_id) : await lockedProject(tx, user, before.project_id);
       checkInvariant(project, next.owner_id);
     }
     await cas(tx, user, id, input.version,
       'project_id = ?, title = ?, status = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, updated_at = ?',
       [next.project_id, next.title, next.status, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, now]);
     const changes = diff(before, next, SETTABLE);
-    if (changes.owner_name && !changes.owner_id) delete changes.owner_name;
+    if (changes.owner_name && !changes.owner_id && before.owner_id === user.id) delete changes.owner_name; // the owner's silent name refresh
     await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
     return unsafeGet(tx, id); // the writer sees the result once, even if it is now someone else's private task
   });
@@ -170,7 +180,7 @@ export async function restore(db, user, id, version, now) {
   return db.transaction(async (tx) => {
     const before = await mustGet(tx, user, id);
     if (!before.deleted_at) throw invalidState('This task is not in the trash.');
-    const project = await projects.mustGet(tx, user, before.project_id);
+    const project = await lockedProject(tx, user, before.project_id);
     if (project.deleted_at) throw invalidState('Restore the project first.');
     checkInvariant(project, before.owner_id);
     await cas(tx, user, id, version, 'deleted_at = NULL, updated_at = ?', [now]);

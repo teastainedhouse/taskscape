@@ -51,9 +51,9 @@ async function start() {
     return;
   }
   try { state.people = (await get('/api/people')).items ?? []; } catch { state.people = []; }
-  for (const who of [me, state.project]) {
-    const pid = who.id ?? who.owner_id, pname = who.name ?? who.owner_name;
-    if (pid && !state.people.some((p) => p.id === pid)) state.people.push({ id: pid, name: pname });
+  // make sure the signed-in user and the project's owner are selectable even if /api/people omitted them
+  for (const who of [{ id: me.id, name: me.name }, { id: state.project.owner_id, name: state.project.owner_name }]) {
+    if (who.id && !state.people.some((p) => p.id === who.id)) state.people.push(who);
   }
 
   renderHeader();

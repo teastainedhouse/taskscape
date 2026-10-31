@@ -90,6 +90,22 @@ test('last_used_at is recorded at most once a minute', async () => {
   await t.close();
 });
 
+test('a token\'s rights follow the groups it was issued with; a demoted user can still revoke', async () => {
+  const t = await createTestApp({ config: { permissions: { edit: 'group', groups: ['editors'] },
+    auth: { dev: { users: [{ id: 'alice', name: 'Alice Lin', groups: ['editors'] }] } } } });
+  const { plaintext, token } = (await t.as('alice').post('/api/tokens', { label: 'cli' })).body;
+  assert.equal((await t.tokenAs(plaintext).post('/api/tasks', { title: 'ok' })).status, 201);
+  t.config.permissions.groups = ['admins']; // alice is no longer an editor
+  assert.equal((await t.as('alice').get('/api/me')).body.can_edit, false);
+  assert.equal((await t.tokenAs(plaintext).get('/api/me')).body.can_edit, false);
+  assert.equal((await t.tokenAs(plaintext).post('/api/tasks', { title: 'nope' })).status, 403);
+  const rev = await t.as('alice').delete(`/api/tokens/${token.id}`);
+  assert.equal(rev.status, 200);
+  assert.equal((await t.tokenAs(plaintext).get('/api/me')).status, 401);
+  assert.equal((await t.as('alice').post('/api/tokens', { label: 'again' })).status, 403);
+  await t.close();
+});
+
 test('issuing a token requires edit rights', async () => {
   const t = await createTestApp({ config: { permissions: { edit: 'group', groups: ['editors'] },
     auth: { dev: { users: [{ id: 'alice', name: 'Alice Lin', groups: ['editors'] }, { id: 'zed', name: 'Zed', groups: [] }] } } } });

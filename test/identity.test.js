@@ -48,21 +48,25 @@ test('headers provider: plain headers', async () => {
 });
 
 test('headers provider: base64 principal document with claims flattening', async () => {
-  const t = await headersApp({ headers: { principal: 'x-sso-principal' } });
+  // a fork sets the paths to match its host's principal document; these are made-up names
+  const t = await headersApp({ headers: { principal: 'x-sso-principal', id_path: 'sub', name_path: 'display_name',
+    email_path: 'claims.email', groups_path: 'roles', claims_path: 'claims', claim_type_key: 'type', claim_value_key: 'value' } });
   const doc = {
-    userId: 'u-777', userDetails: 'Eve Park', userRoles: ['authenticated', 'editors'],
-    claims: [{ typ: 'email', val: 'eve@example.test' }, { typ: 'name', val: 'Eve' }],
+    sub: 'u-777', display_name: 'Eve Park', roles: ['authenticated', 'editors'],
+    claims: [{ type: 'email', value: 'eve@example.test' }, { type: 'name', value: 'Eve' }],
   };
   const r = await t.withHeaders({ 'x-sso-principal': Buffer.from(JSON.stringify(doc)).toString('base64') }).get('/api/me');
   assert.equal(r.status, 200);
   assert.deepEqual(r.body, { id: 'u-777', name: 'Eve Park', email: 'eve@example.test', auth: 'headers', can_edit: true });
   // garbage principal, no plain headers: 401
   assert.equal((await t.withHeaders({ 'x-sso-principal': '!!!' }).get('/api/me')).status, 401);
-  // plain header wins over the document for a field it has
+  // with a principal document configured, a client-supplied plain header is ignored
   const both = await t.withHeaders({
     'x-sso-principal': Buffer.from(JSON.stringify(doc)).toString('base64'), 'x-forwarded-user': 'u-override',
   }).get('/api/me');
-  assert.equal(both.body.id, 'u-override');
+  assert.equal(both.body.id, 'u-777');
+  const onlyPlain = await t.withHeaders({ 'x-forwarded-user': 'u-override' }).get('/api/me');
+  assert.equal(onlyPlain.status, 401);
   await t.close();
 });
 
@@ -80,5 +84,9 @@ test('bearer token present but invalid: 401, no fallback to the header provider'
   const t = await createTestApp();
   const r = await t.anon().get('/api/me', undefined, { authorization: 'Bearer tsk_not_a_real_token', 'x-dev-user': 'alice' });
   assert.equal(r.status, 401);
+  for (const bad of ['Basic YWxpY2U6eA==', 'Bearer', 'Token tsk_x']) {
+    const r2 = await t.anon().get('/api/me', undefined, { authorization: bad, 'x-dev-user': 'alice' });
+    assert.equal(r2.status, 401, bad);
+  }
   await t.close();
 });

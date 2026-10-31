@@ -169,7 +169,7 @@ test('a private project only contains its owner\'s tasks: flipping moves the oth
   assert.equal(b1.version, 2);
   const entry = (await b.get(`/api/activity?item_id=${B1.id}`)).body.items[0];
   assert.equal(entry.actor_id, 'alice');
-  assert.deepEqual(entry.changes, { project_id: { from: P.id, to: 'general' } });
+  assert.deepEqual(entry.changes, { project_id: { from: null, to: 'general' } }); // P is private to alice now, so bob sees no id
   const b2 = (await b.get(`/api/tasks/${B2.id}`)).body;
   assert.equal(b2.project_id, 'general');
   assert.ok(b2.deleted_at);
@@ -189,6 +189,45 @@ test('a private project only contains its owner\'s tasks: flipping moves the oth
   // flipping back public: no moves, no count
   const back = await a.patch(`/api/projects/${P.id}`, { version: 2, private: false });
   assert.equal(back.body.moved_tasks, undefined);
+  await t.close();
+});
+
+test('moved_tasks never counts tasks the flipper could not see', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice'); const b = t.as('bob'); const c = t.as('carol');
+  const P = (await a.post('/api/projects', { name: 'Public plan' })).body;
+  await b.post('/api/tasks', { title: 'Bob public', project_id: P.id });
+  const secret = (await b.post('/api/tasks', { title: 'Bob secret', project_id: P.id, private: true })).body;
+  await c.post('/api/tasks', { title: 'Carol secret', project_id: P.id, private: true });
+  const r = await a.patch(`/api/projects/${P.id}`, { version: 1, private: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.moved_tasks, 1); // three moved, one was visible to alice
+  assert.equal((await b.get(`/api/tasks/${secret.id}`)).body.project_id, 'general'); // but they did all move
+  // non-owner takeover: bob takes a public project with alice's private task and flips it
+  const Q = (await a.post('/api/projects', { name: 'Q' })).body;
+  await a.post('/api/tasks', { title: 'alice secret in Q', project_id: Q.id, private: true });
+  await b.patch(`/api/projects/${Q.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bob Ortiz' });
+  const flip = await b.patch(`/api/projects/${Q.id}`, { version: 2, private: true });
+  assert.equal(flip.body.moved_tasks, 0);
+  await t.close();
+});
+
+test('a task\'s history does not keep the id of a project that went private', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice'); const b = t.as('bob'); const c = t.as('carol');
+  const S = (await c.post('/api/projects', { name: 'S' })).body;
+  const T = (await a.post('/api/tasks', { title: 'Alice in S', project_id: S.id })).body;
+  await c.patch(`/api/projects/${S.id}`, { version: 1, private: true });
+  for (const who of [a, b]) {
+    const items = (await who.get(`/api/activity?item_id=${T.id}`)).body.items;
+    assert.equal(items.length, 2);
+    assert.equal(JSON.stringify(items).includes(S.id), false);
+    assert.deepEqual(items[0].changes, { project_id: { from: null, to: 'general' } });
+    assert.deepEqual(items[1].changes.project_id, { to: null });
+  }
+  // carol, the owner, still sees the id
+  const own = (await c.get(`/api/activity?item_id=${T.id}`)).body.items;
+  assert.deepEqual(own[0].changes, { project_id: { from: S.id, to: 'general' } });
   await t.close();
 });
 

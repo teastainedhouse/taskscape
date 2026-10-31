@@ -16,6 +16,11 @@ const task = (over = {}) => ({
 });
 
 const json = (status, body) => ({ status, body });
+
+test('validateArgs: prototype-named keys do not slip past additionalProperties', () => {
+  const errors = validateArgs('update', { type: 'task', id: 't1', version: 1, fields: JSON.parse('{"__proto__": {"x": 1}, "constructor": 2, "toString": "x"}') });
+  assert.ok(errors.length >= 1, JSON.stringify(errors));
+});
 const notFound = () => json(404, { error: { code: 'not_found', message: 'Not found.' } });
 
 /**
@@ -291,7 +296,7 @@ test('tag with neither add nor remove is rejected; a stale version mid-way repor
   r = await callTool('tag', { type: 'task', id: 't1', version: 1, add: ['a', 'b'] }, client);
   assert.equal(r.isError, true);
   assert.match(text(r), /^Conflict: task t1 is at version 9 \(you sent 2\)/);
-  assert.match(text(r), /Applied before the error: added "a"\./);
+  assert.match(text(r), /Applied before the error \(JSON\): \[\{"action":"added","tag":"a"\}\]/);
 });
 
 test('create with tag names resolves and creates them before POST, sending tag_ids', async () => {

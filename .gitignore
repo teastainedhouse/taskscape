@@ -8,3 +8,4 @@ host/
 .DS_Store
 backups/
 .claude/worktrees/
+.claude/launch.json

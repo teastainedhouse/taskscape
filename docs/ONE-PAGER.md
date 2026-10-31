@@ -24,7 +24,7 @@ The bar is small and fast: anyone at the company can see the work, and a one-fie
 
 - Anything deeper than projects and tasks: no subtasks, epics, or sprints
 - Admin panels, workflow builders, user roles, or teams (privacy is one on/off switch)
-- Integrations with Jira, Workfront, or Teams (a fork can add them)
+- Integrations with the company's existing ticketing, work-management, or chat tools (a fork can add them)
 - A mobile app
 
 ## Data model
@@ -107,7 +107,6 @@ Taskscape is a personal open-source project under the MIT license; the company u
 - The main repo lives on a personal GitHub account, built on personal time, hardware, and tokens.
 - The company's copy is a fork in its internal repo; its hosting setup lives in a separate fork doc.
 - Anything company-specific (tenant IDs, team names, data) stays in the fork's config and environment settings and never goes upstream.
-- Open: confirm the invention-assignment terms in the staffing agreement and the direct-hire offer don't reach this project.
 
 ## v0.1 scope and open questions
 

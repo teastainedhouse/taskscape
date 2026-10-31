@@ -129,12 +129,13 @@ export async function create(db, user, input, config, now) {
 async function moveForeignTasks(tx, user, project, config, now) {
   const catchAll = config.catch_all_project.id;
   if (project.id === catchAll) return 0;
-  const { rows } = await tx.query('SELECT id FROM tasks WHERE project_id = ? AND owner_id <> ?', [project.id, project.owner_id]);
+  const { rows } = await tx.query('SELECT id, owner_id, private FROM tasks WHERE project_id = ? AND owner_id <> ?', [project.id, project.owner_id]);
   for (const t of rows) {
     await tx.query('UPDATE tasks SET project_id = ?, version = version + 1, updated_at = ? WHERE id = ?', [catchAll, now, t.id]);
     await record(tx, user, { item_type: 'task', item_id: t.id, action: 'update', changes: { project_id: { from: project.id, to: catchAll } } }, now);
   }
-  return rows.length;
+  // Every foreign task moves, but the count reported back never reveals tasks the caller could not see.
+  return rows.filter((t) => Number(t.private) === 0 || t.owner_id === user.id).length;
 }
 
 /** Compare-and-set. Throws 409 with the current visible record, or 404 if it vanished. */
@@ -178,7 +179,7 @@ export async function update(db, user, id, input, config, now) {
       'name = ?, description = ?, status = ?, owner_id = ?, owner_name = ?, private = ?, updated_at = ?',
       [next.name, next.description, next.status, next.owner_id, next.owner_name, next.private, now]);
     const changes = diff(before, next, SETTABLE);
-    if (changes.owner_name && !changes.owner_id) delete changes.owner_name; // silent snapshot refresh
+    if (changes.owner_name && !changes.owner_id && before.owner_id === user.id) delete changes.owner_name; // the owner's silent name refresh
     await record(tx, user, { item_type: 'project', item_id: id, action: 'update', changes }, now);
     const after = { ...before, ...next, owner_id: next.owner_id };
     let moved;

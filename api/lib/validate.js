@@ -51,7 +51,8 @@ export function validateItem(body, config, kind, { partial }) {
     else out.owner_id = body.owner_id.trim();
   }
   if ('owner_name' in body) {
-    if (typeof body.owner_name !== 'string' || !body.owner_name.trim() || body.owner_name.length > 200) errors.owner_name = 'must be a non-empty string';
+    if (!('owner_id' in body)) errors.owner_name = 'can only be set together with owner_id';
+    else if (typeof body.owner_name !== 'string' || !body.owner_name.trim() || body.owner_name.length > 200) errors.owner_name = 'must be a non-empty string';
     else out.owner_name = body.owner_name.trim();
   }
   if ('private' in body) {

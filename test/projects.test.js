@@ -139,6 +139,9 @@ test('reassign: owner_name required for someone else; reassigning to yourself us
   const p = (await a.post('/api/projects', { name: 'P' })).body;
   let r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'bob' });
   assert.equal(r.status, 400);
+  r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1, owner_name: 'Impostor' });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.owner_name, 'can only be set together with owner_id');
   r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bobby' });
   assert.equal(r.body.owner_name, 'Bobby');
   r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 2, owner_id: 'bob', owner_name: 'ignored' });

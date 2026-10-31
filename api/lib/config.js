@@ -105,7 +105,6 @@ export function publicConfig(c) {
  */
 export function canEdit(c, user) {
   if (c.permissions.edit === 'everyone') return true;
-  if (user.auth === 'token') return true; // issuing a token already required edit rights
-  const groups = user.groups ?? [];
+  const groups = user.groups ?? []; // for a token principal: the groups snapshotted when the token was issued
   return c.permissions.groups.some((g) => groups.includes(g));
 }

@@ -49,6 +49,35 @@ function visibleEntries(user) {
 }
 
 /**
+ * A task's history may name a project (create, move) that has since gone
+ * private. Replace such ids with null so no trace of the private project
+ * reaches anyone but its owner.
+ * @param {import('../db/index.js').Db} db
+ * @param {import('../auth/index.js').Principal} user
+ * @param {Array<Record<string, {from?: unknown, to?: unknown}>>} changesList
+ */
+async function hideInvisibleProjectIds(db, user, changesList) {
+  const ids = new Set();
+  for (const c of changesList) {
+    const pid = c?.project_id;
+    if (!pid) continue;
+    for (const v of [pid.from, pid.to]) if (typeof v === 'string') ids.add(v);
+  }
+  if (ids.size === 0) return;
+  const list = [...ids];
+  const { rows } = await db.query(
+    `SELECT p.id FROM projects p WHERE p.id IN (${list.map(() => '?').join(', ')}) AND (p.private = 0 OR p.owner_id = ?)`,
+    [...list, user.id]);
+  const visible = new Set(rows.map((r) => r.id));
+  for (const c of changesList) {
+    const pid = c?.project_id;
+    if (!pid) continue;
+    if (typeof pid.from === 'string' && !visible.has(pid.from)) pid.from = null;
+    if (typeof pid.to === 'string' && !visible.has(pid.to)) pid.to = null;
+  }
+}
+
+/**
  * What's New, newest first, keyset-paginated.
  * @param {import('../db/index.js').Db} db
  * @param {import('../auth/index.js').Principal} user
@@ -91,8 +120,10 @@ export async function list(db, user, f) {
   );
   const page = rows.slice(0, f.limit);
   const last = page.at(-1);
+  const parsed = page.map((r) => JSON.parse(r.changes));
+  await hideInvisibleProjectIds(db, user, parsed);
   return {
-    items: page.map((r) => ({
+    items: page.map((r, i) => ({
       id: r.id,
       created_at: r.created_at,
       actor_id: r.actor_id,
@@ -104,7 +135,7 @@ export async function list(db, user, f) {
       item_title: r.item_title ?? null,
       project_id: r.project_id ?? null,
       action: r.action,
-      changes: JSON.parse(r.changes),
+      changes: parsed[i],
     })),
     next_cursor: rows.length > f.limit && last ? encodeCursor(last.created_at, last.id) : null,
   };

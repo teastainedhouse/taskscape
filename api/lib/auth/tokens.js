@@ -33,7 +33,7 @@ export function bearerFrom(authorization) {
  */
 export async function lookupToken(db, plaintext) {
   const { rows } = await db.query(
-    'SELECT id, user_id, user_name, user_email, label, last_used_at FROM mcp_tokens WHERE token_hash = ? AND revoked_at IS NULL',
+    'SELECT id, user_id, user_name, user_email, user_groups, label, last_used_at FROM mcp_tokens WHERE token_hash = ? AND revoked_at IS NULL',
     [hashToken(plaintext)],
   );
   return rows[0] ?? null;

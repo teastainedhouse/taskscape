@@ -57,7 +57,7 @@ taskscape/
   README.md  CLAUDE.md  LICENSE (MIT)  package.json ("type": "module")
   taskscape.config.json       site title, statuses, palette, fields, views, theme, auth, permissions, webring
   .env.example                TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT
-  .gitignore                  data/, node_modules/, .env, host/
+  .gitignore                  data/, node_modules/, .env, host/, backups/, *.db*, .claude/worktrees/
   .mcp.example.json           client config pointing at mcp/server.js, token from the environment
 
   public/                     served as-is

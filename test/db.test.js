@@ -13,6 +13,7 @@ test('placeholders: ? becomes $n, except inside quotes and comments', () => {
   assert.equal(toPositional('SELECT ? , ?'), 'SELECT $1 , $2');
   assert.equal(toPositional("SELECT 'a?b', ? FROM t WHERE x = 'it''s?'"), "SELECT 'a?b', $1 FROM t WHERE x = 'it''s?'");
   assert.equal(toPositional('SELECT 1 -- is it?\n WHERE a = ?'), 'SELECT 1 -- is it?\n WHERE a = $1');
+  assert.equal(toPositional('SELECT /* what? */ ? FROM "odd?name" WHERE x = ?'), 'SELECT /* what? */ $1 FROM "odd?name" WHERE x = $2');
 });
 
 test('placeholders: booleans and undefined are coerced', () => {

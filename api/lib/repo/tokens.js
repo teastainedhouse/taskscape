@@ -26,9 +26,9 @@ export async function issue(db, user, label, now) {
   const plaintext = generateToken();
   const id = newId();
   await db.query(
-    `INSERT INTO mcp_tokens (id, user_id, user_name, user_email, label, token_hash, token_prefix, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, user.id, user.name, user.email ?? null, label, hashToken(plaintext), tokenPrefix(plaintext), now]);
+    `INSERT INTO mcp_tokens (id, user_id, user_name, user_email, user_groups, label, token_hash, token_prefix, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, user.id, user.name, user.email ?? null, JSON.stringify(user.groups ?? []), label, hashToken(plaintext), tokenPrefix(plaintext), now]);
   return { token: { id, label, token_prefix: tokenPrefix(plaintext), created_at: now, last_used_at: null, revoked_at: null }, plaintext };
 }
 

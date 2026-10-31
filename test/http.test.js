@@ -89,5 +89,21 @@ test('bodies: malformed JSON is 400, arrays are 400, oversized is 413', async ()
   const big = await t.as('alice').post('/api/projects', { name: 'x'.repeat(500) });
   assert.equal(big.status, 413);
   assert.equal(big.body.error.code, 'payload_too_large');
+  // a chunked body with no Content-Length is cut off at the limit too
+  const chunks = Array.from({ length: 20 }, () => new Uint8Array(70_000).fill(97));
+  const stream = new ReadableStream({ pull(c) { if (chunks.length) c.enqueue(chunks.shift()); else c.close(); } });
+  const res = await t.app.fetch(new Request('http://test/api/projects', {
+    method: 'POST', headers: { 'x-dev-user': 'alice', 'content-type': 'application/json' }, body: stream, duplex: 'half' }));
+  assert.equal(res.status, 413);
+  assert.ok(chunks.length > 0, 'the stream was cancelled before it was fully read');
+  await t.close();
+});
+
+test('a malformed percent-escape in a path is the generic 404, not a 500', async () => {
+  const t = await createTestApp();
+  const r = await t.as('alice').get('/api/projects/%E0%A4%A');
+  assert.equal(r.status, 404);
+  assert.deepEqual(r.body, NOT_FOUND_BODY);
+  assert.equal(t.errors.length, 0);
   await t.close();
 });

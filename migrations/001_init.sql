@@ -88,6 +88,7 @@ CREATE TABLE mcp_tokens (
   user_id       TEXT NOT NULL,
   user_name     TEXT NOT NULL,
   user_email    TEXT,
+  user_groups   TEXT NOT NULL DEFAULT '[]',   -- JSON array of the user's groups when the token was issued
   label         TEXT NOT NULL,
   token_hash    TEXT NOT NULL UNIQUE,            -- sha256 hex of the plaintext; plaintext is never stored
   token_prefix  TEXT NOT NULL,                   -- first 12 characters, for display only

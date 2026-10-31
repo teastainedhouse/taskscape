@@ -44,12 +44,25 @@ export function errorResponse(err) {
 export async function readJson(request, maxBytes) {
   const declared = Number(request.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) throw payloadTooLarge();
-  const buf = new Uint8Array(await request.arrayBuffer());
-  if (buf.byteLength > maxBytes) throw payloadTooLarge();
-  if (buf.byteLength === 0) return {};
+  if (!request.body) return {};
+  // Stream and count, so an undeclared or chunked body is cut off at the limit instead of buffered whole.
+  const reader = request.body.getReader();
+  const parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw payloadTooLarge();
+    }
+    parts.push(value);
+  }
+  if (total === 0) return {};
   let parsed;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(buf));
+    parsed = JSON.parse(new TextDecoder().decode(Buffer.concat(parts.map((p) => Buffer.from(p.buffer, p.byteOffset, p.byteLength)))));
   } catch {
     throw validationFailed({ body: 'must be valid JSON' });
   }

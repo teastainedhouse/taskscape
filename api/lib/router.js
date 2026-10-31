@@ -15,7 +15,8 @@ import { canEdit } from './config.js';
  *   now: () => string,
  * }} Ctx
  * @typedef {(req: Request, ctx: Ctx) => Promise<Response>} Handler
- * @typedef {{ method: string, path: string, auth?: AuthKind, handler: Handler }} Route
+ * @typedef {{ method: string, path: string, auth?: AuthKind, edit?: boolean, handler: Handler }} Route
+ *   `edit: false` exempts a write route from the editor gate (only for self-scoped routes such as revoking your own token).
  */
 
 /** @param {string} pattern @returns {{ regex: RegExp, keys: string[] }} */
@@ -72,7 +73,11 @@ export class Router {
       allowed.push(r.method);
       if (r.method === request.method && !matched) {
         const params = {};
-        r.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
+        try {
+          r.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
+        } catch {
+          throw notFound(); // malformed percent-escape in a path segment
+        }
         matched = { route: r, params };
       }
     }
@@ -86,11 +91,9 @@ export class Router {
       if (!user) throw unauthorized();
       if (route.auth === 'human' && user.via === 'mcp') throw forbidden('This action is only available in the browser.');
       const isWrite = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
-      if (isWrite) {
-        if (!canEdit(env.config, user)) throw forbidden('Your account is read-only.');
-        if (user.via === 'mcp' && !user.session_id) {
-          throw validationFailed({ 'X-Taskscape-Session': 'header is required on every MCP write' });
-        }
+      if (isWrite && route.edit !== false && !canEdit(env.config, user)) throw forbidden('Your account is read-only.');
+      if (isWrite && user.via === 'mcp' && !user.session_id) {
+        throw validationFailed({ 'X-Taskscape-Session': 'header is required on every MCP write' });
       }
     }
     const query = Object.fromEntries(url.searchParams.entries());

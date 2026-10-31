@@ -5,6 +5,11 @@ import { unauthorized } from '../errors.js';
 
 export const SESSION_HEADER = 'x-taskscape-session';
 
+/** @param {unknown} json @returns {string[]} */
+function parseGroups(json) {
+  try { const v = JSON.parse(typeof json === 'string' ? json : '[]'); return Array.isArray(v) ? v.map(String) : []; } catch { return []; }
+}
+
 /**
  * @typedef {Object} Principal
  * @property {string} id            stable subject id from SSO, or the token's user
@@ -25,8 +30,10 @@ export const SESSION_HEADER = 'x-taskscape-session';
  * @returns {Promise<Principal|null>}
  */
 export async function getUser(request, ctx) {
-  const bearer = bearerFrom(request.headers.get('authorization'));
-  if (bearer !== null) {
+  const authorization = request.headers.get('authorization');
+  if (authorization && authorization.trim()) {
+    const bearer = bearerFrom(authorization);
+    if (bearer === null) throw unauthorized(); // present but not a Bearer token: never fall back to another identity
     const row = await lookupToken(ctx.db, bearer);
     if (!row) throw unauthorized();
     await touchLastUsed(ctx.db, row.id, ctx.now());
@@ -35,6 +42,7 @@ export async function getUser(request, ctx) {
       id: row.user_id,
       name: row.user_name,
       email: row.user_email ?? undefined,
+      groups: parseGroups(row.user_groups),
       via: 'mcp',
       auth: 'token',
       token_id: row.id,

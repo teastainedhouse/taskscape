@@ -8,7 +8,9 @@
  *    dot paths (`id_path`, `name_path`, `email_path`, `groups_path`); when the
  *    document keeps claims as an array of {type, value} pairs, `claims_path`
  *    plus `claim_type_key`/`claim_value_key` flatten them into an object first.
- * The first source that has a field wins.
+ * When `principal` is configured, the plain header names are ignored: a
+ * signed document from the host must never be overridable by a header a
+ * client can add. Without `principal`, the plain headers are the source.
  */
 
 /** @param {object} obj @param {string} dotPath */
@@ -52,8 +54,8 @@ export function fromHeaders(request, cfg) {
         const flat = {};
         for (const c of claims) {
           if (c && typeof c === 'object') {
-            const t = c[cfg.claim_type_key ?? 'typ'];
-            const v = c[cfg.claim_value_key ?? 'val'];
+            const t = c[cfg.claim_type_key ?? 'type'];
+            const v = c[cfg.claim_value_key ?? 'value'];
             if (t !== undefined && flat[t] === undefined) flat[t] = v;
           }
         }
@@ -66,10 +68,11 @@ export function fromHeaders(request, cfg) {
     }
   }
   const pick = (headerName, docPath) => {
-    const direct = h(headerName);
-    if (direct) return direct;
-    const fromDoc = doc ? dig(doc, docPath) : undefined;
-    return fromDoc === undefined || fromDoc === null ? undefined : fromDoc;
+    if (cfg.principal) {
+      const fromDoc = doc ? dig(doc, docPath) : undefined;
+      return fromDoc === undefined || fromDoc === null ? undefined : fromDoc;
+    }
+    return h(headerName) || undefined;
   };
   const id = pick(cfg.id, cfg.id_path);
   if (!id || typeof id !== 'string') return null;
