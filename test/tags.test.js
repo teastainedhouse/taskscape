@@ -29,7 +29,7 @@ test('tags: create is idempotent on the normalized name; palette default; valida
   await t.close();
 });
 
-test('attach and detach are idempotent, bump the version, and log once per real change', async () => {
+test('attach and detach are idempotent and bump the version only on a real change', async () => {
   const t = await createTestApp();
   const a = t.as('alice');
   const tag = (await a.post('/api/tags', { name: 'bug' })).body;
@@ -38,19 +38,24 @@ test('attach and detach are idempotent, bump the version, and log once per real 
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.tags.map((x) => x.name), ['bug']);
   assert.equal(r.body.version, 2);
-  r = await a.put(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 2 });
-  assert.equal(r.body.version, 3);
+  r = await a.put(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 2 }); // already attached: not a write
+  assert.equal(r.status, 200);
+  assert.equal(r.body.version, 2);
   assert.deepEqual(r.body.tags.map((x) => x.name), ['bug']);
-  r = await a.delete(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 3 });
+  r = await a.delete(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 2 });
+  assert.equal(r.body.version, 3);
   assert.deepEqual(r.body.tags, []);
-  r = await a.put(`/api/tasks/${task.id}/tags/not-a-tag`, { version: 4 });
+  r = await a.delete(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 3 }); // not attached: not a write
+  assert.equal(r.status, 200);
+  assert.equal(r.body.version, 3);
+  r = await a.put(`/api/tasks/${task.id}/tags/not-a-tag`, { version: 3 });
   assert.equal(r.status, 404);
   const act = (await a.get(`/api/activity?item_id=${task.id}`)).body.items;
   assert.deepEqual(act.map((e) => e.action), ['update', 'update', 'create']);
   assert.deepEqual(act[0].changes, { tags: { from: ['bug'], to: [] } });
   assert.deepEqual(act[1].changes, { tags: { from: [], to: ['bug'] } });
   // tag list filter by name works for tasks too
-  await a.put(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 4 });
+  await a.put(`/api/tasks/${task.id}/tags/${tag.id}`, { version: 3 });
   assert.deepEqual((await a.get('/api/tasks?tag=bug')).body.items.map((x) => x.id), [task.id]);
   await t.close();
 });

@@ -283,6 +283,30 @@ test('tag resolves names, creates missing on add, and threads version through on
   for (const c of calls) assert.equal(c.headers['X-Taskscape-Session'], SESSION);
 });
 
+test('tag threads an unchanged version past a step that changed nothing (tag already attached)', async () => {
+  let version = 3;
+  const attached = new Set(['tg-bug']);
+  const { client, calls } = makeClient(({ method, path, body }) => {
+    if (method === 'GET' && path === '/api/tags') return json(200, { items: [{ id: 'tg-bug', name: 'bug', color: '#ff0000' }, { id: 'tg-web', name: 'web', color: '#000080' }] });
+    const m = /^\/api\/tasks\/t1\/tags\/(.+)$/.exec(path);
+    if (m) {
+      if (body.version !== version) return json(409, { error: { code: 'conflict', message: 'stale' }, current: task({ version }) });
+      const had = attached.has(m[1]);
+      if (method === 'PUT') attached.add(m[1]); else attached.delete(m[1]);
+      if (had !== attached.has(m[1])) version += 1; // the API bumps only on a real change
+      return json(200, task({ version }));
+    }
+    return null;
+  });
+  const r = await callTool('tag', { type: 'task', id: 't1', version: 3, add: ['bug', 'web'] }, client);
+  assert.equal(r.isError, undefined, text(r));
+  const writes = calls.filter((c) => c.method === 'PUT');
+  assert.deepEqual(writes.map((c) => c.body.version), [3, 3]);
+  assert.equal(parsed(r).version, 4);
+  const tool = TOOLS.find((t) => t.name === 'tag');
+  assert.match(tool.description, /already there.*leaves it as is/);
+});
+
 test('tag with neither add nor remove is rejected; a stale version mid-way reports progress', async () => {
   const { client, calls } = makeClient(({ method, path }) => {
     if (method === 'GET' && path === '/api/tags') return json(200, { items: [{ id: 'a', name: 'a', color: '#000000' }, { id: 'b', name: 'b', color: '#000000' }] });

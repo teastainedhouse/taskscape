@@ -184,7 +184,8 @@ export const TOOLS = [
     name: 'tag',
     description:
       'Add and/or remove tags on a project or task, by tag NAME. Tags named in "add" are created if missing. ' +
-      '"version" must be the current version; each change bumps it and the returned record carries the final version. ' + DATA_NOTICE,
+      '"version" must be the current version; each real change bumps it (adding a tag that is already there, or removing one that is not, leaves it as is) ' +
+      'and the returned record carries the final version. ' + DATA_NOTICE,
     inputSchema: {
       type: 'object',
       properties: {
@@ -511,8 +512,10 @@ const handlers = {
         return result;
       }
       record = res.body;
+      // A step that changed nothing comes back with the version unchanged, so always take it from the record.
+      const changed = record?.version !== version;
       version = record?.version ?? version + 1;
-      applied.push({ action: step.method === 'PUT' ? 'added' : 'removed', tag: step.tag.name });
+      applied.push({ action: !changed ? 'unchanged' : step.method === 'PUT' ? 'added' : 'removed', tag: step.tag.name });
     }
     if (!record) {
       // Only removals of tags that do not exist: nothing changed; return the record as it is.

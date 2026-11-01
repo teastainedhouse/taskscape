@@ -74,3 +74,91 @@ test('two writers racing on the same version: exactly one wins', async () => {
   assert.equal((await a.get(`/api/projects/${p.id}`)).body.version, 2);
   await t.close();
 });
+
+test('a request that changes nothing is not a write: version checked, not bumped, nothing logged', async () => {
+  let clock = 0;
+  const t = await createTestApp({ now: () => new Date(Date.UTC(2026, 10, 1, 0, 0, clock++)).toISOString() });
+  const a = t.as('alice');
+  const tag = (await a.post('/api/tags', { name: 'web' })).body;
+  const p = (await a.post('/api/projects', { name: 'P', tag_ids: [tag.id] })).body;
+  const task = (await a.post('/api/tasks', { title: 'T', project_id: p.id, status: 'Doing' })).body;
+  const entries = async (id) => (await a.get(`/api/activity?item_id=${id}`)).body.items.length;
+
+  for (const [kind, item, same] of [['projects', p, { name: 'P', status: 'Planned', private: false }],
+    ['tasks', task, { title: 'T', status: 'Doing', project_id: p.id, owner_id: 'alice', due_date: null }]]) {
+    const path = `/api/${kind}/${item.id}`;
+    const before = await entries(item.id);
+    for (const r of [
+      await a.patch(path, { version: 1, ...same }),
+      await a.patch(path, { version: 1 }),
+      kind === 'projects' ? await a.put(`${path}/tags/${tag.id}`, { version: 1 }) : await a.delete(`${path}/tags/${tag.id}`, { version: 1 }),
+    ]) {
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.equal(r.body.version, 1);
+      assert.equal(r.body.updated_at, item.updated_at);
+      assert.equal('moved_tasks' in r.body, false);
+    }
+    assert.equal(await entries(item.id), before, `${kind}: no activity for a no-op`);
+    // a stale version on a no-op is still a conflict
+    await a.patch(path, { version: 1, ...(kind === 'projects' ? { status: 'Active' } : { status: 'Done' }) });
+    const stale = await a.patch(path, { version: 1, ...same });
+    assert.equal(stale.status, 409);
+    assert.equal(stale.body.current.version, 2);
+    const staleTag = await a.put(`${path}/tags/${tag.id}`, { version: 1 });
+    assert.equal(staleTag.status, 409);
+    // the trash check still applies before the version check
+    await a.delete(path, { version: 2 });
+    const trashed = await a.patch(path, { version: 3 });
+    assert.equal(trashed.status, 400);
+    assert.equal(trashed.body.error.code, 'invalid_state');
+    await a.post(`${path}/restore`, { version: 3 });
+  }
+  await t.close();
+});
+
+test('a no-op by a non-owner on a private item is still the generic 404, stale version or not', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const b = t.as('bob');
+  const tag = (await a.post('/api/tags', { name: 'x' })).body;
+  const open = (await a.post('/api/projects', { name: 'Open' })).body;
+  const p = (await a.post('/api/projects', { name: 'P', private: true })).body;
+  const privateTask = (await a.post('/api/tasks', { title: 'Mine', project_id: open.id, private: true })).body;
+  const inPrivate = (await a.post('/api/tasks', { title: 'Inside', project_id: p.id })).body; // public task, private project
+  const missing = (await b.patch('/api/projects/no-such-id', { version: 1 })).text;
+  for (const [path, title] of [[`/api/projects/${p.id}`, { name: 'P' }], [`/api/tasks/${privateTask.id}`, { title: 'Mine' }],
+    [`/api/tasks/${inPrivate.id}`, { title: 'Inside' }]]) {
+    for (const r of [
+      await b.patch(path, { version: 1 }),
+      await b.patch(path, { version: 1, ...title }),
+      await b.patch(path, { version: 7, ...title }), // stale
+      await b.delete(`${path}/tags/${tag.id}`, { version: 1 }),
+      await b.delete(`${path}/tags/${tag.id}`, { version: 7 }),
+    ]) {
+      assert.equal(r.status, 404, path);
+      assert.equal(r.text, missing, path);
+    }
+  }
+  await t.close();
+});
+
+test("the owner's name refresh alone is a logged write; alongside other changes it stays silent", async () => {
+  const t = await createTestApp();
+  const p = (await t.as('alice').post('/api/projects', { name: 'P', owner_id: 'bob', owner_name: 'Bobby' })).body;
+  const r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1 });
+  assert.equal(r.body.version, 2);
+  assert.equal(r.body.owner_name, 'Bob Ortiz');
+  const [entry] = (await t.as('bob').get(`/api/activity?item_id=${p.id}`)).body.items;
+  assert.deepEqual(entry.changes, { owner_name: { from: 'Bobby', to: 'Bob Ortiz' } });
+  await t.close();
+});
+
+test('error order: a non-owner privacy flip is 403 and an unknown tag 404, even with a stale version', async () => {
+  const t = await createTestApp();
+  const p = (await t.as('alice').post('/api/projects', { name: 'P' })).body;
+  await t.as('alice').patch(`/api/projects/${p.id}`, { version: 1, status: 'Active' });
+  assert.equal((await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1, private: true })).status, 403);
+  assert.equal((await t.as('bob').put(`/api/projects/${p.id}/tags/no-such-tag`, { version: 1 })).status, 404);
+  assert.equal((await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1, status: 'Done' })).status, 409);
+  await t.close();
+});

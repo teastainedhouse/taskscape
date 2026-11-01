@@ -123,9 +123,11 @@ export async function create(db, user, input, config, now) {
   });
 }
 
-async function cas(tx, user, id, version, setSql, setParams) {
+/** Compare-and-set, like projects.js; with `setSql` null it checks the version and bumps nothing. */
+async function cas(tx, user, id, version, setSql, setParams = []) {
+  const set = setSql === null ? 'version = version' : `${setSql}, version = version + 1`;
   const { changes } = await tx.query(
-    `UPDATE tasks SET ${setSql}, version = version + 1 WHERE id = ? AND version = ?`, [...setParams, id, version]);
+    `UPDATE tasks SET ${set} WHERE id = ? AND version = ?`, [...setParams, id, version]);
   if (changes === 0) {
     const current = await get(tx, user, id);
     if (!current) throw notFound();
@@ -150,6 +152,14 @@ export async function update(db, user, id, input, config, now) {
     } else if (before.owner_id === user.id) {
       next.owner_name = user.name;
     }
+    if (before.version !== input.version) throw conflict(before); // so `before` is the row the locked version check approves
+    const changes = diff(before, next, SETTABLE);
+    if (Object.keys(changes).length === 0) { // no stored value would change, so not a write: check the version only
+      await cas(tx, user, id, input.version, null);
+      return mustGet(tx, user, id);
+    }
+    // The owner's own name refresh rides along silently, and is logged only when it is the whole change.
+    if (changes.owner_name && !changes.owner_id && before.owner_id === user.id && Object.keys(changes).length > 1) delete changes.owner_name;
     const projectChanged = next.project_id !== before.project_id;
     const ownerChanged = next.owner_id !== before.owner_id;
     if (projectChanged || ownerChanged) {
@@ -159,10 +169,11 @@ export async function update(db, user, id, input, config, now) {
     await cas(tx, user, id, input.version,
       'project_id = ?, title = ?, status = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, updated_at = ?',
       [next.project_id, next.title, next.status, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, now]);
-    const changes = diff(before, next, SETTABLE);
-    if (changes.owner_name && !changes.owner_id && before.owner_id === user.id) delete changes.owner_name; // the owner's silent name refresh
     await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
-    return unsafeGet(tx, id); // the writer sees the result once, even if it is now someone else's private task
+    // Only a reassignment can hide the task from its writer, and that path holds the project's row lock, so the
+    // unfiltered read cannot pick up a concurrent privacy flip. Any other edit re-reads visibly: if a concurrent
+    // flip hid the task meanwhile, the 404 rolls this write back.
+    return ownerChanged ? unsafeGet(tx, id) : mustGet(tx, user, id);
   });
 }
 
@@ -194,19 +205,17 @@ export async function setTag(db, user, id, tagId, version, attach, now) {
     const before = await mustGet(tx, user, id);
     if (before.deleted_at) throw invalidState('This task is in the trash.');
     await tags.mustExist(tx, tagId);
+    if (before.version !== version) throw conflict(before); // the no-op decision below reads `before`
+    if (before.tags.some((t) => t.id === tagId) === attach) {
+      await cas(tx, user, id, version, null); // already as asked: check the version, write nothing
+      return mustGet(tx, user, id);
+    }
     await cas(tx, user, id, version, 'updated_at = ?', [now]);
-    if (attach) {
-      const { rows } = await tx.query('SELECT 1 AS x FROM task_tags WHERE task_id = ? AND tag_id = ?', [id, tagId]);
-      if (!rows.length) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tagId]);
-    } else {
-      await tx.query('DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?', [id, tagId]);
-    }
+    if (attach) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tagId]);
+    else await tx.query('DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?', [id, tagId]);
     const after = await mustGet(tx, user, id);
-    const from = before.tags.map((t) => t.name);
-    const to = after.tags.map((t) => t.name);
-    if (JSON.stringify(from) !== JSON.stringify(to)) {
-      await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes: { tags: { from, to } } }, now);
-    }
+    const changes = { tags: { from: before.tags.map((t) => t.name), to: after.tags.map((t) => t.name) } };
+    await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
     return after;
   });
 }
