@@ -10,9 +10,11 @@ import { get, post, patch, del, projectPath, taskPath, ApiError } from './api.js
 import { el, btn, option, clear, setChildren, padlock, projectLink, timeEl } from './dom.js';
 import { fetchOverdue, renderMarquee, isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
-import { renderHitCounter, updateHitCounter, buildWebringBar, attachWebringEgg } from './hit-counter.js';
 
 const { config, me } = await boot({ title: 'Project' });
+// The counter and webring are decoration, loaded on their own: if a content
+// blocker refuses the module, the page loses the counter, not everything.
+const odometer = await import('./odometer.js').catch(() => null);
 const projectId = new URLSearchParams(location.search).get('id');
 const isCatchAll = projectId === config.catch_all_project_id;
 
@@ -64,8 +66,8 @@ async function start() {
   await loadTasks();
   loadMarquee();
   recordHit();
-  const bar = buildWebringBar(config.webring);
-  if (bar) { document.getElementById('webring').appendChild(bar); attachWebringEgg(counterHost, bar); }
+  const bar = odometer?.buildWebringBar(config.webring);
+  if (bar) { document.getElementById('webring').appendChild(bar); odometer.attachWebringEgg(counterHost, bar); }
   jumpToHash();
 }
 
@@ -112,7 +114,7 @@ function renderHeader() {
 
   row('Tags', tagEditor({ type: 'project', item: p, canEdit: canEditProject, config, onUpdated: (rec) => { state.project = rec; renderHeader(); } }));
 
-  if (!counterHost.firstChild) counterHost.appendChild(renderHitCounter(p.hit_count, { isPrivate: p.private }));
+  if (odometer && !counterHost.firstChild) counterHost.appendChild(odometer.renderHitCounter(p.hit_count, { isPrivate: p.private }));
   row('Visitors', counterHost, ' ', el('span', { class: 'hit-caption' }, 'You are visitor number ', el('span', { id: 'hit-number' }, String(p.hit_count ?? 0))));
   row('Updated', timeEl(p.updated_at));
 
@@ -217,7 +219,7 @@ async function recordHit() {
   try {
     const res = await post(`${projectPath(state.project.id)}/hit`);
     const old = counterHost.querySelector('.hit-counter');
-    if (old) updateHitCounter(old, res.hit_count);
+    if (old) odometer.updateHitCounter(old, res.hit_count);
     const n = document.getElementById('hit-number');
     if (n) n.textContent = String(res.hit_count);
     state.project.hit_count = res.hit_count;

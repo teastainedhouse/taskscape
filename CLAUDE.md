@@ -100,7 +100,7 @@ public/                    served as-is; no build step
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
   js/dev-user.js           red DEV MODE banner + user dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
-  js/hit-counter.js        six-digit counter, role=img + aria-label, webring bar revealed by three clicks in two seconds
+  js/odometer.js           visitor counter: six digits, role=img + aria-label, webring bar revealed by three clicks in two seconds
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task) and the CSS-animated marquee
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
