@@ -5,6 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp, NOT_FOUND_BODY, tickingClock } from './helpers.js';
+import { MAX_PER_GUESTBOOK } from '../api/lib/repo/comments.js';
+import * as tokens from '../api/lib/repo/tokens.js';
 
 async function setup(opts = {}) {
   const t = await createTestApp({ now: tickingClock(), ...opts });
@@ -227,5 +229,35 @@ test('privacy: hidden comments are the generic 404 for trash, restore, and stale
   assert.equal(handed.status, 200);
   assert.deepEqual((await b.get(`/api/tasks/${PT.id}/comments`)).body.items.map((x) => x.body), ['note to self']);
   assert.equal((await a.get(`/api/tasks/${PT.id}/comments`)).status, 404);
+  await t.close();
+});
+
+test('a guestbook holds at most MAX_PER_GUESTBOOK live comments; restore counts too', async () => {
+  const { t, b, P } = await setup();
+  const C = (await b.post(`/api/projects/${P.id}/comments`, { body: 'keep me' })).body;
+  await b.delete(`/api/comments/${C.id}`, { version: 1 });
+  for (let i = 1; i < MAX_PER_GUESTBOOK; i++) {
+    await t.db.query(`INSERT INTO comments (id, item_type, item_id, author_id, author_name, body, version, created_at, updated_at)
+      VALUES (?, 'project', ?, 'bob', 'Bob Ortiz', 'x', 1, '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z')`, [`filler-${i}`, P.id]);
+  }
+  assert.equal((await b.post(`/api/projects/${P.id}/comments`, { body: 'last one' })).status, 201);
+  const full = await b.post(`/api/projects/${P.id}/comments`, { body: 'one too many' });
+  assert.equal(full.status, 400);
+  assert.equal(full.body.error.message, 'This guestbook is full.');
+  assert.equal((await b.post(`/api/comments/${C.id}/restore`, { version: 2 })).body.error.message, 'This guestbook is full.');
+  await t.close();
+});
+
+test('an author without edit rights can still trash their comment, but not restore it', async () => {
+  const { t, b, P } = await setup({ config: { permissions: { edit: 'group', groups: ['editors'] }, auth: { dev: { users: [
+    { id: 'alice', name: 'Alice Lin', groups: ['editors'] }, { id: 'bob', name: 'Bob Ortiz', groups: ['editors'] },
+    { id: 'carol', name: 'Carol Nkemelu', groups: ['editors'] }] } } } });
+  const C = (await b.post(`/api/projects/${P.id}/comments`, { body: 'mine' })).body;
+  // a token issued after bob left the editors group carries no edit rights
+  const readOnly = t.tokenAs((await tokens.issue(t.db, { id: 'bob', name: 'Bob Ortiz', groups: [] }, 'ro', '2026-11-01T09:00:00.000Z')).plaintext);
+  assert.equal((await readOnly.post(`/api/projects/${P.id}/comments`, { body: 'new' })).status, 403);
+  const gone = await readOnly.delete(`/api/comments/${C.id}`, { version: 1 });
+  assert.equal(gone.status, 200);
+  assert.equal((await readOnly.post(`/api/comments/${C.id}/restore`, { version: 2 })).status, 403);
   await t.close();
 });

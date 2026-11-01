@@ -1,11 +1,17 @@
 import { projectVisible, taskVisible } from './visibility.js';
 import * as users from './users.js';
+import { canEdit } from '../config.js';
 
 /**
  * People the caller may pick as an owner: owners of items the caller can
  * see, the caller, and the directory the server knows: the configured dev
  * users with the dev provider, every enabled users row with the password
- * provider. The headers provider has no directory. Names only; never derived
+ * provider. The headers provider has no directory. Only an editor in the
+ * browser gets the directory (it is for the owner picker): under `password`
+ * its ids are sign-in usernames, and read-only accounts and tokens have no
+ * use for the list. This keeps the list from being handed out, not the
+ * names secret: an editor's write can still tell a known owner_id from an
+ * unknown one (resolveOwnerName), and under `dev` /api/config lists them. Names only; never derived
  * from private items the caller cannot see. A directory name wins over an
  * item's owner_name snapshot.
  * @param {import('../db/index.js').Db} db
@@ -27,7 +33,7 @@ export async function list(db, user, config) {
   const people = new Map();
   for (const r of rows) people.set(r.id, r.name); // later rows win; fine for a display snapshot
   people.set(user.id, user.name);
-  for (const u of await directory(db, config)) people.set(u.id, u.name);
+  if (user.via === 'ui' && canEdit(config, user)) for (const u of await directory(db, config)) people.set(u.id, u.name);
   people.delete('system'); // owns the catch-all project; never a person to pick
   return [...people.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }

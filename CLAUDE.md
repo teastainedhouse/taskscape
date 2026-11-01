@@ -88,7 +88,7 @@ api/
       tags.js              normalizeTagName(), list, create (idempotent), mustExist()
       comments.js          guestbook: listFor, liveFor (export), get/mustGet, create (on a visible, live parent), trash/restore (author only)
       activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility, and for=me
-      people.js            distinct owners of visible items + caller + the directory (dev users, enabled users rows); directoryName()
+      people.js            distinct owners of visible items + caller + the directory for editors in the browser (dev users, enabled users rows); directoryName()
       tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
                            revoke(), revokeAllForUser()
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),

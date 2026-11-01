@@ -17,7 +17,8 @@ const guestbook = (type) => [
 export const routes = [
   ...guestbook('project'),
   ...guestbook('task'),
-  { method: 'DELETE', path: '/api/comments/:id', handler: async (req, ctx) => {
+  // edit: false: an author who has lost edit rights can still take back their own words (restore stays an edit)
+  { method: 'DELETE', path: '/api/comments/:id', edit: false, handler: async (req, ctx) => {
     const { version } = validateVersionOnly(await body(req, ctx));
     return json(await comments.trash(ctx.db, ctx.user, ctx.params.id, version, ctx.now()));
   } },

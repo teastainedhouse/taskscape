@@ -113,7 +113,10 @@ function renderHeader() {
 
   row('Owner', editable({ value: p.owner_name, label: 'Owner', allowed: canEditProject && !isCatchAll,
     control: () => el('select', null, peopleOptions(p.owner_id)),
-    save: (v) => patchProject({ owner_id: v, owner_name: personName(v) }, 'Owner saved.') }));
+    save: async (v) => {
+      if (p.private && v !== p.owner_id && !confirm(`Hand this private project to ${personName(v)}? Your tasks in it move to ${await catchAllName()} and stay private to you, and the project will be private to its new owner.`)) return null;
+      return patchProject({ owner_id: v, owner_name: personName(v) }, 'Owner saved.');
+    } }));
 
   const privacyCells = [p.private ? [padlock(), 'Private: only you can see this project'] : 'Public'];
   if (owner && canEditProject && !isCatchAll) {

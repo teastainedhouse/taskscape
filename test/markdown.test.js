@@ -53,3 +53,11 @@ test('renderProjectExport keeps guestbook text quoted and names escaped, even wi
   assert.ok(md.includes('by Mallory \\[x\\]\\(https://example.invalid\\).'));
   assert.equal(md.includes('\r'), false);
 });
+
+test('a quoted comment cannot carry raw HTML or an autolink into the export', () => {
+  const project = { name: 'P', status: 'Active', owner_name: 'A', private: false, hit_count: 0, tags: [],
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', description: '' };
+  const comment = { author_name: 'B', created_at: '2026-01-01T00:00:00Z', body: '<img src=x onerror=alert(1)> &amp; <https://example.invalid/a>' };
+  const md = renderProjectExport(project, [], { userName: 'A', date: '2026-01-02' }, { project: [comment] });
+  assert.ok(md.includes('> \\<img src=x onerror=alert(1)> \\&amp; \\<https://example.invalid/a>'));
+});

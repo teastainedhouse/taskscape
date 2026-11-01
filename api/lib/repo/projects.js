@@ -124,15 +124,22 @@ export async function create(db, user, input, config, now) {
 /**
  * Move every task in `project` owned by someone other than the project's
  * owner to the catch-all. Used when a project becomes private or changes
- * owner while private. Returns how many moved.
+ * owner while private. With `keepHidden` (the project was already private, so
+ * nobody else could see its tasks) a moved task also becomes private, so the
+ * move never shows it to anyone new. Returns how many moved.
+ * @param {{keepHidden?: boolean}} [opts]
  */
-async function moveForeignTasks(tx, user, project, config, now) {
+async function moveForeignTasks(tx, user, project, config, now, { keepHidden = false } = {}) {
   const catchAll = config.catch_all_project.id;
   if (project.id === catchAll) return 0;
   const { rows } = await tx.query('SELECT id, owner_id, private FROM tasks WHERE project_id = ? AND owner_id <> ?', [project.id, project.owner_id]);
   for (const t of rows) {
-    await tx.query('UPDATE tasks SET project_id = ?, version = version + 1, updated_at = ? WHERE id = ?', [catchAll, now, t.id]);
-    await record(tx, user, { item_type: 'task', item_id: t.id, action: 'update', changes: { project_id: { from: project.id, to: catchAll } } }, now);
+    // always set under keepHidden, not only when the read above saw 0: the read takes no lock, and the owner's
+    // concurrent PATCH could make the task public in between (PostgreSQL); the entry follows the read
+    const hide = keepHidden && Number(t.private) === 0;
+    await tx.query(`UPDATE tasks SET project_id = ?,${keepHidden ? ' private = 1,' : ''} version = version + 1, updated_at = ? WHERE id = ?`, [catchAll, now, t.id]);
+    const changes = { project_id: { from: project.id, to: catchAll }, ...(hide ? { private: { from: false, to: true } } : {}) };
+    await record(tx, user, { item_type: 'task', item_id: t.id, action: 'update', changes }, now);
   }
   // Every foreign task moves, but the count reported back never reveals tasks the caller could not see.
   return rows.filter((t) => Number(t.private) === 0 || t.owner_id === user.id).length;
@@ -173,6 +180,7 @@ export async function update(db, user, id, input, config, now) {
     if (next.private !== before.private) {
       if (isCatchAll) throw invalidState('The catch-all project is always public.');
       if (before.owner_id !== user.id) throw forbidden('Only the owner can change whether a project is private.');
+      if (next.private && next.owner_id !== user.id) throw invalidState('Only the owner can make an item private. Make it private first, then hand it over.');
     }
     if (next.owner_id !== before.owner_id) {
       if (isCatchAll) throw invalidState('The catch-all project cannot be reassigned.');
@@ -195,7 +203,7 @@ export async function update(db, user, id, input, config, now) {
     const after = { ...before, ...next, owner_id: next.owner_id };
     let moved;
     if (after.private && (next.private !== before.private || next.owner_id !== before.owner_id)) {
-      moved = await moveForeignTasks(tx, user, after, config, now);
+      moved = await moveForeignTasks(tx, user, after, config, now, { keepHidden: !!before.private });
     }
     const project = await unsafeGet(tx, id); // the writer sees the result once, even if it is now someone else's private project
     return next.private !== before.private && next.private ? { project, moved_tasks: moved ?? 0 } : { project, ...(moved !== undefined ? { moved_tasks: moved } : {}) };

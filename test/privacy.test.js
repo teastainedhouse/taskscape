@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createTestApp, NOT_FOUND_BODY, tickingClock } from './helpers.js';
 import * as users from '../api/lib/repo/users.js';
 import * as tokens from '../api/lib/repo/tokens.js';
+import * as sessions from '../api/lib/repo/sessions.js';
 
 /** alice: public project P {T1 public, T2 private}; carol: private project S {S1}. bob is the outsider. */
 async function seed(t) {
@@ -156,7 +157,7 @@ test('creating a private item for someone else is refused', async () => {
 });
 
 test('a private project only contains its owner\'s tasks: flipping moves the others to the catch-all', async () => {
-  const t = await createTestApp();
+  const t = await createTestApp({ now: tickingClock() });
   const { a, b, P } = await seed(t);
   const B1 = (await b.post('/api/tasks', { title: 'Bob in P', project_id: P.id })).body;
   const B2 = (await b.post('/api/tasks', { title: 'Bob trashed in P', project_id: P.id })).body;
@@ -297,10 +298,30 @@ test('people under the password provider: directory rows, never owners known onl
   // ghost has no users row (say, from before a switch to password) and owns only a private project
   await dana.post('/api/projects', { name: 'Ghost', owner_id: 'ghost', owner_name: 'Ghost Writer' });
   await t.db.query("UPDATE projects SET private = 1 WHERE owner_id = 'ghost'"); // ghost cannot sign in to flip it, so the test does
-  const seen = (await eli.get('/api/people')).body.items;
+  // eli in the browser, an editor, gets the directory for the owner picker
+  const session = await sessions.create(t.db, 'eli', new Date().toISOString(), 1);
+  const eliBrowser = t.withHeaders({ cookie: `${t.config.auth.password.cookie_name}=${session.plaintext}` });
+  const seen = (await eliBrowser.get('/api/people')).body.items;
   assert.deepEqual(seen.map((p) => p.id).sort(), ['dana', 'eli']);
   assert.equal(seen.some((p) => p.name === 'Ghost Writer'), false);
   assert.equal(seen.some((p) => p.id === 'system'), false);
+  // a token has no owner picker, so it is not handed the directory (usernames are not secret: see people.js)
+  assert.deepEqual((await eli.get('/api/people')).body.items.map((p) => p.id), ['eli']);
+  await t.close();
+});
+
+test('people: a read-only account gets no directory, only owners of what it can see', async () => {
+  const t = await createTestApp({ config: {
+    permissions: { edit: 'group', groups: ['editors'] },
+    auth: { dev: { users: [
+      { id: 'alice', name: 'Alice Lin', groups: ['editors'] },
+      { id: 'bob', name: 'Bob Ortiz', groups: ['editors'] },
+      { id: 'zed', name: 'Zed', groups: ['viewers'] },
+    ] } },
+  } });
+  await t.as('alice').post('/api/projects', { name: 'Open' });
+  assert.deepEqual((await t.as('zed').get('/api/people')).body.items.map((p) => p.id).sort(), ['alice', 'zed']);
+  assert.deepEqual((await t.as('alice').get('/api/people')).body.items.map((p) => p.id).sort(), ['alice', 'bob', 'zed']);
   await t.close();
 });
 
@@ -362,5 +383,53 @@ test('for=me uses the same read-time visibility: what I no longer own or can no 
   await c.patch(`/api/projects/${BQ.id}`, { version: q2.version, private: true });
   assert.equal((await ids()).includes(BQ.id), false);
   assert.deepEqual((await b.get(`/api/activity?item_id=${BQ.id}`)).body.items, []);
+  await t.close();
+});
+
+test('handing over a private project keeps the old owner\'s moved tasks hidden, with their history and guestbooks', async () => {
+  const t = await createTestApp({ now: tickingClock() });
+  const [a, b, c] = ['alice', 'bob', 'carol'].map((u) => t.as(u));
+  const S = (await c.post('/api/projects', { name: 'Reorg', private: true })).body;
+  const CT = (await c.post('/api/tasks', { title: 'Layoff list', project_id: S.id, notes: 'names here' })).body;
+  await c.post(`/api/tasks/${CT.id}/comments`, { body: 'draft: cut team X' });
+  const TT = (await c.post('/api/tasks', { title: 'Trashed secret', project_id: S.id })).body;
+  await c.delete(`/api/tasks/${TT.id}`, { version: TT.version });
+  const PT = (await c.post('/api/tasks', { title: 'Already private', project_id: S.id, private: true })).body;
+  const handed = await c.patch(`/api/projects/${S.id}`, { version: S.version, owner_id: 'alice', owner_name: 'Alice Lin' });
+  assert.equal(handed.status, 200);
+  assert.equal(handed.body.moved_tasks, 3);
+  const missing = await b.get('/api/tasks/no-such-id');
+  for (const path of [`/api/tasks/${CT.id}`, `/api/tasks/${CT.id}/comments`, `/api/tasks/${TT.id}`, `/api/tasks/${PT.id}`]) {
+    for (const who of [a, b]) assert.equal((await who.get(path)).text, missing.text, path);
+  }
+  for (const who of [a, b]) {
+    const seen = JSON.stringify([(await who.get('/api/activity?limit=200')).body, (await who.get('/api/activity?for=me')).body,
+      (await who.get(`/api/activity?project=${S.id}`)).body, (await who.get('/api/trash')).body, (await who.get(`/api/projects/${t.catchAllId}/export.md`)).text]);
+    for (const words of ['Layoff list', 'names here', 'cut team X', 'Trashed secret', 'Already private', CT.id, PT.id]) assert.equal(seen.includes(words), false, words);
+  }
+  // carol keeps them, private, in the catch-all, and the move says so
+  const mine = (await c.get(`/api/tasks/${CT.id}`)).body;
+  assert.deepEqual([mine.project_id, mine.private], [t.catchAllId, true]);
+  const move = (await c.get(`/api/activity?item_id=${CT.id}`)).body.items[0];
+  assert.deepEqual(move.changes.private, { from: false, to: true });
+  const already = (await c.get(`/api/activity?item_id=${PT.id}`)).body.items[0];
+  assert.deepEqual(Object.keys(already.changes), ['project_id'], 'a task that was already private only moves');
+  await t.close();
+});
+
+test('one PATCH cannot make an item private for someone else; handing over an already private item still works', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice'); const b = t.as('bob');
+  const P = (await a.post('/api/projects', { name: 'Open' })).body;
+  const T = (await a.post('/api/tasks', { title: 'x', project_id: P.id })).body;
+  for (const [path, rec] of [[`/api/tasks/${T.id}`, T], [`/api/projects/${P.id}`, P]]) {
+    const r = await a.patch(path, { version: rec.version, owner_id: 'bob', owner_name: 'Bob Ortiz', private: true });
+    assert.equal(r.status, 400, path);
+    assert.equal(r.body.error.code, 'invalid_state');
+    assert.equal((await b.get(path)).status, 200, 'nothing changed');
+  }
+  const mineFirst = (await a.patch(`/api/tasks/${T.id}`, { version: T.version, private: true })).body;
+  assert.equal((await a.patch(`/api/tasks/${T.id}`, { version: mineFirst.version, owner_id: 'bob', owner_name: 'Bob Ortiz' })).status, 200);
+  assert.equal((await b.get(`/api/tasks/${T.id}`)).body.private, true);
   await t.close();
 });

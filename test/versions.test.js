@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestApp } from './helpers.js';
+import { createTestApp, tickingClock } from './helpers.js';
 
 test('stale version: 409 with the current record; fresh version succeeds', async () => {
   const t = await createTestApp();
@@ -143,7 +143,7 @@ test('a no-op by a non-owner on a private item is still the generic 404, stale v
 });
 
 test("the owner's name refresh alone is a logged write; alongside other changes it stays silent", async () => {
-  const t = await createTestApp({ config: { auth: { provider: 'headers' } } });
+  const t = await createTestApp({ now: tickingClock(), config: { auth: { provider: 'headers' } } });
   const as = (name) => t.withHeaders({ 'x-forwarded-user': 'u1', 'x-forwarded-preferred-username': name });
   const p = (await as('Dana').post('/api/projects', { name: 'P' })).body;
   const r = await as('Dana Fox').patch(`/api/projects/${p.id}`, { version: 1 });

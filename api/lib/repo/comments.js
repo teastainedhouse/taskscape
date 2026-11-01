@@ -14,6 +14,9 @@ import * as tasks from './tasks.js';
 
 const SELECT = 'SELECT c.* FROM comments c';
 
+/** Live comments one guestbook holds at most, so no one can flood an item, its export, or a reader's context. */
+export const MAX_PER_GUESTBOOK = 500;
+
 /** @param {Record<string, any>} r */
 function rowToComment(r) {
   return {
@@ -134,6 +137,7 @@ export async function create(db, user, type, parentId, body, now) {
   return db.transaction(async (tx) => {
     const { trashed } = await parent(tx, user, type, parentId, { lock: true });
     if (trashed) throw invalidState(`This ${trashed} is in the trash.`);
+    await full(tx, type, parentId);
     const id = newId();
     await tx.query(
       `INSERT INTO comments (id, item_type, item_id, author_id, author_name, body, version, created_at, updated_at, deleted_at)
@@ -142,6 +146,12 @@ export async function create(db, user, type, parentId, body, now) {
     await record(tx, user, { item_type: 'comment', item_id: id, action: 'create', changes: on({ item_type: type, item_id: parentId }) }, now);
     return mustGet(tx, user, id);
   });
+}
+
+/** Refuse a write that would put the guestbook over MAX_PER_GUESTBOOK live comments; the parent is locked and visible. */
+async function full(tx, type, parentId) {
+  const { rows } = await tx.query('SELECT COUNT(*) AS n FROM comments WHERE item_type = ? AND item_id = ? AND deleted_at IS NULL', [type, parentId]);
+  if (Number(rows[0].n) >= MAX_PER_GUESTBOOK) throw invalidState('This guestbook is full.');
 }
 
 /**
@@ -170,6 +180,7 @@ export async function restore(db, user, id, version, now) {
     if (!before.deleted_at) throw invalidState('This comment is not in the trash.');
     const { trashed } = await parent(tx, user, before.item_type, before.item_id, { lock: true });
     if (trashed) throw invalidState(`Restore the ${trashed} first.`);
+    await full(tx, before.item_type, before.item_id);
     await cas(tx, user, id, version, 'deleted_at = NULL, updated_at = ?', [now]);
     await record(tx, user, { item_type: 'comment', item_id: id, action: 'restore', changes: on(before) }, now);
     return mustGet(tx, user, id);

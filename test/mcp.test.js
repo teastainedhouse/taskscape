@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '../mcp/client.js';
-import { TOOLS, DATA_NOTICE, NOT_FOUND_TEXT, callTool, validateArgs } from '../mcp/tools.js';
+import { TOOLS, DATA_NOTICE, NOT_FOUND_TEXT, GET_COMMENTS_MAX, callTool, validateArgs } from '../mcp/tools.js';
 
 const TOKEN = 'tsk_test_token_value';
 const SESSION = '11111111-2222-4333-8444-555555555555';
@@ -427,4 +427,14 @@ test('unknown tool and unknown argument names are rejected', async () => {
   assert.equal(r.isError, true);
   assert.match(text(r), /get\.extra: unknown field/);
   assert.equal(calls.length, 0);
+});
+
+test('get returns only the newest comments of a long guestbook, and says how many it left out', async () => {
+  const many = Array.from({ length: GET_COMMENTS_MAX + 7 }, (_, i) => ({ id: `c${i}`, body: `entry ${i}` }));
+  const { client } = makeClient(({ path }) => (path === '/api/tasks/t1' ? json(200, { id: 't1', version: 1 })
+    : path === '/api/tasks/t1/comments' ? json(200, { items: many }) : null));
+  const out = parsed(await callTool('get', { type: 'task', id: 't1' }, client));
+  assert.equal(out.comments.length, GET_COMMENTS_MAX);
+  assert.equal(out.comments[0].id, 'c7', 'oldest dropped, order kept');
+  assert.equal(out.comments_omitted, 7);
 });

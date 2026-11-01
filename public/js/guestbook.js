@@ -49,11 +49,9 @@ export function guestbook({ type, id, label, heading, me, canSign }) {
     const trashed = !!c.deleted_at;
     const body = el('p', { class: 'guestbook-body' }, c.body);
     const actions = [];
-    if (mine && canSign()) {
-      actions.push(trashed
-        ? btn('Restore', () => change(c, 'restore'), { 'aria-label': 'Restore your guestbook entry' })
-        : btn('Trash', () => change(c, 'trash'), { 'aria-label': 'Trash your guestbook entry' }));
-    }
+    // the author can always take an entry back; bringing one back needs an open guestbook and edit rights
+    if (mine && !trashed) actions.push(btn('Trash', () => change(c, 'trash'), { 'aria-label': 'Trash your guestbook entry' }));
+    if (mine && trashed && canSign()) actions.push(btn('Restore', () => change(c, 'restore'), { 'aria-label': 'Restore your guestbook entry' }));
     return el('li', { class: trashed ? 'guestbook-entry trashed' : 'guestbook-entry', id: `comment-${c.id}` },
       el('p', { class: 'guestbook-by' }, el('b', null, c.author_name), ' · ', timeEl(c.created_at),
         trashed ? el('span', { class: 'muted' }, ' · in the trash; only you see it') : null),

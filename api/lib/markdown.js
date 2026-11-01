@@ -35,11 +35,12 @@ export function slug(s) {
  * The text as a quote block, so no line can start a heading. Every "[" is
  * escaped: a link reference definition inside a quote (or a quote nested in
  * it) would apply to the whole document, and a comment has no business
- * defining links for the notes around it.
+ * defining links for the notes around it. "<" and "&" are escaped too, so a
+ * viewer that renders HTML shows a comment's tags and autolinks as text.
  * @param {string} text @returns {string[]}
  */
 function mdQuote(text) {
-  return String(text).trimEnd().split(LINE_BREAK).map((l) => (l ? `> ${l.replace(/\[/g, '\\[')}` : '>'));
+  return String(text).trimEnd().split(LINE_BREAK).map((l) => (l ? `> ${l.replace(/[[<&]/g, '\\$&')}` : '>'));
 }
 
 /** @param {Array<{author_name: string, created_at: string, body: string}>} list @returns {string[]} */

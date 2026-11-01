@@ -147,6 +147,10 @@ export async function update(db, user, id, input, config, now) {
     if (next.private !== before.private && before.owner_id !== user.id) {
       throw forbidden('Only the owner can change whether a task is private.');
     }
+    // as on create: nobody makes an item private for someone else (handing over an already private item is fine)
+    if (next.private && !before.private && next.owner_id !== user.id) {
+      throw invalidState('Only the owner can make an item private. Make it private first, then hand it over.');
+    }
     if (next.owner_id !== before.owner_id) {
       if (next.owner_id === user.id) next.owner_name = user.name;
     } else if (before.owner_id === user.id) {

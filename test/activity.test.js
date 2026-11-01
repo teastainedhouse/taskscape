@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createTestApp, tickingClock } from './helpers.js';
 
 test('one entry per write, with the documented change shapes', async () => {
-  const t = await createTestApp();
+  const t = await createTestApp({ now: tickingClock() });
   const a = t.as('alice');
   const tag = (await a.post('/api/tags', { name: 'web' })).body;
   const p = (await a.post('/api/projects', { name: 'P', tag_ids: [tag.id] })).body;
