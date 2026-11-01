@@ -15,14 +15,14 @@ const SORTS = { updated_at: 'p.updated_at', created_at: 'p.created_at', name: 'L
  * (scripts/migrate.js, the dev server, and the test helper), never per request.
  * @param {import('../db/index.js').Db} db
  * @param {import('../config.js').Config} config
+ * @param {string} [now]  ISO timestamp for created_at/updated_at; tests pass their fake clock
  * @returns {Promise<boolean>} whether it was created now
  */
-export async function ensureCatchAll(db, config) {
+export async function ensureCatchAll(db, config, now = nowIso()) {
   const { id, name, description = '' } = config.catch_all_project;
   const { rows } = await db.query('SELECT id FROM projects WHERE id = ?', [id]);
   if (rows.length) return false;
   const status = config.statuses.project.includes('Active') ? 'Active' : config.default_status.project;
-  const now = nowIso();
   await db.query(
     `INSERT INTO projects (id, name, description, status, owner_id, owner_name, private, version, hit_count, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, 0, 1, 0, ?, ?)`,

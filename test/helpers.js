@@ -28,7 +28,7 @@ export async function createTestApp(opts = {}) {
   const db = await openDb(PG_URL || 'sqlite::memory:');
   await db.migrate(MIGRATIONS);
   if (PG_URL) await db.exec('TRUNCATE activity, task_tags, project_tags, tasks, mcp_tokens, projects, tags');
-  await ensureCatchAll(db, config);
+  await ensureCatchAll(db, config, opts.now?.()); // same clock as the app, so General is never newer than a test's rows
   const errors = [];
   const app = createApp({ config, db, now: opts.now, log: (e) => errors.push(e) });
 
