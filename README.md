@@ -4,10 +4,10 @@ Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags. Peo
 
 It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. There is no build step and no framework. It looks like an old web browser on purpose: dithered grey toolbars with pixel-art icons, a starfield throbber and a status bar frame a modern, readable page with a hit counter. It follows the reader's dark mode. The look lives in one CSS file (`public/css/theme-toolbar.css`).
 
-- Spec: [docs/ONE-PAGER.md](docs/ONE-PAGER.md)
-- Architecture and decisions: [docs/PLAN.md](docs/PLAN.md)
+- Decisions and the reasons behind them: [docs/PLAN.md](docs/PLAN.md)
 - API contract: [docs/API.md](docs/API.md)
-- Working on the code: [CLAUDE.md](CLAUDE.md)
+- Working on the code (code map, house rules, recipes): [CLAUDE.md](CLAUDE.md)
+- The original pitch, kept as history: [docs/ONE-PAGER.md](docs/ONE-PAGER.md)
 
 ## Requirements
 

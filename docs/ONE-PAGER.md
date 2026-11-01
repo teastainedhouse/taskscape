@@ -4,6 +4,13 @@
 
 _Copied from the owner's one-pager on 2026-10-31. Company and vendor names are replaced with generic terms so upstream stays host-neutral._
 
+> **Historical.** This is the original pitch, kept as written; it is not updated as the code changes. Where it disagrees with the code, the code, [PLAN.md](PLAN.md), and [API.md](API.md) win. Known differences as of 2026-11-01:
+>
+> - **The look.** Neither theme described under "The look" exists any more. There is one theme, `public/css/theme-toolbar.css`: old browser chrome (dithered toolbars, pixel icons, a starfield throbber, a status bar) around a modern, readable page. There is no `theme` config key.
+> - **Sign-in.** Besides the host's single sign-on (the `headers` provider), Taskscape has its own password sign-in (the `password` provider) for hosts without one. That adds `users` and `sessions` tables.
+> - **Guestbook comments** are not built yet.
+> - **Open questions** at the end were all answered in [PLAN.md](PLAN.md): Node, a local MCP script with a personal token, everyone signed in can edit (configurable to a group), and others see nothing of private items.
+
 ## What it is
 
 Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags that people edit in a browser and Claude edits through an API. It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. It looks like early-90s web on purpose.

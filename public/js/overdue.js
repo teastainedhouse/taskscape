@@ -1,4 +1,4 @@
-// overdue.js — overdue is computed in the browser (docs/PLAN.md assumption 8):
+// overdue.js — overdue is computed in the browser (docs/PLAN.md §2, rule 8):
 // due_date before today's local date and status not in config.closed_statuses.task.
 // The marquee is a CSS animation on a span; base.css stops it under reduced motion.
 

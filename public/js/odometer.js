@@ -1,4 +1,4 @@
-// odometer.js — the 1996 visitor counter (docs/PLAN.md §9). Not named after
+// odometer.js — the 1996 visitor counter (docs/PLAN.md §8). Not named after
 // "hit counter": tracker blocklists refuse files with that name.
 // Six zero-padded digit cells, role="img", and the webring Easter egg:
 // three clicks within two seconds reveal the hidden webring footer bar.
