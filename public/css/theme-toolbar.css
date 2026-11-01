@@ -1,0 +1,395 @@
+/* theme-toolbar.css — old browser chrome around a modern page. The site is drawn
+   as a late-90s browser window: dithered grey toolbars with grip handles, flat
+   toolbar buttons with 12x12 pixel-art icons that raise on hover, a starfield
+   "throbber", an inset ticker bar for overdue tasks, and a status bar footer.
+   Inside the window the content is current: system sans text, roomy tables,
+   readable contrast, light and dark. Everything pixelated is drawn at integer
+   pixels and scaled 2x so it stays chunky. Motion (the throbber drift and the
+   ticker) stops under prefers-reduced-motion via base.css.
+   Pick it with "theme": "toolbar" in taskscape.config.json. */
+
+:root {
+  color-scheme: light dark;
+  --desk: #5b8a88;
+  --desk-2: #54817f;
+  --chrome: #c6c6c6;
+  --chrome-2: #bdbdbd;
+  --chrome-hover: #d4d4d4;
+  --chrome-press: #b1b1b1;
+  --hi: #ffffff;
+  --lo: #7b7b7b;
+  --edge: #000000;
+  --view: #ffffff;
+  --field: #ffffff;
+  --ink: #161616;
+  --ink-muted: #565656;
+  --link: #0b3fa8;
+  --link-visited: #5b2b8a;
+  --rule: #dcdcdc;
+  --zebra: #f5f6f7;
+  --accent: #007c80;
+  --focus: #0b3fa8;
+  --notice: #fff6c4;
+  --notice-edge: #8a7300;
+  --error: #ffe1de;
+  --error-ink: #7a0a0a;
+  --danger: #8b0000;
+  --overdue: #b3141a;
+  --ui: system-ui, sans-serif;
+  --mono: ui-monospace, "Courier New", monospace;
+  --dither: repeating-conic-gradient(var(--chrome) 0 25%, var(--chrome-2) 0 50%) 0 0 / 2px 2px;
+  --grip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 3' shape-rendering='crispEdges'%3E%3Crect width='5' height='1' fill='%232d4a94'/%3E%3Crect x='1' y='1' width='3' height='1' fill='%232d4a94'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%232d4a94'/%3E%3C/svg%3E");
+  --icon-folder: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='1' y='1' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='2' width='5' height='1' fill='%23ffe58a'/%3E%3Crect x='6' y='2' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='3' width='10' height='1' fill='%23ffe58a'/%3E%3Crect x='11' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='8' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='9' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='10' width='10' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --icon-news: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='1' y='0' width='7' height='1' fill='%23000'/%3E%3Crect x='9' y='0' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='1' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='1' width='5' height='1' fill='%23fff'/%3E%3Crect x='7' y='1' width='1' height='1' fill='%23000'/%3E%3Crect x='9' y='1' width='2' height='1' fill='%23000'/%3E%3Crect x='1' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='2' width='1' height='1' fill='%23fff'/%3E%3Crect x='3' y='2' width='4' height='1' fill='%23007c80'/%3E%3Crect x='7' y='2' width='1' height='1' fill='%23fff'/%3E%3Crect x='8' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='9' y='2' width='2' height='1' fill='%23ffe58a'/%3E%3Crect x='11' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='3' width='6' height='1' fill='%23fff'/%3E%3Crect x='8' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='9' y='3' width='1' height='1' fill='%23ffe58a'/%3E%3Crect x='10' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='4' width='1' height='1' fill='%23fff'/%3E%3Crect x='3' y='4' width='6' height='1' fill='%23007c80'/%3E%3Crect x='9' y='4' width='1' height='1' fill='%23fff'/%3E%3Crect x='10' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='5' width='8' height='1' fill='%23fff'/%3E%3Crect x='10' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='6' width='1' height='1' fill='%23fff'/%3E%3Crect x='3' y='6' width='6' height='1' fill='%234fc3c0'/%3E%3Crect x='9' y='6' width='1' height='1' fill='%23fff'/%3E%3Crect x='10' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='7' width='8' height='1' fill='%23fff'/%3E%3Crect x='10' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='8' width='1' height='1' fill='%23fff'/%3E%3Crect x='3' y='8' width='6' height='1' fill='%23007c80'/%3E%3Crect x='9' y='8' width='1' height='1' fill='%23fff'/%3E%3Crect x='10' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='9' width='8' height='1' fill='%23fff'/%3E%3Crect x='10' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='10' width='10' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='4' y='0' width='4' height='1' fill='%23000'/%3E%3Crect x='0' y='1' width='5' height='1' fill='%23000'/%3E%3Crect x='5' y='1' width='2' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='1' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='2' width='10' height='1' fill='%23d4d4d4'/%3E%3Crect x='11' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='3' width='12' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='10' width='8' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --icon-key: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='2' y='2' width='4' height='1' fill='%23000'/%3E%3Crect x='1' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='3' width='3' height='1' fill='%23ffe58a'/%3E%3Crect x='5' y='3' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='6' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='1' height='1' fill='%23ffe58a'/%3E%3Crect x='2' y='4' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='5' y='4' width='2' height='1' fill='%23e8b830'/%3E%3Crect x='7' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23ffe58a'/%3E%3Crect x='2' y='5' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='5' y='5' width='2' height='1' fill='%23e8b830'/%3E%3Crect x='7' y='5' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='7' width='4' height='1' fill='%23e8b830'/%3E%3Crect x='6' y='7' width='2' height='1' fill='%23000'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='9' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='10' y='7' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='8' width='4' height='1' fill='%23000'/%3E%3Crect x='7' y='8' width='2' height='1' fill='%23000'/%3E%3Crect x='10' y='8' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --icon-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='1' y='1' width='10' height='1' fill='%23fff'/%3E%3Crect x='1' y='2' width='10' height='1' fill='%23fff'/%3E%3Crect x='11' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='3' width='2' height='1' fill='%23000'/%3E%3Crect x='4' y='3' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='3' width='4' height='1' fill='%23000'/%3E%3Crect x='4' y='4' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='5' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='6' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='7' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='8' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='9' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='5' y='10' width='4' height='1' fill='%23000'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --desk: #1d3434;
+    --desk-2: #1a2f2f;
+    --chrome: #3a3a3d;
+    --chrome-2: #353538;
+    --chrome-hover: #46464a;
+    --chrome-press: #2c2c2e;
+    --hi: #626266;
+    --lo: #1b1b1d;
+    --view: #18181a;
+    --field: #0f0f10;
+    --ink: #e8e8e8;
+    --ink-muted: #a9a9a9;
+    --link: #93b3ff;
+    --link-visited: #cba8f4;
+    --rule: #303033;
+    --zebra: #1f1f22;
+    --accent: #3fb9b4;
+    --focus: #93b3ff;
+    --notice: #39320f;
+    --notice-edge: #a8902a;
+    --error: #431a1a;
+    --error-ink: #ffb4ae;
+    --danger: #ff9a94;
+    --overdue: #ff7b72;
+  }
+}
+
+/* The desktop behind the window: a dithered teal, two colours in a 1px checker. */
+body {
+  margin: 0;
+  padding: 24px 16px;
+  background: repeating-conic-gradient(var(--desk) 0 25%, var(--desk-2) 0 50%) 0 0 / 2px 2px;
+  color: var(--ink);
+  font: 15px/1.5 var(--ui);
+}
+
+/* The window: a hard black edge, a bevel, and a flat offset shadow. */
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 3px;
+  background: var(--dither);
+  border: 1px solid var(--edge);
+  box-shadow: inset 1px 1px 0 var(--hi), inset -1px -1px 0 var(--lo), 6px 6px 0 rgb(0 0 0 / 0.3);
+}
+
+::selection { background: var(--accent); color: #ffffff; }
+
+h1, h2, h3 { line-height: 1.2; }
+h1 { font-size: 1.75rem; font-weight: 750; letter-spacing: -0.01em; margin: 0 0 16px; }
+h2 { font-size: 1.1rem; font-weight: 700; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+h2::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; vertical-align: 2px; background: var(--accent); box-shadow: 1px 1px 0 var(--edge); }
+h3 { font-size: 1rem; font-weight: 700; margin: 24px 0 8px; }
+p { margin: 12px 0; }
+
+a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:visited { color: var(--link-visited); }
+
+:focus-visible,
+a:focus-visible,
+th button.sort:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+hr { border: 0; border-top: 1px solid var(--lo); border-bottom: 1px solid var(--hi); }
+code, kbd, samp, pre { font-family: var(--mono); font-size: 0.9em; }
+pre { background: var(--zebra); border: 1px solid var(--rule); padding: 8px 10px; }
+small, .muted { color: var(--ink-muted); opacity: 1; }
+address { font-style: normal; }
+
+/* Toolbars: dithered grey with a grip handle on the left. */
+.site-header,
+#marquee:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 3px;
+  background: var(--dither);
+  border-bottom: 1px solid var(--lo);
+  box-shadow: 0 1px 0 var(--hi);
+  margin-bottom: 2px;
+}
+.site-header::before,
+#marquee:not([hidden])::before {
+  content: "";
+  flex: none;
+  align-self: stretch;
+  width: 11px;
+  margin-right: 4px;
+  border: 1px solid;
+  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  background: var(--grip) center 4px / 5px 3px no-repeat, var(--chrome);
+  image-rendering: pixelated;
+}
+
+.site-header { flex-wrap: wrap; min-height: 60px; }
+.site-title { margin: 0 14px 0 4px; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.site-title a, .site-title a:visited { color: var(--ink); text-decoration: none; text-shadow: 1px 1px 0 var(--hi); }
+
+/* Toolbar buttons: icon above label, flat until hovered, pressed for the current page.
+   font-size: 0 hides the " | " text between the links. */
+nav { display: flex; gap: 2px; font-size: 0; }
+nav a, nav a:visited {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 68px;
+  padding: 4px 8px 3px;
+  border: 1px solid transparent;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.1;
+  text-decoration: none;
+}
+nav a::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  background: var(--icon) center / 24px 24px no-repeat;
+  image-rendering: pixelated;
+}
+nav a[href="index.html"] { --icon: var(--icon-folder); }
+nav a[href="whats-new.html"] { --icon: var(--icon-news); }
+nav a[href="trash.html"] { --icon: var(--icon-trash); }
+nav a[href="tokens.html"] { --icon: var(--icon-key); }
+nav a:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+nav a[aria-current="page"] {
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  background: var(--chrome-press);
+  font-weight: 700;
+}
+
+#whoami { margin-left: auto; padding: 0 10px; font-size: 12px; }
+
+/* The throbber: a pixel monogram over the starfield, drifting slowly. */
+.site-header::after {
+  content: "";
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  outline: 1px solid var(--edge);
+  outline-offset: -3px;
+  background:
+    var(--icon-mark) center / 24px 24px no-repeat,
+    url("../img/stars.png") 0 0 / 192px 192px repeat,
+    radial-gradient(circle at 70% 25%, #2a4fb0, #0a1440 55%, #000010);
+  background-blend-mode: normal, screen, normal;
+  image-rendering: pixelated;
+  animation: throbber-drift 40s linear infinite;
+}
+@keyframes throbber-drift {
+  to { background-position: center, -192px 192px, 0 0; }
+}
+
+/* Overdue tasks: a second toolbar holding an inset ticker field. */
+.marquee {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  background: var(--field);
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  font-size: 13px;
+}
+.marquee__label { color: var(--overdue); font-weight: 700; }
+
+/* Status line: an info bar across the top of the page, like a modern browser's. */
+.status { min-height: 0; margin: 0; }
+.status:not(:empty) {
+  margin: 0 0 2px;
+  padding: 6px 12px;
+  background: var(--notice);
+  border: 1px solid var(--notice-edge);
+  font-size: 14px;
+}
+.status.error:not(:empty) { background: var(--error); border-color: var(--error-ink); color: var(--error-ink); }
+
+/* The page itself: the browser's content area, sunk into the chrome. */
+main.panel {
+  min-height: 50vh;
+  padding: 24px 28px 32px;
+  background: var(--view);
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+main.panel > :first-child { margin-top: 0; }
+
+/* Buttons: bevelled grey, the one place the old controls survive inside the page. */
+button, .button {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--chrome);
+  color: var(--ink);
+  border: 2px solid;
+  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  border-radius: 0;
+  box-shadow: 1px 1px 0 var(--edge);
+  font: 600 13px/1.3 var(--ui);
+  text-decoration: none;
+  cursor: pointer;
+}
+.button:visited { color: var(--ink); }
+button:hover, .button:hover { background: var(--chrome-hover); }
+button:active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); box-shadow: none; transform: translate(1px, 1px); }
+button:disabled { color: var(--ink-muted); cursor: default; }
+button.danger { color: var(--danger); }
+
+input[type="text"], input[type="search"], input[type="date"], input[type="url"], select, textarea {
+  padding: 4px 6px;
+  background: var(--field);
+  color: var(--ink);
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  border-radius: 0;
+  font: 14px/1.3 var(--ui);
+}
+input[readonly] { background: var(--zebra); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+.field label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.field { margin: 10px 0; }
+.filters .field { margin: 0; }
+
+/* Tables: a sunken list view with bevelled column headers and quiet rows. */
+table { border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); background: var(--view); }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+thead th {
+  padding: 4px 10px;
+  background: var(--chrome);
+  border: 1px solid;
+  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+th button.sort { color: var(--ink); text-decoration: none; }
+th button.sort:hover { text-decoration: underline; }
+tbody tr:nth-child(even) td { background: var(--zebra); }
+tbody tr:hover td { background: color-mix(in srgb, var(--accent) 8%, var(--view)); }
+td input[type="text"] { min-width: 10em; }
+td input[type="date"] { min-width: 9em; }
+.row-actions button { padding: 2px 8px; font-size: 12px; }
+tr.overdue td.col-due_date { color: var(--overdue); font-weight: 700; }
+tr.overdue td.col-due_date::after { content: " (overdue)"; font-weight: 400; }
+tr.trashed td { color: var(--ink-muted); font-style: italic; }
+.notes-row td { background: var(--zebra); }
+
+/* The project's key/value header has no frame. */
+table.meta, table.meta th, table.meta td { border: 0; background: none; }
+table.meta th { padding: 3px 16px 3px 0; color: var(--ink-muted); font-size: 13px; font-weight: 600; }
+table.meta td { padding: 3px 0; }
+table.meta tr:hover td { background: none; }
+
+/* Hit counter: green digits on black, as it always was. */
+.hit-counter {
+  display: inline-block;
+  padding: 2px;
+  background: #000000;
+  border: 2px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+.hit-counter .digit {
+  display: inline-block;
+  min-width: 0.8em;
+  margin: 0 1px;
+  padding: 2px 3px;
+  background: #101010;
+  color: #39ff14;
+  font: 700 1.05em var(--mono);
+  text-align: center;
+}
+.hit-caption { color: var(--ink-muted); font-size: 12px; }
+
+/* Private marker: the padlock picture, not the text. */
+.padlock__text { display: none; }
+
+.under-construction { text-align: center; padding: 16px 0; }
+.under-construction img { max-width: 100%; height: auto; }
+
+/* Tag chips keep the colour their tag was given. */
+.tag-chip { padding: 0 6px; background: var(--chrome); border-color: var(--edge); border-radius: 0; box-shadow: 1px 1px 0 var(--edge); font-size: 12px; line-height: 1.6; }
+.tag-chip button { padding: 0 4px; box-shadow: none; font-size: 11px; }
+
+/* A new MCP token. */
+.token-box { margin: 12px 0; padding: 10px 14px; background: var(--notice); border: 1px solid var(--notice-edge); }
+.token-box #token-warning b { color: var(--danger); }
+
+/* Activity feed */
+.via-mcp { color: var(--accent); font-weight: 700; }
+.via-ui { color: var(--link); font-weight: 700; }
+
+/* Dev mode: a hazard-striped strip above the window. */
+.dev-banner {
+  max-width: 1180px;
+  margin: -16px auto 12px;
+  padding: 4px 12px;
+  background: repeating-linear-gradient(-45deg, #b00000 0 8px, #8f0000 8px 16px);
+  color: #ffffff;
+  border: 1px solid var(--edge);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.dev-banner select { margin-left: 6px; padding: 1px 4px; font-size: 12px; font-weight: 400; }
+
+/* Footer: the status bar. */
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.site-footer .best-viewed { display: none; }
+.site-footer address,
+.site-footer::after {
+  padding: 1px 8px;
+  border: 1px solid;
+  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+}
+.site-footer address { flex: 1; }
+.site-footer::after { content: "Document: Done"; content: "Document: Done" / ""; }
+#webring { flex-basis: 100%; order: 1; }
+#webring:not(:has(.webring:not([hidden]))) { display: none; }
+.webring { padding: 4px 8px; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); text-align: center; }
+
+/* Phone width: the window fills the screen and the toolbar wraps onto two rows. */
+@media (max-width: 700px) {
+  body { padding: 0; }
+  .wrap { border: 0; box-shadow: none; }
+  .dev-banner { margin: 0; border-width: 0 0 1px; }
+  .site-header::before, #marquee:not([hidden])::before { display: none; }
+  .site-header { padding: 4px 6px; }
+  .site-header::after { order: 2; width: 40px; height: 40px; }
+  #whoami { order: 1; }
+  nav { order: 3; flex-basis: 100%; }
+  nav a, nav a:visited { flex: 1; min-width: 0; padding: 4px 2px 3px; }
+  main.panel { padding: 16px; }
+  h1 { font-size: 1.45rem; }
+}

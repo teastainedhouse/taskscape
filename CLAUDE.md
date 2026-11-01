@@ -93,7 +93,8 @@ public/                    served as-is; no build step
   trash.html               trashed projects and tasks, restore
   tokens.html              "My MCP tokens": issue (plaintext shown once), revoke
   css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
-  css/theme-plain.css      the default look ("looks like nobody designed it"): browser defaults, grooved rules, dark mode, no motion
+  css/theme-toolbar.css    the configured look: old browser chrome (dithered toolbars, pixel icons, starfield throbber, status bar) around a modern page; dark mode
+  css/theme-plain.css      the fallback the pages link ("looks like nobody designed it"): browser defaults, grooved rules, dark mode, no motion
   css/theme-netscape.css   the 1996 look, kept as an alternative; config.theme picks css/theme-<name>.css (page.js falls back to plain)
   js/page.js               shared boot: loads /api/config and /api/me, theme swap, nav, dev banner, aria-live say(), attempt() = the 409 handler
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
