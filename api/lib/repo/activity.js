@@ -1,5 +1,6 @@
 import { newId } from '../ids.js';
 import { validationFailed } from '../errors.js';
+import { activityVisible, projectVisible } from './visibility.js';
 
 /**
  * Append one activity entry. Always called inside the write's transaction.
@@ -32,23 +33,6 @@ export function decodeCursor(cursor) {
 }
 
 /**
- * The visibility predicate for activity: an entry is visible when the item
- * it is about is visible NOW (so flipping private hides history).
- * @param {import('../auth/index.js').Principal} user
- */
-function visibleEntries(user) {
-  return {
-    sql: `(a.item_type = 'tag'
-      OR (a.item_type = 'project' AND EXISTS (
-            SELECT 1 FROM projects p WHERE p.id = a.item_id AND (p.private = 0 OR p.owner_id = ?)))
-      OR (a.item_type = 'task' AND EXISTS (
-            SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id
-             WHERE t.id = a.item_id AND (t.private = 0 OR t.owner_id = ?) AND (p.private = 0 OR p.owner_id = ?))))`,
-    params: [user.id, user.id, user.id],
-  };
-}
-
-/**
  * A task's history may name a project (create, move) that has since gone
  * private. Replace such ids with null so no trace of the private project
  * reaches anyone but its owner.
@@ -65,9 +49,10 @@ async function hideInvisibleProjectIds(db, user, changesList) {
   }
   if (ids.size === 0) return;
   const list = [...ids];
+  const vis = projectVisible('p', user);
   const { rows } = await db.query(
-    `SELECT p.id FROM projects p WHERE p.id IN (${list.map(() => '?').join(', ')}) AND (p.private = 0 OR p.owner_id = ?)`,
-    [...list, user.id]);
+    `SELECT p.id FROM projects p WHERE p.id IN (${list.map(() => '?').join(', ')}) AND ${vis.sql}`,
+    [...list, ...vis.params]);
   const visible = new Set(rows.map((r) => r.id));
   for (const c of changesList) {
     const pid = c?.project_id;
@@ -81,12 +66,21 @@ async function hideInvisibleProjectIds(db, user, changesList) {
  * What's New, newest first, keyset-paginated.
  * @param {import('../db/index.js').Db} db
  * @param {import('../auth/index.js').Principal} user
- * @param {{limit: number, before?: string, item_type?: string, item_id?: string, project?: string, actor?: string, via?: string}} f
+ * @param {{limit: number, before?: string, item_type?: string, item_id?: string, project?: string, actor?: string, via?: string, for_me?: boolean}} f
+ *   for_me: only entries by someone else about a project or task the caller owns now
  */
 export async function list(db, user, f) {
-  const vis = visibleEntries(user);
+  const vis = activityVisible('a', user);
   const where = [vis.sql];
   const params = [...vis.params];
+  if (f.for_me) {
+    // Driven from what the caller owns (the owner indexes, then idx_activity_item), so the
+    // badge on every page never scans the whole log.
+    where.push(`a.actor_id <> ? AND (
+      (a.item_type = 'project' AND a.item_id IN (SELECT fp.id FROM projects fp WHERE fp.owner_id = ?))
+      OR (a.item_type = 'task' AND a.item_id IN (SELECT ft.id FROM tasks ft WHERE ft.owner_id = ?)))`);
+    params.push(user.id, user.id, user.id);
+  }
   if (f.item_type) { where.push('a.item_type = ?'); params.push(f.item_type); }
   if (f.item_id) { where.push('a.item_id = ?'); params.push(f.item_id); }
   if (f.actor) { where.push('a.actor_id = ?'); params.push(f.actor); }

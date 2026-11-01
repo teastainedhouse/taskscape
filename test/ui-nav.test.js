@@ -1,6 +1,7 @@
 // ui-nav.test.js — every page with the main toolbar has the same entries, in
 // the same order, and every entry has a pixel icon in the theme. The overdue
 // marquee in the toolbar is decoration: a page that has it also has the static line.
+// Browser storage is touched only inside try; the For you badge rides on boot().
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,4 +56,22 @@ test('the overdue marquee is never the only overdue signal', () => {
   assert.match(overdue, /class: 'marquee__stop'/, 'the marquee has a Stop button for keyboard and pointer users');
   const base = readFileSync(path.join(PUBLIC, 'css', 'base.css'), 'utf8');
   assert.match(base, /prefers-reduced-motion: reduce\)[\s\S]*animation: none !important/, 'reduced motion stops every animation');
+});
+
+test('browser storage is only ever touched inside try, so blocked storage costs a convenience, not the page', () => {
+  const dir = path.join(PUBLIC, 'js');
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+    const lines = readFileSync(path.join(dir, file), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      if (/^\s*(\/\/|\*)/.test(line) || !/\b(localStorage|sessionStorage)\s*\./.test(line)) return;
+      assert.match(line, /\btry\s*\{/, `${file}:${i + 1} reaches storage outside a one-line try`);
+    });
+  }
+});
+
+test('the What\'s New toolbar entry carries the For you badge from every page', () => {
+  const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
+  assert.match(page, /refreshBadge\(me\)\.catch\(/, 'boot() refreshes the badge and never fails over it');
+  const css = readFileSync(path.join(PUBLIC, 'css', 'theme-toolbar.css'), 'utf8');
+  assert.match(css, /\.nav-badge\s*\{/);
 });

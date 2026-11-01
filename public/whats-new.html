@@ -28,8 +28,15 @@
 
     <main class="panel">
       <h1>What's New?</h1>
-      <p class="muted">Every change, newest first. Entries about private items show only to their owner.</p>
+      <p class="muted">Every change, newest first. Entries about private items show only to their owner. "For you" shows other people's changes to the projects and tasks you own.</p>
       <div class="filters" role="group" aria-label="Filter activity">
+        <div class="field">
+          <label for="f-for">Show</label>
+          <select id="f-for" name="for">
+            <option value="">Everything</option>
+            <option value="me">For you</option>
+          </select>
+        </div>
         <div class="field">
           <label for="f-via">Via</label>
           <select id="f-via" name="via">

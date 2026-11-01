@@ -181,6 +181,22 @@ nav a[href="whats-new.html"] { --icon: var(--icon-news); }
 nav a[href="trash.html"] { --icon: var(--icon-trash); }
 nav a[href="tokens.html"] { --icon: var(--icon-key); }
 nav a:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+/* Unread "For you" entries: a pixel-cornered counter over the icon's corner. */
+nav a { position: relative; }
+.nav-badge {
+  position: absolute;
+  top: 1px;
+  left: calc(50% + 6px);
+  min-width: 16px;
+  padding: 1px 3px;
+  border: 1px solid var(--edge);
+  background: #b00020;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
 nav a[aria-current="page"] {
   border-color: var(--lo) var(--hi) var(--hi) var(--lo);
   background: var(--chrome-press);
@@ -323,6 +339,7 @@ tr.editing td.row-actions { white-space: normal; }
 tr.overdue td.col-due { color: var(--overdue); font-weight: 700; }
 .overdue-line { margin: 0 0 12px; padding: 6px 10px; border-left: 4px solid var(--overdue); background: color-mix(in srgb, var(--overdue) 8%, var(--view)); }
 .overdue-line b { color: var(--overdue); }
+.new-mark { padding: 0 4px; border: 1px solid currentColor; color: var(--overdue); font-size: 11px; }
 .overdue-line--none { border-left-color: var(--rule); background: none; }
 .notes-row td { background: var(--zebra); }
 

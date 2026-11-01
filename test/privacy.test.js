@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestApp, NOT_FOUND_BODY } from './helpers.js';
+import { createTestApp, NOT_FOUND_BODY, tickingClock } from './helpers.js';
 import * as users from '../api/lib/repo/users.js';
 import * as tokens from '../api/lib/repo/tokens.js';
 
@@ -215,7 +215,7 @@ test('moved_tasks never counts tasks the flipper could not see', async () => {
 });
 
 test('a task\'s history does not keep the id of a project that went private', async () => {
-  const t = await createTestApp();
+  const t = await createTestApp({ now: tickingClock() });
   const a = t.as('alice'); const b = t.as('bob'); const c = t.as('carol');
   const S = (await c.post('/api/projects', { name: 'S' })).body;
   const T = (await a.post('/api/tasks', { title: 'Alice in S', project_id: S.id })).body;
@@ -334,5 +334,33 @@ test('the task owner filter (My tasks) stacks on the privacy predicate', async (
   assert.ok((await ids(a, 'me')).includes(T2.id));
   assert.deepEqual(await ids(c, 'me'), [S1.id]);
   assert.ok(S.private);
+  await t.close();
+});
+
+test('for=me uses the same read-time visibility: what I no longer own or can no longer see drops out', async () => {
+  const t = await createTestApp({ now: tickingClock() });
+  const { a, b, c, P, T2, S, S1 } = await seed(t);
+  // bob owns a task in alice's public project and a project of his own
+  const BT = (await b.post('/api/tasks', { title: 'Bob in P', project_id: P.id })).body;
+  const BQ = (await b.post('/api/projects', { name: 'Bob plan' })).body;
+  await a.patch(`/api/tasks/${BT.id}`, { version: BT.version, status: 'Doing' });
+  await c.patch(`/api/projects/${BQ.id}`, { version: BQ.version, status: 'Active' });
+  const ids = async () => (await b.get('/api/activity?for=me')).body.items.map((e) => e.item_id);
+  assert.deepEqual((await ids()).sort(), [BT.id, BQ.id].sort());
+  // nothing about other people's private items, even asked for directly
+  for (const id of [T2.id, S.id, S1.id]) assert.deepEqual((await b.get(`/api/activity?for=me&item_id=${id}`)).body.items, []);
+  // alice flips P private: bob's task moves to General; the entry stays his, without naming the private project
+  const p = (await a.get(`/api/projects/${P.id}`)).body;
+  await a.patch(`/api/projects/${P.id}`, { version: p.version, private: true });
+  const moved = (await b.get(`/api/activity?for=me&item_id=${BT.id}`)).body.items[0];
+  assert.equal(moved.actor_id, 'alice');
+  assert.deepEqual(moved.changes, { project_id: { from: null, to: 'general' } });
+  // bob hands his project to carol, who makes it private: its history leaves bob's view entirely
+  const q = (await b.get(`/api/projects/${BQ.id}`)).body;
+  await b.patch(`/api/projects/${BQ.id}`, { version: q.version, owner_id: 'carol' });
+  const q2 = (await c.get(`/api/projects/${BQ.id}`)).body;
+  await c.patch(`/api/projects/${BQ.id}`, { version: q2.version, private: true });
+  assert.equal((await ids()).includes(BQ.id), false);
+  assert.deepEqual((await b.get(`/api/activity?item_id=${BQ.id}`)).body.items, []);
   await t.close();
 });

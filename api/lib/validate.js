@@ -217,7 +217,8 @@ export function parseActivityQuery(q) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) errors.limit = 'must be 1 to 200';
   if (q.item_type && !['project', 'task', 'tag'].includes(q.item_type)) errors.item_type = 'must be project, task, or tag';
   if (q.via && !['ui', 'mcp'].includes(q.via)) errors.via = 'must be ui or mcp';
+  if (q.for && q.for !== 'me') errors.for = 'must be me';
   if (Object.keys(errors).length) throw validationFailed(errors);
   return { limit, before: q.before || undefined, item_type: q.item_type || undefined, item_id: q.item_id || undefined,
-    project: q.project || undefined, actor: q.actor || undefined, via: q.via || undefined };
+    project: q.project || undefined, actor: q.actor || undefined, via: q.via || undefined, for_me: q.for === 'me' };
 }

@@ -80,12 +80,12 @@ api/
       migrate.js           listMigrations() (numeric order, dialect override wins; a misnamed .sql throws), runMigrations() (one transaction
                            per file; throws if an applied id's recorded name differs from its file)
     repo/
-      visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, live, trashState, likeContains
+      visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, activityVisible, live, trashState, likeContains
       common.js            rowToProject(), rowToTask(), rowToTag(), tagsFor(), statusOrder(), diff()
       projects.js          ensureCatchAll(), get/mustGet/list/create/update/trash/restore/setTag/recordHit; moveForeignTasks on flip-private
       tasks.js             get/mustGet/list/create/update/trash/restore/setTag; the "private project holds only its owner's tasks" invariant
       tags.js              normalizeTagName(), list, create (idempotent), mustExist()
-      activity.js          record() (called inside every write transaction), list() with cursor and read-time visibility
+      activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility, and for=me
       people.js            distinct owners of visible items + caller + the directory (dev users, enabled users rows); directoryName()
       tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
                            revoke(), revokeAllForUser()
@@ -110,7 +110,7 @@ public/                    served as-is; no build step
   index.html               project list (filters, search, new project, marquee of overdue tasks)
   project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table (read-only rows, per-row Edit form)
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default
-  whats-new.html           activity feed with "Load more"
+  whats-new.html           activity feed with "Load more"; Show: Everything / For you (?for=me)
   trash.html               trashed projects and tasks, restore
   tokens.html              "My MCP tokens": issue (plaintext shown once), revoke; a change-password section for password sessions
   login.html               sign-in dialog for the password provider; reads GET /api/login, goes to a same-site ?next= page
@@ -126,6 +126,7 @@ public/                    served as-is; no build step
   js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
+  js/for-you.js            For you: unread badge on the toolbar's What's New entry; last seen per user in localStorage (try/catch)
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
   js/projects.js tasks.js mine.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
@@ -139,7 +140,7 @@ test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
                            hits, search, export, markdown, http, db, mcp (fake fetch), login (password provider), ui-escaping (greps public/),
-                           ui-nav (every page has the same toolbar entries, each with an icon), pager (offset paging and js/pager.js)
+                           ui-nav (every page has the same toolbar entries, each with an icon; storage only inside try), pager (offset paging and js/pager.js)
 
 docs/
   ONE-PAGER.md             the original pitch, scrubbed of company and vendor names; historical, not kept current

@@ -131,7 +131,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/tags` | any | — | `200 {items:[Tag]}` by name | |
 | POST | `/api/tags` | any | `{name, color?}` | `201 Tag`, or `200 Tag` if the normalized name exists | 400 (name 1–40 chars, color `#rrggbb`, default next palette color) |
 | GET | `/api/trash` | any | — | `200 {"projects":[Project],"tasks":[Task]}` by `deleted_at` desc; tasks only those with their own `deleted_at` | |
-| GET | `/api/activity` | any | `limit` (50, max 200), `before` (cursor), `item_type`, `item_id`, `project`, `actor`, `via` | `200 {"items":[Activity],"next_cursor":"…"\|null}` | 400 |
+| GET | `/api/activity` | any | `limit` (50, max 200), `before` (cursor), `item_type`, `item_id`, `project`, `actor`, `via`, `for` (`me`) | `200 {"items":[Activity],"next_cursor":"…"\|null}` | 400 |
 | GET | `/api/search` | any | `q` (min 2 chars), `limit` (20, max 100) | `200 {"projects":[Project],"tasks":[Task]}` | 400 |
 | GET | `/api/tokens` | human | — | `200 {items:[Token]}` own tokens, revoked included | 403 |
 | POST | `/api/tokens` | human | `{label}` | `201 {"token": Token, "plaintext": "tsk_…"}`; plaintext never shown again | 400, 403 |
@@ -150,6 +150,8 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 **The catch-all project** is an ordinary project row with a fixed id (`config.catch_all_project_id`, default `general`), created by `npm run migrate` if missing, owned by the system principal (`owner_id: "system"`), and exposed as `catch_all_project_id` in `/api/config`. It is always public and always present: `PATCH` with `private: true` or a new `owner_id`, and `DELETE`, return `400 invalid_state`. Its name, description, status, and tags are editable like any project. `POST /api/tasks` without `project_id` files the task there.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
+
+**Activity for me:** `for=me` keeps only entries written by someone other than the caller about a project or task the caller owns now (`owner_id` at read time, not when the entry was written; tag entries never match). Visibility is the same read-time rule as the rest of the feed, so an item that goes private to someone else drops out along with its history. It combines with the other filters and the cursor. Any other value of `for` is 400.
 
 **Activity cursor:** opaque base64 of `created_at|id`; the query is `created_at < ? OR (created_at = ? AND id < ?) ORDER BY created_at DESC, id DESC`.
 
@@ -225,3 +227,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-01 (review fixes): `GET /api/people` also lists the server's directory: every enabled `users` row under `password` (configured dev users were already listed under `dev`); `system` is never listed. When `owner_id` names someone in the directory, the server uses the directory's name and `owner_name` becomes optional; under `password` an `owner_id` outside the directory (other than the caller's own) is 400; under `headers` `owner_name` is still required. `owner_id: "system"` is refused under every provider. MCP `create`/`update` describe `owner_name` accordingly; the UI keeps sending it.
 - 2026-11-01 (review fixes): an `offset` above 2^53 − 1 is a 400 `validation_failed` on `offset`; it was a 500. The MCP list tools take no `offset`, so they are unchanged.
 - 2026-11-01 (review fixes): `GET /api/config` also returns `limits.max_page_size`, so the UI can ask for the largest page (the overdue count, the task table's "Move to project" list) without guessing.
+- 2026-11-01 (review fixes): `GET /api/activity` takes `for=me`: entries by others about the projects and tasks the caller owns now, under the same visibility. The MCP server has no activity tool, so nothing changes there: the feed carries other people's free text and names, and the eight tools stay as they are.

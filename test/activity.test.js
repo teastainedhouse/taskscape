@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestApp } from './helpers.js';
+import { createTestApp, tickingClock } from './helpers.js';
 
 test('one entry per write, with the documented change shapes', async () => {
   const t = await createTestApp();
@@ -81,5 +81,45 @@ test('filters: actor, via, item_type', async () => {
   assert.deepEqual((await q('actor=bob')).map((e) => e.item_title), ['bob project']);
   assert.deepEqual((await q('item_type=project')).map((e) => e.item_title), ['bob project']);
   assert.equal((await q('actor=alice')).length, 2);
+  await t.close();
+});
+
+test('for=me: entries by others about the projects and tasks I own now', async () => {
+  const t = await createTestApp({ now: tickingClock() });
+  const a = t.as('alice');
+  const b = t.as('bob');
+  const mine = (await a.post('/api/projects', { name: 'Mine' })).body;
+  const task = (await a.post('/api/tasks', { title: 'My task', project_id: mine.id })).body;
+  const given = (await b.post('/api/tasks', { title: 'Handed over' })).body;
+  const kept = (await b.post('/api/tasks', { title: 'Bob keeps' })).body;
+  await b.patch(`/api/tasks/${task.id}`, { version: task.version, status: 'Doing' }); // bob on my task: counts
+  await b.patch(`/api/projects/${mine.id}`, { version: mine.version, description: 'bob was here' }); // on my project: counts
+  await b.patch(`/api/tasks/${given.id}`, { version: given.version, owner_id: 'alice' }); // now mine: counts, with its history
+  await b.patch(`/api/tasks/${kept.id}`, { version: kept.version, status: 'Doing' }); // not mine: no
+  await a.patch(`/api/tasks/${task.id}`, { version: task.version + 1, title: 'My task, renamed' }); // by me: no
+  await b.post('/api/tags', { name: 'shiny' }); // tags belong to nobody: no
+  const forMe = (await a.get('/api/activity?for=me')).body;
+  assert.deepEqual(forMe.items.map((e) => [e.actor_id, e.item_title, e.action]), [
+    ['bob', 'Handed over', 'update'],
+    ['bob', 'Mine', 'update'],
+    ['bob', 'My task, renamed', 'update'],
+    ['bob', 'Handed over', 'create'],
+  ]);
+  assert.equal(forMe.next_cursor, null);
+  // it pages with the cursor and combines with the other filters
+  const p1 = (await a.get('/api/activity?for=me&limit=3')).body;
+  const p2 = (await a.get(`/api/activity?for=me&limit=3&before=${p1.next_cursor}`)).body;
+  assert.deepEqual([...p1.items, ...p2.items].map((e) => e.id), forMe.items.map((e) => e.id));
+  assert.deepEqual((await a.get('/api/activity?for=me&item_type=project')).body.items.map((e) => e.item_title), ['Mine']);
+  // giving a task away takes its entries with it
+  const g = (await a.get(`/api/tasks/${given.id}`)).body;
+  await a.patch(`/api/tasks/${g.id}`, { version: g.version, owner_id: 'carol' });
+  assert.equal((await a.get('/api/activity?for=me')).body.items.some((e) => e.item_id === given.id), false);
+  assert.equal((await t.as('carol').get('/api/activity?for=me')).body.items.filter((e) => e.item_id === given.id).length, 3);
+  // only "me"; the details name the field and not the value
+  const r = await a.get('/api/activity?for=bob');
+  assert.equal(r.status, 400);
+  assert.deepEqual(r.body.error.details, { fields: { for: 'must be me' } });
+  assert.equal(JSON.stringify(r.body).includes('bob'), false);
   await t.close();
 });

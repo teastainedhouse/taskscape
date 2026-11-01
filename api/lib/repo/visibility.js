@@ -32,6 +32,25 @@ export function taskVisible(t, p, user) {
   };
 }
 
+/**
+ * An activity entry is visible when the item it is about is visible NOW, so
+ * flipping an item private hides its history too. Tag entries are public.
+ * @param {string} a  alias of the activity table
+ * @param {{id: string}} user
+ * @returns {Fragment}
+ */
+export function activityVisible(a, user) {
+  const p = projectVisible('vp', user);
+  const t = taskVisible('vt', 'vtp', user);
+  return {
+    sql: `(${a}.item_type = 'tag'
+      OR (${a}.item_type = 'project' AND EXISTS (SELECT 1 FROM projects vp WHERE vp.id = ${a}.item_id AND ${p.sql}))
+      OR (${a}.item_type = 'task' AND EXISTS (
+            SELECT 1 FROM tasks vt JOIN projects vtp ON vtp.id = vt.project_id WHERE vt.id = ${a}.item_id AND ${t.sql})))`,
+    params: [...p.params, ...t.params],
+  };
+}
+
 /** @param {string} alias @returns {string} */
 export function live(alias) {
   return `${alias}.deleted_at IS NULL`;

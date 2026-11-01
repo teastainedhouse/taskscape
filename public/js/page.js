@@ -7,6 +7,7 @@
 import { get, post, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
 import { el, setChildren } from './dom.js';
 import { mountDevBanner } from './dev-user.js';
+import { refreshBadge } from './for-you.js';
 
 /** @typedef {{config: any, me: {id: string, name: string, auth: string, can_edit: boolean}}} PageContext */
 
@@ -148,6 +149,7 @@ export async function boot(opts) {
   const who = document.getElementById('whoami');
   if (who) setChildren(who, ['Signed in as ', el('b', null, me.name)]);
   mountSignOut(me);
+  refreshBadge(me).catch(() => {}); // the badge is a nicety; What's New itself still works
   return { config, me };
 }
 

@@ -19,6 +19,17 @@ function merge(a, b) {
 }
 
 /**
+ * A clock that moves 1 ms forward on every read, for tests that assert the
+ * order of activity entries: writes in the same millisecond tie on created_at
+ * and then sort by a random id.
+ * @param {string} [start]
+ */
+export function tickingClock(start = '2026-11-01T09:00:00.000Z') {
+  let ms = Date.parse(start);
+  return () => new Date(ms++).toISOString();
+}
+
+/**
  * An in-process app over an in-memory SQLite database.
  * @param {{config?: object, env?: object, now?: () => string}} [opts]
  */
