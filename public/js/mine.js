@@ -1,12 +1,13 @@
 // mine.js — My tasks (mine.html): tasks assigned to me in every project I can
 // see, each linked to its project. Overdue first (computed here, docs/PLAN.md
 // §2 rule 8) under a static "N overdue" line, then by due date. Closed
-// statuses are hidden unless "Show closed tasks" is ticked.
+// statuses are hidden unless "Show closed tasks" is ticked. "Load more" pages
+// through the rest with the same query.
 
 import { boot, sayError } from './page.js';
-import { get } from './api.js';
 import { el, clear, setChildren, padlock, projectLink, tagChip, todayLocal } from './dom.js';
-import { isOverdue } from './overdue.js';
+import { isOverdue, fetchOverdue } from './overdue.js';
+import { createPager } from './pager.js';
 
 const { config } = await boot({ title: 'My tasks' });
 const closed = config.closed_statuses?.task ?? [];
@@ -17,23 +18,39 @@ const empty = document.getElementById('mine-empty');
 const line = document.getElementById('overdue-line');
 const showClosed = document.getElementById('show-closed');
 
-showClosed.addEventListener('change', () => load());
-await load();
+let shown = 0;
+const pager = createPager({
+  path: '/api/tasks',
+  button: document.getElementById('mine-more'),
+  query: () => {
+    const query = { owner: 'me', sort: 'due_date', dir: 'asc' };
+    if (!showClosed.checked && closed.length) query.status = open.join(',');
+    return query;
+  },
+  onPage: (items, first) => {
+    if (first) { clear(tbody); shown = 0; }
+    // The list is by due date, so overdue tasks lead it; within each page they still go first.
+    const today = todayLocal();
+    const rows = [...items.filter((t) => isOverdue(t, config, today)).map((t) => row(t, true)),
+      ...items.filter((t) => !isOverdue(t, config, today)).map((t) => row(t, false))];
+    for (const r of rows) tbody.appendChild(r);
+    shown += items.length;
+    empty.hidden = shown > 0;
+    return (rows[0] ?? tbody.lastElementChild)?.querySelector('a') ?? null;
+  },
+  onError: (err) => sayError(err, 'Could not load your tasks'),
+});
 
-async function load() {
-  const query = { owner: 'me', sort: 'due_date', dir: 'asc' };
-  if (!showClosed.checked && closed.length) query.status = open.join(',');
-  let items;
-  try { items = (await get('/api/tasks', query)).items ?? []; } catch (err) { sayError(err, 'Could not load your tasks'); return; }
-  const today = todayLocal();
-  const overdue = items.filter((t) => isOverdue(t, config, today));
-  const rest = items.filter((t) => !isOverdue(t, config, today));
-  clear(tbody);
-  for (const t of overdue) tbody.appendChild(row(t, true));
-  for (const t of rest) tbody.appendChild(row(t, false));
-  empty.hidden = items.length > 0;
-  line.classList.toggle('overdue-line--none', !overdue.length);
-  setChildren(line, overdue.length ? el('b', null, `${overdue.length} overdue`) : 'Nothing overdue.');
+showClosed.addEventListener('change', () => pager.reload());
+await Promise.all([pager.reload(), countOverdue()]);
+
+/** The static count comes from its own query, so it holds however many pages are loaded. */
+async function countOverdue() {
+  try {
+    const { tasks, more } = await fetchOverdue(config, { owner: 'me' });
+    line.classList.toggle('overdue-line--none', !tasks.length);
+    setChildren(line, tasks.length ? el('b', null, `${tasks.length}${more ? '+' : ''} overdue`) : 'Nothing overdue.');
+  } catch (err) { sayError(err, 'Could not check for overdue tasks'); }
 }
 
 /** @param {any} t @param {boolean} late */

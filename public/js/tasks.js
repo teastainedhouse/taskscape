@@ -10,6 +10,7 @@ import { get, post, patch, del, projectPath, taskPath, ApiError } from './api.js
 import { el, btn, option, clear, setChildren, padlock, projectLink, timeEl } from './dom.js';
 import { refreshOverdue, isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
+import { createPager } from './pager.js';
 
 const { config, me } = await boot({ title: 'Project' });
 // The counter and webring are decoration, loaded on their own: if a content
@@ -299,16 +300,29 @@ function buildTaskHeader() {
 /** The API's default direction per sort field. @param {string} field */
 function defaultDir(field) { return ['title', 'name', 'due_date'].includes(field) ? 'asc' : 'desc'; }
 
+/** Pages of this project's tasks with the current sort and filters (created in start(), once the project is known). */
+let taskPager = null;
+
+/** Fetch the first page; "Load more" fetches the rest with the same query. */
 async function loadTasks() {
-  const trashed = !!state.project.deleted_at;
-  try {
-    const res = await get('/api/tasks', {
+  taskPager ??= createPager({
+    path: '/api/tasks',
+    button: document.getElementById('tasks-more'),
+    query: () => ({
       project: state.project.id, status: state.status, owner: state.owner, tag: state.tag,
-      sort: state.sort, dir: state.dir ?? undefined, include_trashed: trashed ? 'true' : undefined, limit: 1000,
-    });
-    state.tasks = res.items ?? [];
-  } catch (err) { sayError(err, 'Could not load tasks'); return; }
-  renderTasks();
+      sort: state.sort, dir: state.dir ?? undefined, include_trashed: state.project.deleted_at ? 'true' : undefined,
+    }),
+    onPage: (items, first) => {
+      if (first) { state.tasks = items; renderTasks(); return null; }
+      state.tasks.push(...items);
+      for (const t of items) appendRow(t);
+      // Focus goes to the first new row, or to the last row when the last page came back empty.
+      const target = items[0] ?? state.tasks.at(-1);
+      return target ? document.getElementById(`task-${target.id}`)?.querySelector('a, button, input, select') : null;
+    },
+    onError: (err) => sayError(err, 'Could not load tasks'),
+  });
+  await taskPager.reload();
 }
 
 function renderTasks() {
@@ -347,6 +361,10 @@ function taskRow(t) {
 /** Replace a task in state and its row in the table (used after saves and 409s). @param {any} rec */
 function replaceTask(rec) {
   const i = state.tasks.findIndex((x) => x.id === rec.id);
+  // An edit can move a loaded row out of the loaded range (a new sort key, a filter it no longer
+  // matches), which pulls an unseen row in. Stepping back one never skips it; if the row did not
+  // move, the pager drops the repeat.
+  if (i >= 0 && rec.version !== state.tasks[i].version) taskPager?.removed();
   if (i >= 0) state.tasks[i] = rec; else state.tasks.push(rec);
   const old = document.getElementById(`task-${rec.id}`);
   if (old) {
@@ -361,6 +379,7 @@ function replaceTask(rec) {
 /** Remove a task from state and the table. @param {string} id */
 function dropTask(id) {
   state.tasks = state.tasks.filter((x) => x.id !== id);
+  taskPager?.removed();
   const tr = document.getElementById(`task-${id}`);
   if (tr?.nextElementSibling?.classList.contains('notes-row')) tr.nextElementSibling.remove();
   tr?.remove();

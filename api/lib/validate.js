@@ -204,7 +204,7 @@ export function parseListQuery(q, config, kind) {
   const limit = q.limit === undefined ? config.limits.page_size : Number(q.limit);
   const offset = q.offset === undefined ? 0 : Number(q.offset);
   if (!Number.isInteger(limit) || limit < 1 || limit > config.limits.max_page_size) errors.limit = `must be 1 to ${config.limits.max_page_size}`;
-  if (!Number.isInteger(offset) || offset < 0) errors.offset = 'must be a non-negative integer';
+  if (!Number.isSafeInteger(offset) || offset < 0) errors.offset = 'must be a non-negative integer';
   f.limit = limit; f.offset = offset;
   if (Object.keys(errors).length) throw validationFailed(errors);
   return f;

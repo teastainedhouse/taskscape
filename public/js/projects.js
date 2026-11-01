@@ -6,6 +6,7 @@ import { get, post, del, projectPath } from './api.js';
 import { el, btn, option, clear, setChildren, padlock, projectLink, tagChip, timeEl } from './dom.js';
 import { refreshOverdue } from './overdue.js';
 import { allTags } from './tags.js';
+import { createPager } from './pager.js';
 import { describeActivity } from './activity-words.js';
 
 /**
@@ -35,6 +36,19 @@ const canEdit = !!me.can_edit;
 const table = document.getElementById('projects');
 const thead = table.querySelector('thead');
 const tbody = table.querySelector('tbody');
+const projectPager = createPager({
+  path: '/api/projects',
+  button: document.getElementById('projects-more'),
+  query: () => ({ sort: state.sort, dir: state.dir, status: state.status, owner: state.owner, tag: state.tag }),
+  onPage: (items, first) => {
+    if (first) state.projects = items; else state.projects.push(...items);
+    renderRows();
+    // Focus goes to the first new row, or to the last row when the last page came back empty.
+    const target = first ? null : (items[0] ?? state.projects.at(-1));
+    return target ? document.getElementById(`project-${target.id}`)?.querySelector('a') : null;
+  },
+  onError: (err) => sayError(err, 'Could not load projects'),
+});
 
 buildFilters();
 buildHeader();
@@ -87,13 +101,9 @@ function buildHeader() {
   setChildren(thead, [tr]);
 }
 
-/** Fetch and render the list with the current sort and filters. */
+/** Fetch the first page with the current sort and filters; "Load more" fetches the rest. */
 async function loadProjects() {
-  try {
-    const res = await get('/api/projects', { sort: state.sort, dir: state.dir, status: state.status, owner: state.owner, tag: state.tag });
-    state.projects = res.items ?? [];
-  } catch (err) { sayError(err, 'Could not load projects'); return; }
-  renderRows();
+  await projectPager.reload();
 }
 
 function renderRows() {
@@ -122,6 +132,7 @@ async function trashProject(p) {
   const rec = await attempt(() => del(projectPath(p.id), { version: p.version }), (current) => replaceRow(current));
   if (rec) {
     state.projects = state.projects.filter((x) => x.id !== p.id);
+    projectPager.removed();
     renderRows();
     say(`"${rec.name}" moved to the trash.`);
   }

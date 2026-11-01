@@ -123,6 +123,7 @@ public/                    served as-is; no build step
   js/odometer.js           visitor counter: six digits, role=img + aria-label, webring bar revealed by three clicks in two seconds
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
+  js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
@@ -138,7 +139,7 @@ test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
                            hits, search, export, markdown, http, db, mcp (fake fetch), login (password provider), ui-escaping (greps public/),
-                           ui-nav (every page has the same toolbar entries, each with an icon)
+                           ui-nav (every page has the same toolbar entries, each with an icon), pager (offset paging and js/pager.js)
 
 docs/
   ONE-PAGER.md             the original pitch, scrubbed of company and vendor names; historical, not kept current
