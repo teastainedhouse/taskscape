@@ -49,6 +49,7 @@ export function validateItem(body, config, kind, { partial }) {
   }
   if ('owner_id' in body) {
     if (typeof body.owner_id !== 'string' || !body.owner_id.trim() || body.owner_id.length > 200) errors.owner_id = 'must be a non-empty string';
+    else if (RESERVED_USER_IDS.includes(body.owner_id.trim())) errors.owner_id = 'is reserved';
     else out.owner_id = body.owner_id.trim();
   }
   if ('owner_name' in body) {

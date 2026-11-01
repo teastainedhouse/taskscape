@@ -21,6 +21,17 @@ export async function get(db, id) {
 }
 
 /**
+ * Every enabled user as `{id, name}`, for the people picker. Disabled users and the
+ * reserved `system` id are left out. Directory facts only: nothing about items.
+ * @param {import('../db/index.js').Db} db
+ * @returns {Promise<Array<{id: string, name: string}>>}
+ */
+export async function listEnabled(db) {
+  const { rows } = await db.query("SELECT id, name FROM users WHERE disabled_at IS NULL AND id <> 'system' ORDER BY id");
+  return rows.map((r) => ({ id: String(r.id), name: String(r.name) }));
+}
+
+/**
  * The user plus the stored hash, for checking a password. Login only.
  * @param {import('../db/index.js').Db} db
  * @param {string} id

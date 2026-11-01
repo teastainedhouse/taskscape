@@ -159,6 +159,8 @@ Identity comes from one of three providers, picked by `auth.provider` (or `TASKS
 
 Some hosts send one header with a base64-encoded JSON document instead. Set `auth.headers.principal` to that header's name and the `*_path` keys to dot paths inside the document (`id_path`, `name_path`, `email_path`, `groups_path`). If the document keeps claims as an array of `{type, value}` pairs, `claims_path` plus `claim_type_key` / `claim_value_key` flatten them so `claims.email` style paths work. When `principal` is set, the plain header names are ignored and only the document is read, so a header a client can add never overrides the host's signed identity. No id means 401.
 
+**No directory under `headers`.** Taskscape only sees people when they make a request, so the owner picker lists people who own something you can see, plus you. A new coworker shows up there once they have created something, or once someone assigns them work through the API with their id and display name (`owner_name` is required and stored as sent).
+
 **The `headers` provider is safe ONLY behind a sign-in layer that strips client-supplied copies of those headers. If a browser can reach the API directly and set `x-forwarded-user` itself, anyone can be anyone. Confirm with your host that these headers are overwritten, not merged, before going live.**
 
 **`dev` provider.** Local only. The user comes from the `X-Dev-User` header, else the `taskscape_dev_user` cookie, else `auth.dev.default_user`, and must be in `auth.dev.users`. Refused when `TASKSCAPE_ENV=production`.
@@ -173,7 +175,7 @@ npm run users -- enable dana
 npm run users -- list               # id, name, email, groups, disabled, live sessions; never hashes
 ```
 
-The user id is what becomes `owner_id` on projects and tasks. Ids are lowercase letters, digits, `.`, `_`, `-`; `system` is reserved (it owns the catch-all project).
+The user id is what becomes `owner_id` on projects and tasks. Ids are lowercase letters, digits, `.`, `_`, `-`; `system` is reserved (it owns the catch-all project). Every enabled user appears in the owner picker from the moment they are added, and items assigned to them carry the name from `users`, not one the assigner typed. Work can only be assigned to enabled users: an id without a live users row is refused, so add people (or `--claim-existing` their old ids) before assigning to them.
 
 **Switching an existing site to `password`.** Existing projects, tasks, activity, and MCP tokens carry the ids people had under the old provider. `users add` refuses an id that already appears as an owner, an activity actor, or a token holder, and prints what it found (counts only). When the new account really is that person, add `--claim-existing`: the account then owns those items and that history, and their unrevoked MCP tokens work again (under `password` a token works only while a live users row exists for its id). Do this for each person before switching `auth.provider`, using the same ids as before; `npm run users -- list` checks the result. An id that should not come back can be swept with `disable` even without a users row.
 

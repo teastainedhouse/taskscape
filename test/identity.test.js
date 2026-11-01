@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp } from './helpers.js';
 import { prepareConfig } from '../api/lib/config.js';
+import * as users from '../api/lib/repo/users.js';
+import * as tokens from '../api/lib/repo/tokens.js';
 
 const headersApp = (extra = {}) => createTestApp({ config: { auth: { provider: 'headers', ...extra } } });
 
@@ -88,5 +90,58 @@ test('bearer token present but invalid: 401, no fallback to the header provider'
     const r2 = await t.anon().get('/api/me', undefined, { authorization: bad, 'x-dev-user': 'alice' });
     assert.equal(r2.status, 401, bad);
   }
+  await t.close();
+});
+
+test('owner names: the directory name wins under dev and password; headers keeps requiring owner_name', async () => {
+  const dev = await createTestApp();
+  let r = await dev.as('alice').post('/api/tasks', { title: 'T', owner_id: 'bob' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.owner_name, 'Bob Ortiz');
+  r = await dev.as('alice').post('/api/tasks', { title: 'T', owner_id: 'bob', owner_name: 'Not Bob' });
+  assert.equal(r.body.owner_name, 'Bob Ortiz');
+  r = await dev.as('alice').patch(`/api/tasks/${r.body.id}`, { version: 1, owner_id: 'carol', owner_name: 'Anyone' });
+  assert.equal(r.body.owner_name, 'Carol Nkemelu');
+  await dev.close();
+
+  const pw = await createTestApp({ config: { auth: { provider: 'password' } } });
+  const now = '2026-11-01T09:00:00.000Z';
+  await users.create(pw.db, { id: 'dana', name: 'Dana Fox', groups: [] }, 'scrypt$x', now);
+  await users.create(pw.db, { id: 'eli', name: 'Eli Moss', groups: [] }, 'scrypt$x', now);
+  await users.disable(pw.db, 'eli', now);
+  const { plaintext } = await tokens.issue(pw.db, { id: 'dana', name: 'Dana Fox', groups: [] }, 'test', now);
+  const dana = pw.tokenAs(plaintext);
+  await users.create(pw.db, { id: 'fay', name: 'Fay Quinn', groups: [] }, 'scrypt$x', now);
+  r = await dana.post('/api/projects', { name: 'P', owner_id: 'fay', owner_name: 'Forged' });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.owner_name, 'Fay Quinn');
+  // nobody else can be named under password: not a disabled user, a look-alike id, or an id with no users row,
+  // and the answers are identical, so a write cannot tell a disabled account from a made-up id
+  const refused = [];
+  for (const owner_id of ['eli', 'Fay', 'fay\u200b', 'fa%', 'legacy-id']) {
+    r = await dana.post('/api/projects', { name: 'P', owner_id, owner_name: 'Fay Quinn' });
+    assert.equal(r.status, 400, owner_id);
+    refused.push(r.text);
+  }
+  assert.equal(new Set(refused).size, 1);
+  assert.deepEqual(JSON.parse(refused[0]).error.details.fields, { owner_id: 'must be someone who can sign in' });
+  await pw.close();
+
+  const h = await createTestApp({ config: { auth: { provider: 'headers' } } });
+  const u = h.withHeaders({ 'x-forwarded-user': 'u1', 'x-forwarded-preferred-username': 'Una' });
+  assert.equal((await u.post('/api/tasks', { title: 'T', owner_id: 'bob' })).status, 400); // no directory, even for a dev user id
+  assert.equal((await u.post('/api/tasks', { title: 'T', owner_id: 'bob', owner_name: 'Bob' })).body.owner_name, 'Bob');
+  await h.close();
+});
+
+test('system is reserved: nobody can own an item as it or relabel the catch-all owner', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  let r = await a.post('/api/tasks', { title: 'T', owner_id: 'system', owner_name: 'Taskscape' });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.owner_id, 'is reserved');
+  r = await a.patch(`/api/projects/${t.catchAllId}`, { version: 1, owner_id: 'system', owner_name: 'Alice Lin' });
+  assert.equal(r.status, 400);
+  assert.equal((await a.get(`/api/projects/${t.catchAllId}`)).body.owner_name, 'Taskscape');
   await t.close();
 });

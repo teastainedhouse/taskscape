@@ -36,7 +36,7 @@ package.json               scripts: dev, start, migrate, seed, backup, users, mc
 api/
   index.js                 createApp({config, db, now?, log?}) -> { fetch(Request): Promise<Response> }; registers every handler module
   handlers/                one module per resource; each exports `routes: [{method, path, auth?, handler}]`; no SQL
-    _shared.js             body(req, ctx) with the size limit; requireOwnerName()
+    _shared.js             body(req, ctx) with the size limit; resolveOwnerName() (directory name, else the client's, else 400)
     projects.js            /api/projects CRUD, restore, tags, hit
     tasks.js               /api/tasks CRUD, restore, tags
     tags.js                /api/tags list and create
@@ -86,10 +86,10 @@ api/
       tasks.js             get/mustGet/list/create/update/trash/restore/setTag; the "private project holds only its owner's tasks" invariant
       tags.js              normalizeTagName(), list, create (idempotent), mustExist()
       activity.js          record() (called inside every write transaction), list() with cursor and read-time visibility
-      people.js            distinct owners of visible items + caller + dev users
+      people.js            distinct owners of visible items + caller + the directory (dev users, enabled users rows); directoryName()
       tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
                            revoke(), revokeAllForUser()
-      users.js             password-provider users: get, credentials (login only), list, existingFootprint (counts an id's items, for the CLI),
+      users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
                            create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
       sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, removeByToken/ForUser/Expired; no version, no activity
 

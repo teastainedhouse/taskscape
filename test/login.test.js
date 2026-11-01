@@ -465,11 +465,13 @@ test('privacy holds under the password provider', async () => {
   assert.equal(hidden.text, missing.text);
   assert.equal((await t.cookie(eli).get('/api/projects')).body.items.some((p) => p.id === secret.body.id), false);
   assert.equal((await t.cookie(eli).get('/api/activity')).body.items.some((a) => a.item_id === secret.body.id), false);
-  // people comes from visible items, never from the users table
-  const people = (await t.cookie(eli).get('/api/people')).body.items.map((p) => p.id);
-  assert.ok(people.includes('eli'));
-  assert.equal(people.includes('fay'), false);
-  assert.equal(people.includes('dana'), false); // dana owns only a private project
+  // people lists every enabled users row (a directory fact), but nothing known only from a private item
+  await t.cookie(dana).post('/api/tasks', { title: 'x', project_id: secret.body.id });
+  await t.addUser('gus', 'Gus');
+  await users.disable(t.db, 'gus', '2026-11-01T09:00:00.000Z');
+  const people = (await t.cookie(eli).get('/api/people')).body.items;
+  assert.deepEqual(people.map((p) => p.id).sort(), ['dana', 'eli', 'fay']);
+  assert.equal(people.find((p) => p.id === 'dana').name, 'Dana Fox');
   await t.close();
 });
 

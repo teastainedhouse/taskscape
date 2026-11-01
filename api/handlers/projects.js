@@ -1,7 +1,7 @@
 import { json } from '../lib/http.js';
 import * as projects from '../lib/repo/projects.js';
 import { validateItem, validateVersionOnly, parseListQuery } from '../lib/validate.js';
-import { body, requireOwnerName } from './_shared.js';
+import { body, resolveOwnerName } from './_shared.js';
 
 /** @type {import('../lib/router.js').Route[]} */
 export const routes = [
@@ -12,13 +12,13 @@ export const routes = [
   } },
   { method: 'POST', path: '/api/projects', handler: async (req, ctx) => {
     const fields = validateItem(await body(req, ctx), ctx.config, 'project', { partial: false });
-    requireOwnerName(fields, ctx.user);
+    await resolveOwnerName(fields, ctx);
     return json(await projects.create(ctx.db, ctx.user, fields, ctx.config, ctx.now()), 201);
   } },
   { method: 'GET', path: '/api/projects/:id', handler: async (_req, ctx) => json(await projects.mustGet(ctx.db, ctx.user, ctx.params.id)) },
   { method: 'PATCH', path: '/api/projects/:id', handler: async (req, ctx) => {
     const fields = validateItem(await body(req, ctx), ctx.config, 'project', { partial: true });
-    requireOwnerName(fields, ctx.user);
+    await resolveOwnerName(fields, ctx);
     const { project, moved_tasks } = await projects.update(ctx.db, ctx.user, ctx.params.id, fields, ctx.config, ctx.now());
     return json(moved_tasks === undefined ? project : { ...project, moved_tasks });
   } },

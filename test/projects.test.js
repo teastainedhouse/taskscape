@@ -47,7 +47,7 @@ test('create project: validation errors name the field only', async () => {
   assert.deepEqual(r.body.error.details.fields, { id: 'read-only', hit_count: 'read-only', version: 'read-only' });
   r = await a.post('/api/projects', { name: 'X', private: 'yes' });
   assert.equal(r.body.error.details.fields.private, 'must be true or false');
-  r = await a.post('/api/projects', { name: 'X', owner_id: 'bob' });
+  r = await a.post('/api/projects', { name: 'X', owner_id: 'dave' }); // not a dev user: the server has no name for dave
   assert.equal(r.body.error.details.fields.owner_name, 'is required when owner_id is someone else');
   r = await a.post('/api/projects', { name: 'X', owner_id: 'bob', owner_name: 'Bob Ortiz' });
   assert.equal(r.status, 201);
@@ -133,19 +133,25 @@ test('owner display name is refreshed silently when the owner edits their own it
   await t.close();
 });
 
-test('reassign: owner_name required for someone else; reassigning to yourself uses your name', async () => {
+test('reassign: owner_name required for someone the server does not know; directory names win; yourself uses your name', async () => {
   const t = await createTestApp();
   const a = t.as('alice');
   const p = (await a.post('/api/projects', { name: 'P' })).body;
-  let r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'bob' });
+  let r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'dave' });
   assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.owner_name, 'is required when owner_id is someone else');
   r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1, owner_name: 'Impostor' });
   assert.equal(r.status, 400);
   assert.equal(r.body.error.details.fields.owner_name, 'can only be set together with owner_id');
-  r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bobby' });
-  assert.equal(r.body.owner_name, 'Bobby');
-  r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 2, owner_id: 'bob', owner_name: 'ignored' });
+  r = await a.patch(`/api/projects/${p.id}`, { version: 1, owner_id: 'bob', owner_name: 'Bobby' }); // bob is a dev user
   assert.equal(r.body.owner_name, 'Bob Ortiz');
+  r = await a.patch(`/api/projects/${p.id}`, { version: 2, owner_id: 'carol' }); // no owner_name needed
+  assert.equal(r.status, 200);
+  assert.equal(r.body.owner_name, 'Carol Nkemelu');
+  r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 3, owner_id: 'bob', owner_name: 'ignored' });
+  assert.equal(r.body.owner_name, 'Bob Ortiz');
+  r = await a.patch(`/api/projects/${p.id}`, { version: 4, owner_id: 'dave', owner_name: 'Dave' }); // unknown id: the client's name
+  assert.equal(r.body.owner_name, 'Dave');
   await t.close();
 });
 

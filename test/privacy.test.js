@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp, NOT_FOUND_BODY } from './helpers.js';
+import * as users from '../api/lib/repo/users.js';
+import * as tokens from '../api/lib/repo/tokens.js';
 
 /** alice: public project P {T1 public, T2 private}; carol: private project S {S1}. bob is the outsider. */
 async function seed(t) {
@@ -279,5 +281,44 @@ test('a token sees exactly what its owner sees', async () => {
   assert.equal((await t.tokenAs(aliceTok).get(`/api/tasks/${T2.id}`)).status, 200);
   assert.equal((await t.tokenAs(bobTok).get(`/api/tasks/${T2.id}`)).status, 404);
   assert.equal((await t.tokenAs(aliceTok).get(`/api/projects/${S.id}`)).status, 404);
+  await t.close();
+});
+
+test('people under the password provider: directory rows, never owners known only through private items', async () => {
+  const t = await createTestApp({ config: { auth: { provider: 'password' } } });
+  const now = '2026-11-01T09:00:00.000Z';
+  for (const [id, name] of [['dana', 'Dana Fox'], ['eli', 'Eli Moss']]) await users.create(t.db, { id, name, groups: [] }, 'scrypt$x', now);
+  const token = async (u) => t.tokenAs((await tokens.issue(t.db, u, 'test', now)).plaintext);
+  const dana = await token({ id: 'dana', name: 'Dana Fox', groups: [] });
+  const eli = await token({ id: 'eli', name: 'Eli Moss', groups: [] });
+  // dana's private project holds a task assigned to an id with no users row: that name exists only inside private items
+  const secret = (await dana.post('/api/projects', { name: 'Secret', private: true })).body;
+  await dana.post('/api/tasks', { title: 'Hidden', project_id: secret.id, private: true });
+  // ghost has no users row (say, from before a switch to password) and owns only a private project
+  await dana.post('/api/projects', { name: 'Ghost', owner_id: 'ghost', owner_name: 'Ghost Writer' });
+  await t.db.query("UPDATE projects SET private = 1 WHERE owner_id = 'ghost'"); // ghost cannot sign in to flip it, so the test does
+  const seen = (await eli.get('/api/people')).body.items;
+  assert.deepEqual(seen.map((p) => p.id).sort(), ['dana', 'eli']);
+  assert.equal(seen.some((p) => p.name === 'Ghost Writer'), false);
+  assert.equal(seen.some((p) => p.id === 'system'), false);
+  await t.close();
+});
+
+test('owner fields on a write: a private id and a missing id answer byte for byte the same', async () => {
+  const t = await createTestApp({ config: { auth: { provider: 'password' } } });
+  const now = '2026-11-01T09:00:00.000Z';
+  for (const [id, name] of [['dana', 'Dana Fox'], ['eli', 'Eli Moss']]) await users.create(t.db, { id, name, groups: [] }, 'scrypt$x', now);
+  const dana = t.tokenAs((await tokens.issue(t.db, { id: 'dana', name: 'Dana Fox', groups: [] }, 'd', now)).plaintext);
+  const eli = t.tokenAs((await tokens.issue(t.db, { id: 'eli', name: 'Eli Moss', groups: [] }, 'e', now)).plaintext);
+  const P = (await dana.post('/api/projects', { name: 'Secret', private: true })).body;
+  const T = (await dana.post('/api/tasks', { title: 'Secret', project_id: P.id })).body;
+  for (const body of [{ owner_id: 'dana' }, { owner_id: 'eli' }, { owner_id: 'nobody', owner_name: 'N' }, { owner_id: 'dana', owner_name: 'X' }, { version: 9, owner_id: 'dana' }]) {
+    for (const [kind, id] of [['projects', P.id], ['tasks', T.id]]) {
+      const hidden = await eli.patch(`/api/${kind}/${id}`, { version: 1, ...body });
+      const missing = await eli.patch(`/api/${kind}/no-such-id`, { version: 1, ...body });
+      assert.equal(hidden.status, missing.status, JSON.stringify(body));
+      assert.equal(hidden.text, missing.text, JSON.stringify(body));
+    }
+  }
   await t.close();
 });

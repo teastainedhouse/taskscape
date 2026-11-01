@@ -21,13 +21,16 @@ const VERSION_SCHEMA = {
   description: 'The version from the latest get or list result for this record. Writes with a stale version are rejected with a conflict.',
 };
 const STRING_LIST = { type: 'array', items: { type: 'string', minLength: 1 } };
+const OWNER_NAME_TEXT =
+  'Display name for owner_id when the owner is not you. When Taskscape knows that person (a signed-up user or a configured dev user) it uses its own name and ignores this; ' +
+  'otherwise it is required with owner_id. On sites with their own sign-in, owner_id must be someone who can sign in.';
 
 const PROJECT_FIELDS = {
   name: { type: 'string' },
   description: { type: 'string' },
   status: { type: 'string', description: 'One of the configured project statuses.' },
   owner_id: { type: 'string' },
-  owner_name: { type: 'string', description: 'Required with owner_id when the owner is not the caller.' },
+  owner_name: { type: 'string', description: OWNER_NAME_TEXT },
   private: { type: 'boolean' },
   tags: { ...STRING_LIST, description: 'Tag NAMES. Missing tags are created.' },
 };
@@ -37,7 +40,7 @@ const TASK_FIELDS = {
   title: { type: 'string' },
   status: { type: 'string', description: 'One of the configured task statuses.' },
   owner_id: { type: 'string' },
-  owner_name: { type: 'string', description: 'Required with owner_id when the owner is not the caller.' },
+  owner_name: { type: 'string', description: OWNER_NAME_TEXT },
   private: { type: 'boolean' },
   due_date: { type: ['string', 'null'], description: 'YYYY-MM-DD or null.' },
   notes: { type: 'string' },
@@ -144,7 +147,7 @@ export const TOOLS = [
             title: { type: 'string' },
             status: { type: 'string' },
             owner_id: { type: 'string' },
-            owner_name: { type: 'string' },
+            owner_name: { type: 'string', description: OWNER_NAME_TEXT },
             private: { type: 'boolean' },
             due_date: { type: ['string', 'null'] },
             notes: { type: 'string' },

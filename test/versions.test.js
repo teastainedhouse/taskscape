@@ -143,13 +143,15 @@ test('a no-op by a non-owner on a private item is still the generic 404, stale v
 });
 
 test("the owner's name refresh alone is a logged write; alongside other changes it stays silent", async () => {
-  const t = await createTestApp();
-  const p = (await t.as('alice').post('/api/projects', { name: 'P', owner_id: 'bob', owner_name: 'Bobby' })).body;
-  const r = await t.as('bob').patch(`/api/projects/${p.id}`, { version: 1 });
+  const t = await createTestApp({ config: { auth: { provider: 'headers' } } });
+  const as = (name) => t.withHeaders({ 'x-forwarded-user': 'u1', 'x-forwarded-preferred-username': name });
+  const p = (await as('Dana').post('/api/projects', { name: 'P' })).body;
+  const r = await as('Dana Fox').patch(`/api/projects/${p.id}`, { version: 1 });
   assert.equal(r.body.version, 2);
-  assert.equal(r.body.owner_name, 'Bob Ortiz');
-  const [entry] = (await t.as('bob').get(`/api/activity?item_id=${p.id}`)).body.items;
-  assert.deepEqual(entry.changes, { owner_name: { from: 'Bobby', to: 'Bob Ortiz' } });
+  assert.equal(r.body.owner_name, 'Dana Fox');
+  const [entry] = (await as('Dana Fox').get(`/api/activity?item_id=${p.id}`)).body.items;
+  assert.deepEqual(entry.changes, { owner_name: { from: 'Dana', to: 'Dana Fox' } });
+  assert.equal((await as('Dana Fox').patch(`/api/projects/${p.id}`, { version: 2 })).body.version, 2);
   await t.close();
 });
 
