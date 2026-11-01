@@ -1,7 +1,7 @@
 import { json } from '../lib/http.js';
 import * as tasks from '../lib/repo/tasks.js';
 import { validateItem, validateVersionOnly, parseListQuery } from '../lib/validate.js';
-import { body, resolveOwnerName } from './_shared.js';
+import { body } from './_shared.js';
 
 /** @type {import('../lib/router.js').Route[]} */
 export const routes = [
@@ -12,13 +12,11 @@ export const routes = [
   } },
   { method: 'POST', path: '/api/tasks', handler: async (req, ctx) => {
     const fields = validateItem(await body(req, ctx), ctx.config, 'task', { partial: false });
-    await resolveOwnerName(fields, ctx);
     return json(await tasks.create(ctx.db, ctx.user, fields, ctx.config, ctx.now()), 201);
   } },
   { method: 'GET', path: '/api/tasks/:id', handler: async (_req, ctx) => json(await tasks.mustGet(ctx.db, ctx.user, ctx.params.id)) },
   { method: 'PATCH', path: '/api/tasks/:id', handler: async (req, ctx) => {
     const fields = validateItem(await body(req, ctx), ctx.config, 'task', { partial: true });
-    await resolveOwnerName(fields, ctx);
     return json(await tasks.update(ctx.db, ctx.user, ctx.params.id, fields, ctx.config, ctx.now()));
   } },
   { method: 'DELETE', path: '/api/tasks/:id', handler: async (req, ctx) => {

@@ -5,6 +5,7 @@ import { projectVisible, trashState, likeContains } from './visibility.js';
 import { rowToProject, tagsFor, statusOrder, diff } from './common.js';
 import { record } from './activity.js';
 import * as tags from './tags.js';
+import * as people from './people.js';
 
 export const SYSTEM_USER = Object.freeze({ id: 'system', name: 'Taskscape' });
 const SETTABLE = ['name', 'description', 'status', 'owner_id', 'owner_name', 'private'];
@@ -97,23 +98,21 @@ export async function list(db, user, f, config) {
 export async function create(db, user, input, config, now) {
   const id = input.id ?? newId();
   const ownerId = input.owner_id ?? user.id;
-  const ownerName = ownerId === user.id ? user.name : input.owner_name;
   const row = {
     id, name: input.name, description: input.description ?? '', status: input.status ?? config.default_status.project,
-    owner_id: ownerId, owner_name: ownerName, private: input.private ?? config.privacy.default_private,
+    owner_id: ownerId, owner_name: user.name, private: input.private ?? config.privacy.default_private,
   };
   if (row.private && row.owner_id !== user.id) throw invalidState('Only the owner can make an item private. Create it as yourself or public.');
   return db.transaction(async (tx) => {
+    const tagList = [];
+    for (const tagId of input.tag_ids ?? []) tagList.push(await tags.mustExist(tx, tagId));
+    if (ownerId !== user.id) row.owner_name = await people.ownerNameFor(tx, config, ownerId, input.owner_name); // last check: see people.js
     await tx.query(
       `INSERT INTO projects (id, name, description, status, owner_id, owner_name, private, version, hit_count, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`,
       [id, row.name, row.description, row.status, row.owner_id, row.owner_name, row.private, now, now]);
-    const tagNames = [];
-    for (const tagId of input.tag_ids ?? []) {
-      const tag = await tags.mustExist(tx, tagId);
-      await tx.query('INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)', [id, tagId]);
-      tagNames.push(tag.name);
-    }
+    for (const tag of tagList) await tx.query('INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)', [id, tag.id]);
+    const tagNames = tagList.map((tag) => tag.name);
     const changes = Object.fromEntries(SETTABLE.map((k) => [k, { to: row[k] }]));
     if (tagNames.length) changes.tags = { to: tagNames.sort() };
     await record(tx, user, { item_type: 'project', item_id: id, action: 'create', changes }, now);
@@ -189,6 +188,9 @@ export async function update(db, user, id, input, config, now) {
       next.owner_name = user.name; // refresh the display-name snapshot
     }
     if (before.version !== input.version) throw conflict(before); // so `before` is the row the locked version check approves
+    if (input.owner_id !== undefined && input.owner_id !== user.id) { // last check: see people.js
+      next.owner_name = await people.ownerNameFor(tx, config, input.owner_id, input.owner_name);
+    }
     const changes = diff(before, next, SETTABLE);
     if (Object.keys(changes).length === 0) { // no stored value would change, so not a write: check the version only
       await cas(tx, user, id, input.version, null);

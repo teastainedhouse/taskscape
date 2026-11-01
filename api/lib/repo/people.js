@@ -1,6 +1,7 @@
 import { projectVisible, taskVisible } from './visibility.js';
 import * as users from './users.js';
 import { canEdit } from '../config.js';
+import { validationFailed } from '../errors.js';
 
 /**
  * People the caller may pick as an owner: owners of items the caller can
@@ -10,9 +11,10 @@ import { canEdit } from '../config.js';
  * browser gets the directory (it is for the owner picker): under `password`
  * its ids are sign-in usernames, and read-only accounts and tokens have no
  * use for the list. This keeps the list from being handed out, not the
- * names secret: an editor's write can still tell a known owner_id from an
- * unknown one (resolveOwnerName), and under `dev` /api/config lists them. Names only; never derived
- * from private items the caller cannot see. A directory name wins over an
+ * names secret: under `dev` /api/config lists them, and an editor's write
+ * that would otherwise go through can still tell a known owner_id from an
+ * unknown one (ownerNameFor). Names only; never derived from private items
+ * the caller cannot see. A directory name wins over an
  * item's owner_name snapshot.
  * @param {import('../db/index.js').Db} db
  * @param {import('../auth/index.js').Principal} user
@@ -65,4 +67,29 @@ export async function directoryName(db, config, id) {
     return u && !u.disabled_at ? u.name : null;
   }
   return null;
+}
+
+/**
+ * The owner_name to store when a write sets `owner_id` to someone other than
+ * the caller. When the directory knows the id, its name wins and whatever the
+ * client sent is ignored. Under `password` nobody else can be named (400 on
+ * `owner_id`), so a look-alike id cannot carry a borrowed name. Otherwise
+ * (`dev` for unlisted ids, always `headers`) the client's `owner_name` is
+ * required and used. The project and task writes call this last, after the
+ * visible read, the version check, and every other check that can refuse
+ * the write, so a missing, hidden, or stale target answers exactly as it
+ * would without an owner, and only a write that would go through can tell a
+ * known id from an unknown one.
+ * @param {import('../db/index.js').Db} db
+ * @param {import('../config.js').Config} config
+ * @param {string} ownerId  not the caller's own id
+ * @param {string|undefined} ownerName  what the client sent
+ * @returns {Promise<string>}
+ */
+export async function ownerNameFor(db, config, ownerId, ownerName) {
+  const known = await directoryName(db, config, ownerId);
+  if (known !== null) return known;
+  if (config.auth.provider === 'password') throw validationFailed({ owner_id: 'must be someone who can sign in' });
+  if (!ownerName) throw validationFailed({ owner_name: 'is required when owner_id is someone else' });
+  return ownerName;
 }
