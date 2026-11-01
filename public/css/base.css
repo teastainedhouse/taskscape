@@ -90,3 +90,16 @@ textarea { width: 100%; min-height: 4em; }
 .activity-what { max-width: 36em; }
 .plaintext { width: 100%; font-family: monospace; }
 pre { overflow-x: auto; }
+
+/* Sign-in page: one dialog-sized column; the buttons sit together at the end.
+   The title bar is decoration that only the dialog themes show. */
+.login-dialog { max-width: 30em; margin: 24px auto; }
+.login-dialog__titlebar { user-select: none; }
+.login-form__buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.login-form__buttons button { min-width: 6em; }
+.login-elsewhere .button { display: inline-block; }
+.password-form { max-width: 30em; }
+.password-form input[type="password"] { width: 100%; }
+
+/* The Sign out button beside "Signed in as". */
+.sign-out { white-space: nowrap; }

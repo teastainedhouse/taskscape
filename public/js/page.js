@@ -1,8 +1,10 @@
 // page.js — shared bootstrap for every page: load /api/config and /api/me,
-// apply the theme, mount the dev banner and nav state, wire the status
+// fill in the site title, mount the dev banner and nav state, wire the status
 // region and the "session expired" notice, hide edit controls for viewers.
+// Under the password provider: send signed-out visitors to login.html,
+// link the expiry notice to it, and show the Sign out button.
 
-import { get, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
+import { get, post, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
 import { el, setChildren } from './dom.js';
 import { mountDevBanner } from './dev-user.js';
 
@@ -10,10 +12,16 @@ import { mountDevBanner } from './dev-user.js';
 
 let statusEl = null;
 let statusTimer = null;
+/** Set once boot() has loaded /api/me; expiry before that is boot()'s to handle. */
+let ready = false;
+/** The signed-in principal came from a password session (so login.html applies). */
+let passwordSession = false;
+/** The sticky expiry notice is showing; later 401s must not replace it. */
+let expiredShown = false;
 
 /**
  * Show a message in the aria-live status region.
- * @param {string} msg
+ * @param {string|Array<Node|string>} msg  text, or text and nodes (e.g. a link)
  * @param {{error?: boolean, sticky?: boolean}} [opts]
  */
 export function say(msg, opts = {}) {
@@ -21,58 +29,110 @@ export function say(msg, opts = {}) {
   if (!statusEl) return;
   clearTimeout(statusTimer);
   statusEl.classList.toggle('error', !!opts.error);
-  statusEl.textContent = msg;
-  if (!opts.sticky && !opts.error) statusTimer = setTimeout(() => { if (statusEl.textContent === msg) statusEl.textContent = ''; }, 8000);
+  setChildren(statusEl, [msg]);
+  const shown = statusEl.textContent;
+  if (!opts.sticky && !opts.error) statusTimer = setTimeout(() => { if (statusEl.textContent === shown) statusEl.textContent = ''; }, 8000);
 }
 
 /**
  * Report an error from the API (or anything else) in the status region.
+ * A 401 after the expiry notice is up leaves that notice (and its link) in place.
  * @param {unknown} err
  * @param {string} [prefix]
  */
 export function sayError(err, prefix) {
+  if (err instanceof ApiError && err.status === 401 && expiredShown) return;
   const msg = err instanceof ApiError ? err.humanMessage : (err?.message || String(err));
   say(prefix ? `${prefix}: ${msg}` : msg, { error: true });
   if (!(err instanceof ApiError)) console.error(err);
 }
 
 /**
- * Load the theme named in the config (css/theme-<name>.css), keeping the
- * plain theme the pages link by default if the file does not exist.
- * @param {string} theme
+ * Put the site title into the document title, [data-site-title] and [data-served-by].
+ * @param {string} [siteTitle]
+ * @param {string} [pageTitle]
  */
-function applyTheme(theme) {
-  const current = document.getElementById('theme-css');
-  if (!current || !theme || theme === 'plain' || !/^[a-z0-9_-]{1,40}$/i.test(theme)) return;
-  const link = el('link', { rel: 'stylesheet', href: `css/theme-${theme}.css` });
-  link.addEventListener('load', () => current.remove());
-  link.addEventListener('error', () => link.remove());
-  current.after(link);
+export function applySiteTitle(siteTitle, pageTitle) {
+  const site = siteTitle || 'Taskscape';
+  document.title = pageTitle ? `${pageTitle} - ${site}` : site;
+  for (const n of document.querySelectorAll('[data-site-title]')) n.textContent = site;
+  const port = location.port || (location.protocol === 'https:' ? '443' : '80');
+  for (const n of document.querySelectorAll('[data-served-by]')) n.textContent = `${site} at ${location.hostname} Port ${port}`;
+}
+
+/** This page as login.html's `next`: the page name, query, and fragment (login.js validates it). */
+function loginHref() {
+  const page = location.pathname.split('/').pop() || 'index.html';
+  return `login.html?next=${encodeURIComponent(page + location.search + location.hash)}`;
+}
+
+/** Whether this site signs people in with login.html (GET /api/login works signed out). */
+async function usesPasswordLogin() {
+  try {
+    const info = await get('/api/login');
+    return info?.provider === 'password';
+  } catch {
+    return false;
+  }
+}
+
+function onSessionExpired() {
+  if (!ready) return;
+  expiredShown = true;
+  if (passwordSession) {
+    say(['Your session has ended. ', el('a', { href: loginHref() }, 'Sign in again'), '. Unsaved changes on this page will be lost.'],
+      { error: true, sticky: true });
+  } else {
+    say('Session expired. Reload the page to sign in again.', { error: true, sticky: true });
+  }
+}
+
+/**
+ * Show the Sign out button for password sessions: end the session, then go to login.html.
+ * @param {{auth: string}} me
+ */
+function mountSignOut(me) {
+  const button = document.getElementById('sign-out');
+  if (!button || me.auth !== 'password') return;
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await post('/api/logout');
+      location.replace('login.html');
+    } catch (err) {
+      button.disabled = false;
+      sayError(err, 'Could not sign out');
+    }
+  });
 }
 
 /**
  * Bootstrap the page. Call once from each page module.
+ * Signed out under the password provider, it goes to login.html and never resolves.
  * @param {{title: string}} opts  page title, prefixed to the site title
  * @returns {Promise<PageContext>}
  */
 export async function boot(opts) {
   statusEl = document.getElementById('status');
-  document.addEventListener(SESSION_EXPIRED_EVENT, () => say('Session expired. Reload the page to sign in again.', { error: true, sticky: true }));
+  document.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
 
   let config, me;
   try {
     [config, me] = await Promise.all([get('/api/config'), get('/api/me')]);
   } catch (err) {
+    if (err instanceof ApiError && err.status === 401 && await usesPasswordLogin()) {
+      say('Not signed in; opening the sign-in page.', { sticky: true });
+      location.replace(loginHref());
+      return new Promise(() => {}); // the page is leaving; nothing below should run
+    }
     sayError(err, 'Could not load Taskscape');
     throw err;
   }
+  ready = true;
+  passwordSession = me.auth === 'password';
 
-  applyTheme(config.theme);
-  const site = config.site_title || 'Taskscape';
-  document.title = opts?.title ? `${opts.title} - ${site}` : site;
-  for (const n of document.querySelectorAll('[data-site-title]')) n.textContent = site;
-  const port = location.port || (location.protocol === 'https:' ? '443' : '80');
-  for (const n of document.querySelectorAll('[data-served-by]')) n.textContent = `${site} at ${location.hostname} Port ${port}`;
+  applySiteTitle(config.site_title, opts?.title);
 
   mountDevBanner(document.getElementById('dev-banner'), me, config);
 
@@ -87,6 +147,7 @@ export async function boot(opts) {
 
   const who = document.getElementById('whoami');
   if (who) setChildren(who, ['Signed in as ', el('b', null, me.name)]);
+  mountSignOut(me);
   return { config, me };
 }
 

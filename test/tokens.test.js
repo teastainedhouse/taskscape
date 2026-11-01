@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTestApp } from './helpers.js';
-import { _resetTouchCache } from '../api/lib/auth/tokens.js';
+import { _resetTouchCache } from '../api/lib/repo/tokens.js';
 
 test('issue shows the plaintext once; list shows the prefix only; the DB holds a hash', async () => {
   const t = await createTestApp();

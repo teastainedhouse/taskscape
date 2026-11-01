@@ -1,6 +1,5 @@
 {
   "site_title": "Taskscape",
-  "theme": "toolbar",
   "statuses": {
     "project": ["Planned", "Active", "On hold", "Done"],
     "task": ["To do", "Doing", "Blocked", "Done"]
@@ -46,6 +45,7 @@
         { "id": "bob", "name": "Bob Ortiz", "email": "bob@example.test", "groups": ["editors"] },
         { "id": "carol", "name": "Carol Nkemelu", "email": "carol@example.test", "groups": ["editors"] }
       ]
-    }
+    },
+    "password": { "session_days": 30, "cookie_name": "__Host-taskscape_session" }
   }
 }

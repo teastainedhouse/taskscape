@@ -4,7 +4,6 @@ import path from 'node:path';
 /**
  * @typedef {Object} Config
  * @property {string} site_title
- * @property {string} theme
  * @property {{project: string[], task: string[]}} statuses
  * @property {{project: string[], task: string[]}} closed_statuses
  * @property {{project: string, task: string}} default_status
@@ -16,7 +15,7 @@ import path from 'node:path';
  * @property {Array<{name: string, url: string}>} webring
  * @property {{page_size: number, max_page_size: number, body_bytes: number}} limits
  * @property {{id: string, name: string, description?: string}} catch_all_project
- * @property {{provider: 'dev'|'headers', headers: object, dev: {default_user: string, users: Array<{id:string,name:string,email?:string,groups?:string[]}>}}} auth
+ * @property {{provider: 'dev'|'headers'|'password', headers: object, dev: {default_user: string, users: Array<{id:string,name:string,email?:string,groups?:string[]}>}, password: {session_days: number, cookie_name: string}}} auth
  * @property {string} env  'development' | 'production' | 'test'
  */
 
@@ -59,7 +58,11 @@ function validate(c) {
   if (!Array.isArray(c.tag_palette) || c.tag_palette.some((x) => !/^#[0-9a-f]{6}$/i.test(x))) fail('tag_palette must be #rrggbb colors');
   if (!c.catch_all_project?.id || !c.catch_all_project?.name) fail('catch_all_project needs id and name');
   if (!['everyone', 'group'].includes(c.permissions?.edit)) fail('permissions.edit must be "everyone" or "group"');
-  if (!['dev', 'headers'].includes(c.auth?.provider)) fail('auth.provider must be "dev" or "headers"');
+  if (!['dev', 'headers', 'password'].includes(c.auth?.provider)) fail('auth.provider must be "dev", "headers", or "password"');
+  c.auth.password = { session_days: 30, cookie_name: '__Host-taskscape_session', ...(c.auth.password ?? {}) };
+  const pw = c.auth.password;
+  if (!Number.isInteger(pw.session_days) || pw.session_days < 1 || pw.session_days > 365) fail('auth.password.session_days must be an integer from 1 to 365');
+  if (typeof pw.cookie_name !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(pw.cookie_name)) fail('auth.password.cookie_name must be 1 to 64 letters, digits, _ or -');
   if (c.auth.provider === 'dev') {
     if (c.env === 'production') fail('the dev identity provider cannot be used when TASKSCAPE_ENV=production');
     const users = c.auth.dev?.users;
@@ -80,7 +83,6 @@ function validate(c) {
 export function publicConfig(c) {
   const out = {
     site_title: c.site_title,
-    theme: c.theme,
     statuses: c.statuses,
     closed_statuses: c.closed_statuses,
     default_status: c.default_status,

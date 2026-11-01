@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>My MCP tokens - Taskscape</title>
   <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/theme-plain.css" id="theme-css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
@@ -20,6 +20,7 @@
         <a href="tokens.html">My tokens</a>
       </nav>
       <span id="whoami" class="muted"></span>
+      <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
     </header>
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
@@ -55,10 +56,23 @@
         </div>
         <p id="tokens-empty" hidden>You have no tokens yet.</p>
       </section>
+
+      <section aria-labelledby="password-h" id="password-section" hidden>
+        <h2 id="password-h">Change your password</h2>
+        <p id="password-hint">At least 10 characters. Changing it signs you out everywhere else; this browser stays signed in. Your MCP tokens keep working unless you tick the box below.</p>
+        <form id="password-form" class="password-form" method="post" action="tokens.html">
+          <!-- For password managers: which account this password belongs to. -->
+          <input type="text" id="pw-username" name="username" autocomplete="username" hidden>
+          <div class="field"><label for="pw-current">Current password</label><input type="password" id="pw-current" name="current_password" autocomplete="current-password" required maxlength="200" size="30"></div>
+          <div class="field"><label for="pw-new">New password</label><input type="password" id="pw-new" name="new_password" autocomplete="new-password" required minlength="10" maxlength="200" size="30" aria-describedby="password-hint"></div>
+          <div class="field"><label for="pw-confirm">New password again</label><input type="password" id="pw-confirm" name="confirm_password" autocomplete="new-password" required minlength="10" maxlength="200" size="30"></div>
+          <div class="field"><label><input type="checkbox" id="pw-revoke-tokens" name="revoke_tokens"> Also revoke all my MCP tokens (do this if you think someone else knows your password)</label></div>
+          <button type="submit">Change password</button>
+        </form>
+      </section>
     </main>
 
     <footer class="site-footer">
-      <p class="best-viewed"><span class="badge">Netscape Now!</span> Best viewed in Netscape Navigator 3.0 at 800x600</p>
       <address data-served-by>Taskscape</address>
     </footer>
   </div>

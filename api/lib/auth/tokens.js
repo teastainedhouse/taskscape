@@ -2,11 +2,20 @@ import { createHash, randomBytes } from 'node:crypto';
 
 export const TOKEN_PREFIX = 'tsk_';
 const PREFIX_SHOWN = 12;
-const TOUCH_INTERVAL_MS = 60_000;
 
 /** @returns {string} a fresh plaintext token */
 export function generateToken() {
   return TOKEN_PREFIX + randomBytes(32).toString('base64url');
+}
+
+/** @returns {string} a fresh sign-in session value (the password provider's cookie); 32 random bytes, base64url */
+export function generateSessionToken() {
+  return randomBytes(32).toString('base64url');
+}
+
+/** @param {string} value @returns {boolean} looks like a value generateSessionToken() made, so junk is never looked up */
+export function isSessionToken(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 }
 
 /** @param {string} plaintext @returns {string} sha256 hex */
@@ -24,40 +33,4 @@ export function bearerFrom(authorization) {
   if (!authorization) return null;
   const m = /^Bearer\s+(\S+)$/i.exec(authorization.trim());
   return m ? m[1] : null;
-}
-
-/**
- * Find a live token row by plaintext.
- * @param {import('../db/index.js').Db} db
- * @param {string} plaintext
- */
-export async function lookupToken(db, plaintext) {
-  const { rows } = await db.query(
-    'SELECT id, user_id, user_name, user_email, user_groups, label, last_used_at FROM mcp_tokens WHERE token_hash = ? AND revoked_at IS NULL',
-    [hashToken(plaintext)],
-  );
-  return rows[0] ?? null;
-}
-
-/** @type {Map<string, number>} token id -> last touch (ms) */
-const touched = new Map();
-
-/**
- * Record use of a token, at most once a minute per token per process.
- * @param {import('../db/index.js').Db} db
- * @param {string} tokenId
- * @param {string} nowIso
- */
-export async function touchLastUsed(db, tokenId, nowIso) {
-  const last = touched.get(tokenId) ?? 0;
-  const nowMs = Date.parse(nowIso);
-  if (nowMs - last < TOUCH_INTERVAL_MS) return false;
-  touched.set(tokenId, nowMs);
-  await db.query('UPDATE mcp_tokens SET last_used_at = ? WHERE id = ?', [nowIso, tokenId]);
-  return true;
-}
-
-/** Test hook. */
-export function _resetTouchCache() {
-  touched.clear();
 }

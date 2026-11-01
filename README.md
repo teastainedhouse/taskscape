@@ -2,7 +2,7 @@
 
 Taskscape is a tiny, self-hosted work tracker for projects, tasks, and tags. People edit it in a browser; Claude edits it through an MCP server. Both go through one HTTP API, which is the only thing that talks to the database. Every write is version-checked, so several people and several Claude sessions can work at once without overwriting each other, and every write lands in an activity log ("What's New?"). Anyone can mark a project or task private; only its owner sees it afterwards.
 
-It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. There is no build step and no framework. It looks like early-90s web on purpose: a page nobody seems to have designed, with Times New Roman on white, blue underlined links that turn purple once visited, native browser controls, grooved rules, `border=1` tables, and a hit counter. It follows the reader's dark mode and never moves. The look lives in one CSS file (`public/css/theme-plain.css`); the older 1996 Netscape theme, with gray beveled buttons, a starfield, a scrolling marquee, and an "Under Construction" GIF, ships beside it as `theme-netscape.css` for a team that wants it.
+It is MIT-licensed, built on personal time, and made to be forked: each team hosts its own copy and changes it by asking Claude to edit the code, not by clicking through settings. There is no build step and no framework. It looks like an old web browser on purpose: dithered grey toolbars with pixel-art icons, a starfield throbber and a status bar frame a modern, readable page with a hit counter. It follows the reader's dark mode. The look lives in one CSS file (`public/css/theme-toolbar.css`).
 
 - Spec: [docs/ONE-PAGER.md](docs/ONE-PAGER.md)
 - Architecture and decisions: [docs/PLAN.md](docs/PLAN.md)
@@ -13,7 +13,7 @@ It is MIT-licensed, built on personal time, and made to be forked: each team hos
 
 - Node.js 22.13 or newer. The API, dev server, seed script, backup script, and tests use only Node builtins (`node:http`, `node:sqlite`, `node:test`).
 - `npm install` is needed only for two things: PostgreSQL (the `pg` package) and the MCP server (`@modelcontextprotocol/sdk`). Local development on SQLite runs without it.
-- For production: a host with static file hosting, a serverless function (or any Node process) for `/api/*`, a PostgreSQL database, and a sign-in layer that puts the user's identity in request headers.
+- For production: a host with static file hosting, a serverless function (or any Node process) for `/api/*`, a PostgreSQL database, and either a sign-in layer that puts the user's identity in request headers or the built-in password sign-in over HTTPS (see [Identity](#identity)).
 
 ## Run it locally
 
@@ -45,7 +45,7 @@ Environment variables:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `TASKSCAPE_DATABASE_URL` | `sqlite:./data/dev.db` | `sqlite:<path>` or `postgres://user:password@host:5432/dbname` |
-| `TASKSCAPE_AUTH_PROVIDER` | from the config file (`dev`) | `dev` or `headers`; overrides `auth.provider` |
+| `TASKSCAPE_AUTH_PROVIDER` | from the config file (`dev`) | `dev`, `headers`, or `password`; overrides `auth.provider` |
 | `TASKSCAPE_ENV` | `development` | `production` refuses to start with the `dev` provider |
 | `TASKSCAPE_CONFIG` | `./taskscape.config.json` | path to the config file |
 | `PORT` | `3000` | dev server port |
@@ -59,7 +59,6 @@ Environment variables:
 | Key | What it does |
 | --- | --- |
 | `site_title` | Shown in page titles and headers |
-| `theme` | Name of the CSS file the UI loads: `public/css/theme-<name>.css`. `plain` (default) or `netscape` |
 | `statuses` | Allowed status names for `project` and `task`, in display and sort order |
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |
@@ -71,7 +70,7 @@ Environment variables:
 | `webring` | `[{ "name", "url" }]` of other teams' Taskscape copies; hidden until someone clicks the hit counter three times |
 | `limits` | `page_size` (default list size, 500), `max_page_size` (1000), `body_bytes` (256 KB) |
 | `catch_all_project` | `id`, `name`, `description` of the project that receives tasks with no project (shipped id: `general`) |
-| `auth` | `provider` (`dev` or `headers`), `headers` (which request headers carry identity), `dev` (the local user list and `default_user`) |
+| `auth` | `provider` (`dev`, `headers`, or `password`), `headers` (which request headers carry identity), `dev` (the local user list and `default_user`), `password` (`session_days`, 1–365, default 30; `cookie_name`, default `__Host-taskscape_session`) |
 
 The config is validated at startup; a bad value stops the process with a message naming the key.
 
@@ -85,7 +84,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
 1. **Fork the repository** and clone your fork.
 
-2. **Edit `taskscape.config.json`.** At least: `site_title`, and set `auth.provider` to `headers`. Check the header names under `auth.headers` against what your sign-in layer injects (see [Identity](#identity)). Adjust statuses, palette, and `permissions` if you want.
+2. **Edit `taskscape.config.json`.** At least: `site_title`, and set `auth.provider` to `headers` (or `password`, if the host has no sign-in layer; see [Identity](#identity)). Check the header names under `auth.headers` against what your sign-in layer injects (see [Identity](#identity)). Adjust statuses, palette, and `permissions` if you want.
 
 3. **Choose a database.** Production uses PostgreSQL. Create an empty database and note its URL. Run `npm install` so the `pg` package is present. (SQLite works for a single-process host with a persistent disk, but it is meant for development.)
 
@@ -131,7 +130,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
      Build `app` once per process, not per request. `loadConfig()` resolves the config path against the working directory; if your host's working directory is not the repo root, set `TASKSCAPE_CONFIG` to an absolute path.
 
-   - **Sign-in:** put the site behind your host's single sign-on so every request to `/api/*` arrives with the user's identity in headers. The API never redirects to a login page; the host does that for page loads, and the UI shows "Session expired, reload" on a 401.
+   - **Sign-in:** put the site behind your host's single sign-on so every request to `/api/*` arrives with the user's identity in headers. The API never redirects to a login page; the host does that for page loads, and the UI shows "Session expired, reload" on a 401. With the `password` provider instead, serve the site over HTTPS only, create users with `npm run users` (below), and the pages send signed-out visitors to `login.html`.
 
 6. **Set the environment** on the host:
 
@@ -147,7 +146,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
 ### Identity
 
-Taskscape has no users table and no passwords. Identity arrives on every request.
+Identity comes from one of three providers, picked by `auth.provider` (or `TASKSCAPE_AUTH_PROVIDER`), plus MCP tokens on top. `headers` trusts a sign-in layer in front of the site; `password` is Taskscape's own sign-in, for a host without one; `dev` is for local work.
 
 **`headers` provider.** Reads the user from headers injected by the host's sign-in layer. The header names are configurable under `auth.headers`; the shipped defaults follow the common reverse-proxy convention:
 
@@ -164,7 +163,29 @@ Some hosts send one header with a base64-encoded JSON document instead. Set `aut
 
 **`dev` provider.** Local only. The user comes from the `X-Dev-User` header, else the `taskscape_dev_user` cookie, else `auth.dev.default_user`, and must be in `auth.dev.users`. Refused when `TASKSCAPE_ENV=production`.
 
-**Tokens.** `Authorization: Bearer tsk_…` identifies an MCP session. A token is authoritative when present: an unknown or revoked one is 401 and never falls back to headers. Token holders cannot mint or list tokens and cannot bump hit counters.
+**`password` provider.** Built-in username and password sign-in, for a host with no sign-in layer of its own. Users live in the database (`users` table, added by `npm run migrate`), managed from the shell on the server:
+
+```sh
+npm run users -- add dana --name "Dana Fox" --email dana@example.test --groups editors
+npm run users -- passwd dana     # new password; signs that user out everywhere and revokes their MCP tokens
+npm run users -- disable dana    # no sign-in; ends sessions and revokes MCP tokens (works for an id with no users row too)
+npm run users -- enable dana
+npm run users -- list               # id, name, email, groups, disabled, live sessions; never hashes
+```
+
+The user id is what becomes `owner_id` on projects and tasks. Ids are lowercase letters, digits, `.`, `_`, `-`; `system` is reserved (it owns the catch-all project).
+
+**Switching an existing site to `password`.** Existing projects, tasks, activity, and MCP tokens carry the ids people had under the old provider. `users add` refuses an id that already appears as an owner, an activity actor, or a token holder, and prints what it found (counts only). When the new account really is that person, add `--claim-existing`: the account then owns those items and that history, and their unrevoked MCP tokens work again (under `password` a token works only while a live users row exists for its id). Do this for each person before switching `auth.provider`, using the same ids as before; `npm run users -- list` checks the result. An id that should not come back can be swept with `disable` even without a users row.
+
+Passwords are 10 to 200 characters and are typed at a hidden prompt, twice; for scripted setup, pipe one line on stdin (`printf '%s\n' "$PW" | npm run users -- add …`). They are never taken from the command line. Groups feed `permissions` exactly as SSO groups do.
+
+People sign in on `login.html`; the API answers with a session cookie (`__Host-taskscape_session`; `HttpOnly`, `Secure`, `SameSite=Strict`) that lasts `auth.password.session_days` from sign-in and is not extended by use. Passwords are stored as scrypt hashes and session cookies as SHA-256 hashes. Five failed attempts for one username within 15 minutes lock that name for 15 minutes, whether or not the user exists; password changes keep their own count. At most two password hashes run at once, with a short queue, and the rest get 503 "busy". **Both the lockout and the hash limit are in memory and per process:** a restart clears the counts, and with several processes or instances each keeps its own, so put a rate limit in the proxy too if the site faces the internet. Signed-in people change their own password on the tokens page; that signs out their other sessions, and a checkbox also revokes their MCP tokens. Requirements:
+
+- **HTTPS only.** The cookie is `Secure`, so a browser drops it over plain `http://` on anything but `localhost`. Behind a reverse proxy, terminate TLS there and keep `HOST` on loopback.
+- **Serve the pages and `/api/*` from one origin.** Cross-site writes are refused (`Sec-Fetch-Site`, JSON-only bodies), and `same-site` counts as cross-site. The same checks apply to every browser session under `dev` and `headers` as well.
+- The default cookie name has the `__Host-` prefix, so browsers refuse it unless it is `Secure`, `Path=/`, and has no `Domain`, which Taskscape guarantees. Change it with `auth.password.cookie_name` if needed.
+
+**Tokens.** `Authorization: Bearer tsk_…` identifies an MCP session. A token is authoritative when present: an unknown or revoked one is 401 and never falls back to headers or the session cookie. Token holders cannot mint or list tokens and cannot bump hit counters.
 
 ## Backup and restore
 

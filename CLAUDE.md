@@ -24,12 +24,12 @@ Read in this order when you are new here: `docs/ONE-PAGER.md` (the spec), `docs/
 ## Code map
 
 ```
-taskscape.config.json      site title, statuses, palette, task fields, views, theme, privacy default,
-                           permissions, webring, limits, catch-all project, auth (provider, header names, dev users)
+taskscape.config.json      site title, statuses, palette, task fields, views, privacy default,
+                           permissions, webring, limits, catch-all project, auth (provider, header names, dev users, password sessions)
 .env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT, HOST,
                            and TASKSCAPE_URL / TASKSCAPE_TOKEN for the MCP server
 .mcp.example.json          client config pointing at mcp/server.js; token from the environment
-package.json               scripts: dev, start, migrate, seed, backup, mcp, test; deps: pg, @modelcontextprotocol/sdk
+package.json               scripts: dev, start, migrate, seed, backup, users, mcp, test; deps: pg, @modelcontextprotocol/sdk
 
 api/
   index.js                 createApp({config, db, now?, log?}) -> { fetch(Request): Promise<Response> }; registers every handler module
@@ -43,16 +43,20 @@ api/
     search.js              /api/search
     export.js              /api/projects/:id/export.md
     people.js              /api/people (owners the caller may pick)
-    me.js                  /api/me
+    me.js                  /api/me; meBody() is the Me shape
+    login.js               GET/POST /api/login, POST /api/logout, POST /api/me/password (password provider; GET /api/login for all)
     tokens.js              /api/tokens (human-only: token principals get 403)
     config.js              /api/config (public subset)
     health.js              /api/health (unauthenticated)
   lib/
-    router.js              method + path matching, auth middleware, editor check, MCP session rule, error envelope, base headers
+    router.js              method + path matching, auth middleware, cross-site checks (every `via: 'ui'` write, login/logout), editor check,
+                           MCP session rule, error envelope, base headers
     http.js                json(), text(), readJson() with byte limit, parseCookies(), BASE_HEADERS
-    errors.js              ApiError and the constructors: notFound, unauthorized, forbidden, invalidState, validationFailed, conflict, …
+    errors.js              ApiError and the constructors: notFound, unauthorized, wrongCredentials, forbidden, invalidState, validationFailed,
+                           conflict, unsupportedMediaType, tooManyRequests, …
     config.js              loadConfig(), prepareConfig() (env overrides + validation), publicConfig(), canEdit()
-    validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), parseListQuery(), parseActivityQuery()
+    validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
+                           validateNewUser(), parseListQuery(), parseActivityQuery()
     markdown.js            renderProjectExport(), mdCell(), mdInline(), slug()
     node-bridge.js         toWebRequest(IncomingMessage) and writeResponse(ServerResponse, Response) for Node-callback hosts
     ids.js  time.js        newId() (UUID); nowIso(), isoDate(), daysFromNow()
@@ -60,13 +64,19 @@ api/
       index.js             getUser(request, ctx): Bearer token -> configured provider -> null. Principal typedef lives here
       providers/headers.js SSO headers (plain names or a base64-JSON principal header with dot paths and claims flattening)
       providers/dev.js     X-Dev-User header -> taskscape_dev_user cookie -> default_user; must be a configured user
-      tokens.js            generateToken(), hashToken() (sha256), bearerFrom(), lookupToken(), touchLastUsed()
+      providers/password.js session cookie -> sessions row -> user; sessionCookie() / clearSessionCookie() build Set-Cookie
+      passwords.js         hashPassword() / verifyPassword() (scrypt, timingSafeEqual; at most 2 at once, 16 queued, else 503),
+                           verifyDummy() for unknown users (lazy dummy hash), passwordProblem() (10-200 chars)
+      lockout.js           in-memory failed-password limit (5 in 15 min -> 15 min 429); never evicts live entries, fails closed when full;
+                           two per app in ctx.lockouts: signIn (per username) and passwordChange (per account)
+      tokens.js            generateToken(), generateSessionToken(), hashToken() (sha256), tokenPrefix(), bearerFrom(); no SQL
     db/
       index.js             openDb(url) picks the adapter by scheme; the Db typedef (query, exec, transaction, migrate, close, backup?)
       sqlite.js            node:sqlite adapter: WAL, foreign keys, busy_timeout, a per-process mutex, BEGIN IMMEDIATE, online backup
       postgres.js          pg pool adapter; advisory lock around migrate; loaded only for postgres:// URLs
       placeholders.js      `?` -> `$n` rewrite (skips string literals and comments), coerceParams(), isReadStatement()
-      migrate.js           listMigrations() (numeric order, dialect override wins), runMigrations() (one transaction per file)
+      migrate.js           listMigrations() (numeric order, dialect override wins; a misnamed .sql throws), runMigrations() (one transaction
+                           per file; throws if an applied id's recorded name differs from its file)
     repo/
       visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, live, trashState, likeContains
       common.js            rowToProject(), rowToTask(), rowToTag(), tagsFor(), statusOrder(), diff()
@@ -75,28 +85,34 @@ api/
       tags.js              normalizeTagName(), list, create (idempotent), mustExist()
       activity.js          record() (called inside every write transaction), list() with cursor and read-time visibility
       people.js            distinct owners of visible items + caller + dev users
-      tokens.js            listForUser(), issue() (plaintext returned once), revoke()
+      tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
+                           revoke(), revokeAllForUser()
+      users.js             password-provider users: get, credentials (login only), list, existingFootprint (counts an id's items, for the CLI),
+                           create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
+      sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, removeByToken/ForUser/Expired; no version, no activity
 
 migrations/
   001_init.sql             projects, tasks, tags, project_tags, task_tags, activity, mcp_tokens, schema_migrations
+  002_password_auth.sql    users, sessions (password provider only)
 
 scripts/
   dev.js                   node:http on HOST:PORT (loopback by default): /api/* -> node-bridge -> app.fetch; everything else static from public/
   migrate.js               apply pending migrations + ensureCatchAll; run as a deploy step
   seed.js                  demo data through the repo layer with real principals; --reset to replace
   backup.js                SQLite online copy to backups/; PostgreSQL prints pg_dump / pg_restore commands
+  users.js                 password-provider users: add [--claim-existing], passwd (also revokes tokens), disable, enable, list;
+                           passwords from a hidden prompt or stdin, never argv
 
 public/                    served as-is; no build step
   index.html               project list (filters, search, new project, marquee of overdue tasks)
   project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table
   whats-new.html           activity feed with "Load more"
   trash.html               trashed projects and tasks, restore
-  tokens.html              "My MCP tokens": issue (plaintext shown once), revoke
+  tokens.html              "My MCP tokens": issue (plaintext shown once), revoke; a change-password section for password sessions
+  login.html               sign-in dialog for the password provider; reads GET /api/login, goes to a same-site ?next= page
   css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
-  css/theme-toolbar.css    the configured look: old browser chrome (dithered toolbars, pixel icons, starfield throbber, status bar) around a modern page; dark mode
-  css/theme-plain.css      the fallback the pages link ("looks like nobody designed it"): browser defaults, grooved rules, dark mode, no motion
-  css/theme-netscape.css   the 1996 look, kept as an alternative; config.theme picks css/theme-<name>.css (page.js falls back to plain)
-  js/page.js               shared boot: loads /api/config and /api/me, theme swap, nav, dev banner, aria-live say(), attempt() = the 409 handler
+  css/theme-toolbar.css    the look, linked by every page: old browser chrome (dithered toolbars, pixel icons, starfield throbber, status bar) around a modern page; dark mode
+  js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, aria-live say(), attempt() = the 409 handler
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
   js/dev-user.js           red DEV MODE banner + user dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
@@ -104,6 +120,7 @@ public/                    served as-is; no build step
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task) and the CSS-animated marquee
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
+  js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
   js/projects.js tasks.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
@@ -115,7 +132,7 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, markdown, http, db, mcp (fake fetch), ui-escaping (greps public/)
+                           hits, search, export, markdown, http, db, mcp (fake fetch), login (password provider), ui-escaping (greps public/)
 
 docs/
   ONE-PAGER.md             the spec, scrubbed of company and vendor names
@@ -156,17 +173,17 @@ A view is a named sort and filter preset.
 1. `taskscape.config.json`, `default_views`: add an entry, for example `"overdue": { "sort": "due_date", "dir": "asc", "status": "To do,Doing,Blocked" }`. The keys mirror the list query parameters in `docs/API.md` §5. The API only serves this object; it does not interpret it.
 2. UI: `public/js/tasks.js` reads `config.default_views.tasks` for the initial sort; add the new preset there as a control that sets the list parameters for `GET /api/tasks`. Overdue itself is computed in the browser: `due_date` before today and status not in `closed_statuses`.
 
-### Swap the theme
+### Change the look
 
-1. Create `public/css/theme-<name>.css`. Copy `theme-plain.css` (or `theme-netscape.css`) as a starting point and keep every selector it styles; `base.css` stays as it is (layout, focus rings, reduced motion). Some markup exists for one theme only, and each theme hides the rest: the padlock is an `img` plus a `code.padlock__text`, the footer has a `.best-viewed` line and an `address`, and the empty-project picture sits in `.under-construction`.
-2. `taskscape.config.json`: set `"theme": "<name>"`. The pages link `theme-plain.css`; `public/js/page.js` swaps in `css/theme-<config.theme>.css` and keeps the plain theme if that file is missing.
+1. There is one theme, `public/css/theme-toolbar.css`, linked directly by every page after `base.css`. Edit it in place; `base.css` stays as it is (layout, focus rings, reduced motion). Keep nostalgia in the chrome and pixel details, and keep the content area readable.
+2. Check light and dark mode (`prefers-color-scheme`) and phone width.
 3. Keep contrast and keyboard focus visible; the escaping and accessibility tests do not check CSS, so look at it.
 
 ### Add an identity provider
 
 1. New file `api/lib/auth/providers/<name>.js` exporting `from<Name>(request, cfg)` that returns `{ id, name, email?, groups }` or `null`. It must never trust a value the client can set unless the host guarantees it; say so in the file header, as `headers.js` does.
 2. `api/lib/auth/index.js`, `getUser()`: branch on `auth.provider` to call it. The result gets `via: 'ui'` and `auth: '<name>'`; extend the `Principal` typedef's `auth` union.
-3. `api/lib/config.js`: add the name to the allowed list in `validate()` (`['dev', 'headers']`) and to the `auth` typedef; add any startup checks the provider needs. Keep its settings out of `publicConfig()`.
+3. `api/lib/config.js`: add the name to the allowed list in `validate()` (`['dev', 'headers', 'password']`) and to the `auth` typedef; add any startup checks the provider needs. Keep its settings out of `publicConfig()`.
 4. `taskscape.config.json`: its settings under `auth.<name>`; `.env.example` if it needs an environment variable. Secrets stay in the environment.
 5. `test/identity.test.js`: use `createTestApp({ config: { auth: { provider: '<name>', … } } })` and `withHeaders()`; cover a valid request, a missing id (401), and anything the client could forge.
 6. README "Identity" section.
@@ -188,6 +205,7 @@ npm run migrate          # apply migrations, create the General project (data/de
 npm run seed             # demo data; `npm run seed -- --reset` to replace
 npm run dev              # http://localhost:3000 with file watching; `npm start` without
 npm run backup           # SQLite copy to backups/, or the pg_dump command for PostgreSQL
+npm run users -- list    # password-provider users; also add, passwd, disable, enable
 npm test                 # node:test over test/*.test.js on in-memory SQLite; must pass before a commit
 ```
 
@@ -197,6 +215,13 @@ Switching dev users: the dev provider picks the user from the `X-Dev-User` heade
 
 ```sh
 curl -H 'x-dev-user: bob' http://localhost:3000/api/me
+```
+
+Trying the password provider locally: run `npm run migrate`, then `npm run users -- add dana --name "Dana Fox" --groups editors` (it asks for the password twice; pipe one line on stdin to script it), then `TASKSCAPE_AUTH_PROVIDER=password npm run dev` and sign in at http://localhost:3000/login.html. The seed's dev users are not password users. To try it against a scratch database, set `TASKSCAPE_DATABASE_URL=sqlite:/some/tmp/file.db` for both commands. `curl` needs the cookie and, for writes, `Content-Type: application/json`:
+
+```sh
+curl -c jar -H 'content-type: application/json' -d '{"username":"dana","password":"…"}' http://localhost:3000/api/login
+curl -b jar http://localhost:3000/api/me
 ```
 
 The seed is useful for privacy checks: `Reorg notes` is carol's private project; bob gets the generic 404 on it, and alice's task `Review comp bands` sits in `General` because carol's flip moved it there.

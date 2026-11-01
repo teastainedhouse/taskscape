@@ -1,5 +1,6 @@
 import { validationFailed } from './errors.js';
 import * as tagsRepo from './repo/tags.js';
+import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
 
 const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -107,6 +108,62 @@ export function validateTokenInput(body) {
     throw validationFailed({ label: 'must be 1 to 100 characters' });
   }
   return { label: body.label.trim() };
+}
+
+export const USER_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+/** Ids the API itself uses as an owner (the catch-all project's `system`). */
+export const RESERVED_USER_IDS = ['system'];
+
+/** @param {unknown} v @param {number} max  a non-empty string of at most `max` characters */
+const sizedString = (v, max) => typeof v === 'string' && v.length > 0 && [...v].length <= max;
+
+/**
+ * POST /api/login. Only shape and size: whether the name exists is the login's business,
+ * and the 10-character minimum applies when a password is set, not when one is tried.
+ * @param {Record<string, unknown>} body
+ * @returns {{username: string, password: string}}
+ */
+export function validateLogin(body) {
+  const fields = {};
+  if (!sizedString(body.username, 64) || !body.username.trim()) fields.username = 'must be 1 to 64 characters';
+  else if (/[\u0000-\u001f\u007f-\u009f]/.test(body.username)) fields.username = 'must not contain control characters';
+  if (!sizedString(body.password, PASSWORD_MAX)) fields.password = `must be 1 to ${PASSWORD_MAX} characters`;
+  if (Object.keys(fields).length) throw validationFailed(fields);
+  return { username: body.username.trim().toLowerCase(), password: body.password };
+}
+
+/**
+ * POST /api/me/password.
+ * @param {Record<string, unknown>} body
+ * @returns {{current_password: string, new_password: string, revoke_tokens: boolean}}
+ */
+export function validatePasswordChange(body) {
+  const fields = {};
+  if (!sizedString(body.current_password, PASSWORD_MAX)) fields.current_password = `must be 1 to ${PASSWORD_MAX} characters`;
+  const problem = passwordProblem(body.new_password);
+  if (problem) fields.new_password = problem;
+  if (body.revoke_tokens !== undefined && typeof body.revoke_tokens !== 'boolean') fields.revoke_tokens = 'must be true or false';
+  if (Object.keys(fields).length) throw validationFailed(fields);
+  return { current_password: body.current_password, new_password: body.new_password, revoke_tokens: body.revoke_tokens === true };
+}
+
+/**
+ * A new password-provider user (scripts/users.js).
+ * @param {{id?: unknown, name?: unknown, email?: unknown, groups?: unknown}} u
+ * @returns {{id: string, name: string, email: string|null, groups: string[]}}
+ */
+export function validateNewUser(u) {
+  const fields = {};
+  if (typeof u.id !== 'string' || !USER_ID_RE.test(u.id)) fields.id = 'must be 1 to 64 of a-z 0-9 . _ - and start with a letter or digit';
+  else if (RESERVED_USER_IDS.includes(u.id)) fields.id = 'is reserved';
+  const name = typeof u.name === 'string' ? u.name.trim() : '';
+  if (!name || [...name].length > 100) fields.name = 'must be 1 to 100 characters';
+  const email = typeof u.email === 'string' && u.email.trim() ? u.email.trim() : null;
+  if (email !== null && (email.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(email))) fields.email = 'must be an email address';
+  const groups = Array.isArray(u.groups) ? u.groups.map((g) => String(g).trim()).filter(Boolean) : [];
+  if (groups.some((g) => g.length > 100) || groups.length > 50) fields.groups = 'must be at most 50 names of up to 100 characters';
+  if (Object.keys(fields).length) throw validationFailed(fields);
+  return { id: /** @type {string} */ (u.id), name, email, groups: [...new Set(groups)] };
 }
 
 const PROJECT_SORTS = ['updated_at', 'created_at', 'name', 'status', 'owner_name'];

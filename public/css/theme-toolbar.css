@@ -35,6 +35,9 @@
   --error-ink: #7a0a0a;
   --danger: #8b0000;
   --overdue: #b3141a;
+  --title: #0a246a;
+  --title-2: #3a6ea5;
+  --title-ink: #ffffff;
   --ui: system-ui, sans-serif;
   --mono: ui-monospace, "Courier New", monospace;
   --dither: repeating-conic-gradient(var(--chrome) 0 25%, var(--chrome-2) 0 50%) 0 0 / 2px 2px;
@@ -73,6 +76,8 @@
     --error-ink: #ffb4ae;
     --danger: #ff9a94;
     --overdue: #ff7b72;
+    --title: #1c2c5c;
+    --title-2: #34548c;
   }
 }
 
@@ -181,6 +186,7 @@ nav a[aria-current="page"] {
 }
 
 #whoami { margin-left: auto; padding: 0 10px; font-size: 12px; }
+.sign-out { margin-right: 6px; padding: 2px 8px; font-size: 12px; }
 
 /* The throbber: a pixel monogram over the starfield, drifting slowly. */
 .site-header::after {
@@ -272,7 +278,7 @@ button:active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(
 button:disabled { color: var(--ink-muted); cursor: default; }
 button.danger { color: var(--danger); }
 
-input[type="text"], input[type="search"], input[type="date"], input[type="url"], select, textarea {
+input[type="text"], input[type="search"], input[type="date"], input[type="url"], input[type="password"], select, textarea {
   padding: 4px 6px;
   background: var(--field);
   color: var(--ink);
@@ -340,8 +346,6 @@ table.meta tr:hover td { background: none; }
 }
 .hit-caption { color: var(--ink-muted); font-size: 12px; }
 
-/* Private marker: the padlock picture, not the text. */
-.padlock__text { display: none; }
 
 .under-construction { text-align: center; padding: 16px 0; }
 .under-construction img { max-width: 100%; height: auto; }
@@ -382,7 +386,6 @@ table.meta tr:hover td { background: none; }
   font-size: 12px;
   color: var(--ink-muted);
 }
-.site-footer .best-viewed { display: none; }
 .site-footer address,
 .site-footer::after {
   padding: 1px 8px;
@@ -395,6 +398,76 @@ table.meta tr:hover td { background: none; }
 #webring:not(:has(.webring:not([hidden]))) { display: none; }
 .webring { padding: 4px 8px; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); text-align: center; }
 
+/* Sign-in: the old "Username and Password Required" dialog, drawn in the page
+   rather than popped up by the browser. A title bar, a bevelled grey panel with
+   the key icon at 4x, labelled fields, OK (the default, ringed in black) and Cancel. */
+.login-page .site-header::after { margin-left: auto; }
+.login-page main.panel { display: flex; align-items: center; justify-content: center; padding: 48px 16px; }
+.login-dialog {
+  width: 100%;
+  max-width: 440px;
+  margin: 0;
+  padding: 3px;
+  background: var(--chrome);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  box-shadow: inset 1px 1px 0 var(--hi), inset -1px -1px 0 var(--lo), 6px 6px 0 rgb(0 0 0 / 0.3);
+}
+.login-dialog__titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  background: linear-gradient(90deg, var(--title), var(--title-2));
+  color: var(--title-ink);
+  font: 700 13px/18px var(--ui);
+}
+.login-dialog__titlebar::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 12px;
+  background: var(--icon-key) center / 12px 12px no-repeat;
+  image-rendering: pixelated;
+}
+.login-dialog__body {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: 16px;
+  padding: 18px 14px 14px;
+}
+.login-dialog__body::before {
+  content: "";
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 48px;
+  height: 48px;
+  background: var(--icon-key) center / 48px 48px no-repeat;
+  image-rendering: pixelated;
+}
+.login-dialog__body > * { grid-column: 2; }
+/* The title bar says it; the heading stays for screen readers. */
+.login-dialog__heading {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%);
+  white-space: nowrap;
+}
+.login-dialog__prompt { margin: 0 0 16px; font-size: 14px; }
+.login-form__row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); align-items: center; gap: 8px; margin: 0 0 8px; }
+.login-form__row label { margin: 0; font-size: 13px; font-weight: 400; }
+.login-form__row input { width: 100%; }
+.login-form__buttons { margin-top: 16px; }
+.login-form__buttons button { min-width: 80px; }
+.login-form__buttons button[type="submit"] { box-shadow: 0 0 0 1px var(--edge), 1px 1px 0 1px var(--edge); }
+.login-form__buttons button[type="submit"]:active { box-shadow: 0 0 0 1px var(--edge); }
+.login-elsewhere p { margin: 0 0 14px; font-size: 14px; }
+.login-elsewhere p:last-child { margin: 0; text-align: right; }
+
+/* Change password, on the tokens page. */
+.password-form { margin-top: 8px; }
+
 /* Phone width: the window fills the screen and the toolbar wraps onto two rows. */
 @media (max-width: 700px) {
   body { padding: 0; }
@@ -403,9 +476,19 @@ table.meta tr:hover td { background: none; }
   .site-header::before, #marquee:not([hidden])::before { display: none; }
   .site-header { padding: 4px 6px; }
   .site-header::after { order: 2; width: 40px; height: 40px; }
-  #whoami { order: 1; }
+  #whoami, .sign-out { order: 1; }
   nav { order: 3; flex-basis: 100%; }
   nav a, nav a:visited { flex: 1; min-width: 0; padding: 4px 2px 3px; }
   main.panel { padding: 16px; }
   h1 { font-size: 1.45rem; }
+}
+
+/* Phone width, sign-in: the dialog fills the content area and the fields stack. */
+@media (max-width: 480px) {
+  .login-page main.panel { padding: 16px 8px; }
+  .login-dialog { box-shadow: inset 1px 1px 0 var(--hi), inset -1px -1px 0 var(--lo); }
+  .login-dialog__body { grid-template-columns: minmax(0, 1fr); padding: 14px 10px 10px; }
+  .login-dialog__body::before { display: none; }
+  .login-dialog__body > * { grid-column: 1; }
+  .login-form__row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
 }

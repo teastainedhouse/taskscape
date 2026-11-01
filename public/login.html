@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body class="login-page">
+  <div class="wrap">
+    <header class="site-header">
+      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <!-- The title bar is decoration for the themes that draw a dialog; the h1 is the real heading. -->
+      <section class="login-dialog" aria-labelledby="login-h">
+        <div class="login-dialog__titlebar" aria-hidden="true">Username and Password Required</div>
+        <div class="login-dialog__body">
+          <h1 id="login-h" class="login-dialog__heading">Sign in</h1>
+          <p id="login-prompt" class="login-dialog__prompt">Enter your user name and password for <b data-site-title>Taskscape</b> at <span id="login-host">this site</span>.</p>
+
+          <!-- method="post" so a password never lands in a URL, even if the script fails to load. -->
+          <form id="login-form" class="login-form" method="post" action="login.html" aria-describedby="login-prompt">
+            <div class="field login-form__row">
+              <label for="login-username">User name:</label>
+              <input type="text" id="login-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64" size="24">
+            </div>
+            <div class="field login-form__row">
+              <label for="login-password">Password:</label>
+              <input type="password" id="login-password" name="password" autocomplete="current-password" required maxlength="200" size="24">
+            </div>
+            <div class="login-form__buttons">
+              <button type="submit" id="login-ok">OK</button>
+              <button type="button" id="login-cancel">Cancel</button>
+            </div>
+          </form>
+
+          <div id="login-elsewhere" class="login-elsewhere" hidden>
+            <p>This site does not use a Taskscape password: sign-in is handled elsewhere, before you reach these pages.</p>
+            <p><a class="button" href="index.html">Go to the projects</a></p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <address data-served-by>Taskscape</address>
+    </footer>
+  </div>
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

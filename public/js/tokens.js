@@ -1,10 +1,11 @@
-// tokens.js — "My MCP tokens": list, issue (plaintext shown once), revoke.
+// tokens.js — "My MCP tokens": list, issue (plaintext shown once), revoke;
+// and, for password sessions, the change-password form.
 
 import { boot, say, sayError } from './page.js';
-import { get, post, del } from './api.js';
+import { get, post, del, ApiError } from './api.js';
 import { el, btn, clear, setChildren, timeEl } from './dom.js';
 
-await boot({ title: 'My MCP tokens' });
+const { me } = await boot({ title: 'My MCP tokens' });
 
 const tbody = document.querySelector('#tokens tbody');
 const reveal = document.getElementById('token-reveal');
@@ -12,6 +13,7 @@ const envBlock = document.getElementById('env-block');
 
 renderEnv();
 setupIssue();
+if (me.auth === 'password') setupPassword();
 await load();
 
 /** Suggested environment and the command to start the MCP server. */
@@ -96,4 +98,52 @@ function showPlaintext(res) {
   setChildren(reveal, [box]);
   renderEnv(res.plaintext);
   input.focus(); input.select();
+}
+
+/** Change password (password sessions only): POST /api/me/password, then clear the form. */
+function setupPassword() {
+  const section = document.getElementById('password-section');
+  const form = document.getElementById('password-form');
+  const current = document.getElementById('pw-current');
+  const fresh = document.getElementById('pw-new');
+  const again = document.getElementById('pw-confirm');
+  const revokeTokens = document.getElementById('pw-revoke-tokens');
+  document.getElementById('pw-username').defaultValue = me.id;
+  section.hidden = false;
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const length = [...fresh.value].length; // characters, as the API counts them
+    if (length < 10 || length > 200) {
+      say('The new password needs 10 to 200 characters.', { error: true });
+      fresh.focus();
+      return;
+    }
+    if (fresh.value !== again.value) {
+      say('The two new passwords do not match.', { error: true });
+      again.focus();
+      return;
+    }
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    const revoking = revokeTokens.checked;
+    try {
+      // A wrong current password is a 400 naming current_password; a 401 means the session ended and takes the usual path.
+      await post('/api/me/password', { current_password: current.value, new_password: fresh.value, revoke_tokens: revoking });
+      form.reset();
+      say(revoking ? 'Password changed. Your other sessions were signed out and your MCP tokens revoked.'
+        : 'Password changed. Your other sessions were signed out.');
+      if (revoking) await load();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'validation_failed' && err.details?.fields?.current_password) {
+        say('The current password is wrong.', { error: true });
+        current.value = '';
+        current.focus();
+      } else {
+        sayError(err, 'Could not change the password');
+      }
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }

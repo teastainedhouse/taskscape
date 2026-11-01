@@ -108,11 +108,10 @@ export function labeledSelect(spec) {
   return { wrap, select };
 }
 
-/** Private marker: a padlock icon and the text "[PRIVATE]"; each theme shows one of them. */
+/** Private marker: a padlock icon. */
 export function padlock() {
   return el('span', { class: 'padlock', title: 'Private: only you can see this' },
-    el('img', { src: 'img/padlock.svg', alt: 'Private', width: '14', height: '14' }),
-    el('code', { class: 'padlock__text' }, '[PRIVATE]'));
+    el('img', { src: 'img/padlock.svg', alt: 'Private', width: '14', height: '14' }));
 }
 
 /**

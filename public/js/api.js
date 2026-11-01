@@ -1,19 +1,22 @@
 // api.js — the one fetch wrapper. JSON in and out, the error envelope
-// from docs/API.md, 401 → "session expired" event, 409 → ApiError.current.
+// from docs/API.md, 401 → "session expired" event, 409 → ApiError.current,
+// 429 → ApiError.retryAfter.
 
-/** An API error. `current` is the live record on a 409. */
+/** An API error. `current` is the live record on a 409; `retryAfter` is seconds to wait on a 429. */
 export class ApiError extends Error {
   /**
    * @param {number} status
    * @param {{error?: {code?: string, message?: string, details?: any}, current?: any}} body
+   * @param {number|null} [retryAfter]  from the Retry-After header
    */
-  constructor(status, body) {
+  constructor(status, body, retryAfter = null) {
     super(body?.error?.message || `Request failed (${status})`);
     this.name = 'ApiError';
     this.status = status;
     this.code = body?.error?.code || (status === 401 ? 'unauthorized' : 'unknown');
     this.details = body?.error?.details ?? null;
     this.current = status === 409 ? body?.current ?? null : null;
+    this.retryAfter = retryAfter;
   }
 
   /** One line for people: the message plus any field names from validation details. */
@@ -50,7 +53,8 @@ export function qs(query) {
  * Call the API.
  * @param {'GET'|'POST'|'PATCH'|'PUT'|'DELETE'} method
  * @param {string} path  starts with /api/
- * @param {{body?: any, query?: Record<string, any>}} [opts]
+ * @param {{body?: any, query?: Record<string, any>, noExpiry?: boolean}} [opts]
+ *   noExpiry: skip the session-expired event (the sign-in page, where a 401 is a wrong password or simply signed out)
  * @returns {Promise<any>} parsed JSON body
  * @throws {ApiError}
  */
@@ -73,10 +77,13 @@ export async function api(method, path, opts = {}) {
     try { body = await res.json(); } catch { body = null; }
   }
   if (res.status === 401) {
-    document.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    if (!opts.noExpiry) document.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
     throw new ApiError(401, body ?? {});
   }
-  if (!res.ok) throw new ApiError(res.status, body ?? {});
+  if (!res.ok) {
+    const wait = Number.parseInt(res.headers.get('retry-after') ?? '', 10);
+    throw new ApiError(res.status, body ?? {}, Number.isFinite(wait) && wait >= 0 ? wait : null);
+  }
   return body;
 }
 

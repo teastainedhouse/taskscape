@@ -8,7 +8,9 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 - Base path `/api`, same origin as the UI. No CORS headers in v0.1.
 - Every response is JSON (`application/json; charset=utf-8`) except `export.md`. The API never returns HTML, including on errors. Every response carries `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
 - Request bodies are JSON, max 256 KB; invalid JSON → 400 `validation_failed`.
-- Every route needs an authenticated principal except `GET /api/health`. No principal → 401.
+- Every route needs an authenticated principal except `GET /api/health`, `GET`/`POST /api/login`, and `POST /api/logout`. No principal → 401.
+- Principals come from a Bearer token (MCP) or from the configured provider: `headers` (identity headers set by the host's sign-in layer), `dev` (local switchable users), or `password` (a session cookie set by `POST /api/login`; section 6 "Password sign-in"). A Bearer token wins over the cookie.
+- Every browser principal (`via: "ui"`: provider `password`, `dev`, or `headers`) gets two extra checks on every write (any method but GET, HEAD, OPTIONS), and so do `POST /api/login` and `POST /api/logout` themselves: a `Sec-Fetch-Site` header other than `same-origin` or `none` → 403 `forbidden`; a `Content-Type` other than `application/json`, or a body without one → 415 `unsupported_media_type`. A write with no body and no `Content-Type` passes. Bearer-token requests are exempt.
 - All writes require edit permission → else 403 `forbidden`.
 - `version` is an integer starting at 1. Every write that touches a record (`PATCH`, `DELETE`, restore, tag attach/detach) requires `version` in the body and increments it by 1, updating `updated_at`. Missing `version` → 400.
 - Timestamps are ISO-8601 UTC strings. `due_date` is `YYYY-MM-DD` or `null`. Booleans are JSON `true`/`false`.
@@ -26,12 +28,15 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | --- | --- | --- |
 | 400 | `validation_failed` | bad JSON, missing/invalid field, missing `version`, missing `X-Taskscape-Session` on a token write, read-only field sent |
 | 400 | `invalid_state` | edit, tag, or hit a trashed item; create a task in a trashed project; restore a task whose project is trashed; restore a live item; trash a trashed item; create a private item owned by someone else; putting someone else's task into a private project (create for another owner, reassign to another owner, move, or restore); making the catch-all project private, reassigning it, or trashing it |
-| 401 | `unauthorized` | no principal; unknown/revoked token; unknown dev user. `WWW-Authenticate: Bearer realm="taskscape"` |
-| 403 | `forbidden` | non-owner flipping `private`; non-editor writing; token principal on a human-only route |
+| 401 | `unauthorized` | no principal; unknown/revoked token; unknown dev user; missing, expired, or ended session cookie; failed `POST /api/login` (one body for every reason). `WWW-Authenticate: Bearer realm="taskscape"` |
+| 403 | `forbidden` | non-owner flipping `private`; non-editor writing; token principal on a human-only route; cross-site write from a browser principal or to login/logout |
 | 404 | `not_found` | unknown route, unknown id, or an item the caller may not see. Body is always `{"error":{"code":"not_found","message":"Not found."}}` |
 | 405 | `method_not_allowed` | known path, wrong method; `Allow` header set |
 | 409 | `conflict` | stale `version` (section 3) |
 | 413 | `payload_too_large` | body over 256 KB |
+| 415 | `unsupported_media_type` | a browser-principal write, login, or logout whose body is not `application/json` |
+| 429 | `too_many_requests` | too many failed password checks for one username (sign-in) or one account (password change); `Retry-After` in whole seconds |
+| 503 | `unavailable` | too many password checks waiting in this process; `Retry-After` in whole seconds. The attempt does not count toward the 429 limit |
 | 500 | `internal` | unexpected; generic message, details in the server log |
 
 ## 3. Conflict body (409)
@@ -74,7 +79,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Token** `{ "id", "label", "token_prefix", "created_at", "last_used_at", "revoked_at" }`.
 
-**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "token", "can_edit": true }`.
+**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true }`.
 
 ## 5. List query parameters (projects and tasks)
 
@@ -98,6 +103,10 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | Method | Path | Auth | Body | Success | Errors |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/health` | none | — | `200 {"ok":true}` | |
+| GET | `/api/login` | none | — | `200 {"provider":"password","site_title":"Taskscape"}` for every provider; nothing else | |
+| POST | `/api/login` | none | `{username, password}` | `200 Me` + `Set-Cookie` (below) | 400 (field names only; control characters in `username` are refused), 401 `"Wrong username or password."`, 403 cross-site, 404 provider is not `password`, 415, 429, 503 |
+| POST | `/api/logout` | none | — | `204` + clearing `Set-Cookie`; ends the session the cookie names, if any | 403 cross-site, 404 provider is not `password`, 415 |
+| POST | `/api/me/password` | human, no editor check | `{current_password, new_password, revoke_tokens?}` (`revoke_tokens` boolean, default `false`) | `204`; ends the caller's other sessions, keeps this one; with `revoke_tokens: true` also revokes every MCP token the caller holds | 400 (`new_password` 10–200 characters; `current_password: "is incorrect"`; `revoke_tokens` not a boolean), 403 (token), 404 provider is not `password` or caller is not a password session, 429, 503 |
 | GET | `/api/me` | any | — | `200 Me` | 401 |
 | GET | `/api/config` | any | — | `200` public config (section 7) | 401 |
 | GET | `/api/people` | any | — | `200 {"items":[{"id","name"}]}` derived from items visible to the caller | 401 |
@@ -142,12 +151,14 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **Activity cursor:** opaque base64 of `created_at|id`; the query is `created_at < ? OR (created_at = ? AND id < ?) ORDER BY created_at DESC, id DESC`.
 
+**Password sign-in** (provider `password`). Users live in the `users` table and are managed with `npm run users` (no API route creates, lists, or disables them). `POST /api/login` lowercases and trims `username`, which is the user id; `password` is 1–200 characters there (new passwords: 10–200, counted in characters, not bytes). An unknown user, a wrong password, and a disabled account get the same 401 body, and an unknown or disabled user still costs one password hash, so neither the body nor the timing tells which names exist. The cookie is `<auth.password.cookie_name>=<value>;` (default name `__Host-taskscape_session`) Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=<session_days × 86400>`; the value is 32 random bytes (base64url) and only its SHA-256 is stored. A session is valid until a fixed `expires_at` (`session_days` after sign-in; use does not extend it), while the user is not disabled, and until logout, a password change elsewhere, or `npm run users -- passwd|disable`. `passwd` and `disable` also revoke the user's MCP tokens. Under this provider a Bearer token is valid only while a `users` row exists for its `user_id` and is not disabled. Failed sign-ins are counted per lowercased username, existing or not: 5 within 15 minutes lock that name for 15 minutes (429, even for the right password); a success clears the count. Failed current-password checks on `/api/me/password` have their own count per account, so failed sign-ins cannot block a signed-in user's change. When the count table is full of names with recent failures, new names get 429 too rather than evicting anyone. At most 2 password hashes run at once, with up to 16 waiting; beyond that the answer is 503. Counts and the hash limit are in memory, per process. `/api/me/password` answers a wrong current password with 400, not 401, so a 401 from it always means the session ended.
+
 **Token auth:** `Authorization: Bearer tsk_…` is authoritative when present (invalid → 401, never falls back to headers). Token writes must send `X-Taskscape-Session` (→ 400 otherwise); it is recorded on the activity entry with `via: "mcp"`.
 
 ## 7. `GET /api/config` (public subset)
 
 ```json
-{ "site_title": "Taskscape", "theme": "netscape",
+{ "site_title": "Taskscape",
   "statuses": { "project": ["Planned","Active","On hold","Done"], "task": ["To do","Doing","Blocked","Done"] },
   "closed_statuses": { "project": ["Done"], "task": ["Done"] },
   "default_status": { "project": "Planned", "task": "To do" },
@@ -162,7 +173,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "auth": { "provider": "dev", "dev_users": [ { "id": "alice", "name": "Alice Lin" } ] } }
 ```
 
-`auth.dev_users` appears only with the dev provider. Header names and anything under `auth.headers` are never exposed.
+`auth.provider` is `"dev"`, `"headers"`, or `"password"`. `auth.dev_users` appears only with the dev provider. Header names, anything under `auth.headers`, and `auth.password` settings are never exposed. A signed-out page cannot read `/api/config`; it uses `GET /api/login` for the provider and site title.
 
 ## 8. Markdown export format
 
@@ -205,3 +216,6 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-10-31 (privacy review): `moved_tasks` counts only tasks visible to the caller; in activity entries, a `project_id` value inside `changes` is `null` when that project is not visible to the caller (its current project on the entry itself is always visible, since the task is).
 - 2026-10-31 (review fixes, no route changes): `owner_name` is accepted only together with `owner_id` (400 otherwise); an `Authorization` header that is present but not a Bearer token is 401; a body over the limit is cut off while streaming (413) even without `Content-Length`; `DELETE /api/tokens/:id` works for a user who has lost edit rights; a token's edit rights follow the groups snapshotted at issue time; malformed percent-escapes in a path are 404.
 - 2026-10-31: clarifications only, no behaviour change: validation runs before the version check, so a stale `version` sent together with an invalid field returns 400, not 409; `moved_tasks` is present (possibly 0) whenever a PATCH turned `private` on or changed the owner of a private project, and never otherwise; the 409 `current` body never carries `moved_tasks`; the catch-all project's `owner_name` is "Taskscape"; the `{items, limit, offset}` list envelope applies to projects and tasks, while tags, people, trash, search, and tokens use the shapes shown in their rows; from the MCP tools `include_trashed` is a boolean, so `only` is reachable from the UI and raw HTTP only.
+- 2026-11-01: built-in password sign-in. New provider value `password` (`Me.auth` and `/api/config` `auth.provider`); new routes `GET /api/login` (all providers, unauthenticated), `POST /api/login`, `POST /api/logout`, `POST /api/me/password`; new error codes 415 `unsupported_media_type` and 429 `too_many_requests`; cookie sessions and login/logout refuse cross-site (`Sec-Fetch-Site`) and non-JSON writes. Migration `002_password_auth.sql` adds `users` and `sessions`. Nothing changes for the `dev` and `headers` providers or for Bearer tokens. No MCP tool: every new route is unauthenticated or human-only.
+- 2026-11-01 (security review): the cross-site write checks (`Sec-Fetch-Site`, JSON-only bodies) apply to every browser principal (`dev` and `headers` too), not only password sessions; Bearer tokens stay exempt. Under the `password` provider a token needs a live `users` row. `POST /api/me/password` takes optional `revoke_tokens`, and its failed checks count separately from sign-in. New 503 `unavailable` when too many password checks are waiting. The default session cookie name is `__Host-taskscape_session`.
+- 2026-11-01 (one theme): `theme` is gone from `/api/config` and `GET /api/login`, and from `taskscape.config.json`; the UI has a single look (`css/theme-toolbar.css`), linked directly by every page.

@@ -66,9 +66,8 @@ taskscape/
     whats-new.html            activity feed
     trash.html                trashed projects and tasks, restore
     tokens.html               "My MCP tokens": issue (shown once), revoke
-    css/base.css              layout and accessibility shared by themes (focus rings, reduced motion)
-    css/theme-plain.css       the default look; config.theme names the file (theme-<name>.css)
-    css/theme-netscape.css    the 1996 look, kept as an alternative
+    css/base.css              layout and accessibility (focus rings, reduced motion)
+    css/theme-toolbar.css     the look (the only theme since 2026-11-01)
     js/api.js                 fetch wrapper: JSON, error envelope, 409 handling, dev-user cookie
     js/dom.js                 el()/text() helpers; textContent only
     js/projects.js  tasks.js  whats-new.js  trash.js  tokens.js  dev-user.js  odometer.js
@@ -332,10 +331,7 @@ Extra seeded activity: Reorg notes is created public, alice's task is added, the
 
 ## 9. UI notes that the API does not cover
 
-- `base.css` holds layout, focus rings, and `prefers-reduced-motion`; a theme file holds the look. The pages link `theme-plain.css`, and `page.js` swaps in `theme-<config.theme>.css` when the config names another one, keeping plain if that file is missing.
-- **Plain theme** (default, since 2026-10-31): browser defaults kept on purpose (Times New Roman, blue/purple/red links, native controls, grooved `hr`-style rules between header, page, and footer, `border=1`-style tables), plus line height 1.35, a 42em measure, left-aligned `th`, a dotted focus outline, and a footer `address` ("Taskscape at <host> Port <port>", filled by `page.js`). No panels, backgrounds, icons, or motion: the overdue line stands still, the padlock shows as `[PRIVATE]`, the Under Construction picture is hidden (its sentence stays). Dark mode follows `prefers-color-scheme`.
-- **Netscape theme** (alternative): gray beveled buttons, Times New Roman, blue/purple links, visible table borders, tiled starfield, Under Construction GIF on empty projects, marquee of overdue tasks (stopped under reduced motion), footer "Best viewed in Netscape Navigator 3.0 at 800x600".
-- Theme-specific markup sits in every page and each theme hides what it does not use: the padlock is an `img` plus a `code` "[PRIVATE]", the footer has the `.best-viewed` line and the `address`.
+- `base.css` holds layout, focus rings, and `prefers-reduced-motion`; `theme-toolbar.css` holds the look and every page links it directly. On 2026-11-01 the plain and Netscape themes, the `theme` config key, and the theme-only markup (`[PRIVATE]` text, the "Best viewed in" footer line) were removed; the toolbar theme is the only one. Earlier history: the Netscape theme was the first look, then plain was the default from 2026-10-31.
 - **Hit counter** (`js/odometer.js`, loaded with `import()` so a content blocker costs only the counter): `<span class="hit-counter" role="img" aria-label="You are visitor number 1337">` with one `.digit` span per zero-padded digit (six minimum), styled in the theme (plain monospace digits in the plain theme; lime digits on black with a beveled border in the Netscape theme), no GIFs. `project.html` calls `POST /hit` once after the project loads and renders the returned count; if it fails the page still renders with the record's `hit_count`. Three clicks within two seconds reveal the webring footer bar (from `config.webring`, hidden when empty; the webring itself is out of scope, only the hook exists). On private projects a `title` says only the owner's visits are counted.
 - Padlock icon on private rows; confirm dialogs on trash; dev-mode banner with user dropdown; "Session expired" notice on 401; the privacy toggle warns that history becomes visible when flipping public and, when flipping private, that N tasks owned by others will be moved to General (confirm). The General project is listed like any other; a task row offers "Move to…" to pick a project, and General hides its privacy toggle and trash button.
 

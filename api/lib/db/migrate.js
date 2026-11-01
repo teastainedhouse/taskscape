@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { nowIso } from '../time.js';
 
-const FILE_RE = /^(\d+)_([A-Za-z0-9-]+)(?:\.(sqlite|postgres))?\.sql$/;
+const FILE_RE = /^(\d+)_([A-Za-z0-9_-]+)(?:\.(sqlite|postgres))?\.sql$/;
 
 /**
  * List migrations in `dir`, newest last, picking a dialect-specific override
@@ -17,7 +17,11 @@ export async function listMigrations(dir, dialect) {
   const byId = new Map();
   for (const entry of entries) {
     const m = FILE_RE.exec(entry);
-    if (!m) continue;
+    if (!m) {
+      // A misnamed migration must not be skipped silently: it would never run anywhere.
+      if (entry.toLowerCase().endsWith('.sql')) throw new Error(`Migration file name does not match NNN_name[.sqlite|.postgres].sql: ${entry}`);
+      continue;
+    }
     const id = Number(m[1]);
     const name = m[2];
     const forDialect = m[3];
@@ -43,11 +47,16 @@ export async function runMigrations(db, dir) {
   await db.exec(
     'CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)',
   );
-  const { rows } = await db.query('SELECT id FROM schema_migrations');
-  const done = new Set(rows.map((r) => Number(r.id)));
+  const { rows } = await db.query('SELECT id, name FROM schema_migrations');
+  /** @type {Map<number, string>} id -> the name recorded when it was applied (the part after NNN_, without the dialect suffix) */
+  const done = new Map(rows.map((r) => [Number(r.id), String(r.name)]));
   const applied = [];
   for (const m of await listMigrations(dir, db.dialect)) {
-    if (done.has(m.id)) continue;
+    if (done.has(m.id)) {
+      // A renumbered or renamed file would otherwise be taken as applied while its SQL never ran.
+      if (done.get(m.id) !== m.name) throw new Error(`Migration ${m.id} was applied as "${done.get(m.id)}" but the file is now "${m.name}"`);
+      continue;
+    }
     const sql = await readFile(m.file, 'utf8');
     await db.transaction(async (tx) => {
       await tx.exec(sql);

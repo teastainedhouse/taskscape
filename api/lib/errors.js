@@ -36,6 +36,12 @@ export const unauthorized = () =>
     'WWW-Authenticate': 'Bearer realm="taskscape"',
   });
 
+/** Sign-in refused. One body for an unknown user, a wrong password, and a disabled account. */
+export const wrongCredentials = () =>
+  new ApiError(401, 'unauthorized', 'Wrong username or password.', undefined, undefined, {
+    'WWW-Authenticate': 'Bearer realm="taskscape"',
+  });
+
 /** @param {string} message */
 export const forbidden = (message = 'You are not allowed to do that.') => new ApiError(403, 'forbidden', message);
 
@@ -56,6 +62,20 @@ export const conflict = (current) =>
 /** @param {string[]} allowed */
 export const methodNotAllowed = (allowed) =>
   new ApiError(405, 'method_not_allowed', 'Method not allowed.', undefined, undefined, { Allow: allowed.join(', ') });
+
+export const unsupportedMediaType = () => new ApiError(415, 'unsupported_media_type', 'Send the request body as application/json.');
+
+/** @param {number} retryAfterSeconds */
+export const tooManyRequests = (retryAfterSeconds) =>
+  new ApiError(429, 'too_many_requests', 'Too many failed sign-in attempts. Try again later.', undefined, undefined, {
+    'Retry-After': String(Math.max(1, Math.ceil(retryAfterSeconds))),
+  });
+
+/** @param {number} retryAfterSeconds */
+export const serviceUnavailable = (retryAfterSeconds) =>
+  new ApiError(503, 'unavailable', 'The server is busy. Try again in a moment.', undefined, undefined, {
+    'Retry-After': String(Math.max(1, Math.ceil(retryAfterSeconds))),
+  });
 
 export const payloadTooLarge = () => new ApiError(413, 'payload_too_large', 'Request body is too large.');
 
