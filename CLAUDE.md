@@ -121,7 +121,8 @@ public/                    served as-is; no build step
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
   js/dev-user.js           red DEV MODE banner + user dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
   js/odometer.js           visitor counter: six digits, role=img + aria-label, webring bar revealed by three clicks in two seconds
-  js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task) and the CSS-animated marquee
+  js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
+                           #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling

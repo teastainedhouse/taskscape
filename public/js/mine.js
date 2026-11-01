@@ -32,8 +32,8 @@ async function load() {
   for (const t of overdue) tbody.appendChild(row(t, true));
   for (const t of rest) tbody.appendChild(row(t, false));
   empty.hidden = items.length > 0;
-  line.classList.toggle('has-overdue', overdue.length > 0);
-  setChildren(line, overdue.length ? `${overdue.length} overdue` : 'Nothing overdue.');
+  line.classList.toggle('overdue-line--none', !overdue.length);
+  setChildren(line, overdue.length ? el('b', null, `${overdue.length} overdue`) : 'Nothing overdue.');
 }
 
 /** @param {any} t @param {boolean} late */

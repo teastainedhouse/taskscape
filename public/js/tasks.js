@@ -8,7 +8,7 @@
 import { boot, say, sayError, attempt } from './page.js';
 import { get, post, patch, del, projectPath, taskPath, ApiError } from './api.js';
 import { el, btn, option, clear, setChildren, padlock, projectLink, timeEl } from './dom.js';
-import { fetchOverdue, renderMarquee, isOverdue } from './overdue.js';
+import { refreshOverdue, isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
 
 const { config, me } = await boot({ title: 'Project' });
@@ -64,7 +64,7 @@ async function start() {
   buildTaskHeader();
   setupNewTask();
   await loadTasks();
-  loadMarquee();
+  loadOverdue();
   recordHit();
   const bar = odometer?.buildWebringBar(config.webring);
   if (bar) { document.getElementById('webring').appendChild(bar); odometer.attachWebringEgg(counterHost, bar); }
@@ -194,7 +194,7 @@ async function togglePrivacy() {
       const n = Number(rec.moved_tasks ?? 0);
       say(`This project is now private. ${n} task${n === 1 ? '' : 's'} owned by others ${n === 1 ? 'was' : 'were'} moved to ${name}.`);
       await loadTasks();
-      loadMarquee();
+      loadOverdue();
     }
   }
 }
@@ -378,7 +378,7 @@ async function patchTask(t, fields) {
   if (rec) {
     if (rec.project_id !== state.project.id) { dropTask(t.id); say(`"${rec.title}" moved to ${rec.project_name}.`); }
     else { replaceTask(rec); say('Saved.'); }
-    loadMarquee();
+    loadOverdue();
   }
   return rec;
 }
@@ -474,7 +474,7 @@ function moveSelect(t) {
 async function trashTask(t) {
   if (!confirm(`Move the task "${t.title}" to the trash?`)) return;
   const rec = await attempt(() => del(taskPath(t.id), { version: t.version }), replaceTask);
-  if (rec) { dropTask(t.id); say(`"${rec.title}" moved to the trash.`); loadMarquee(); }
+  if (rec) { dropTask(t.id); say(`"${rec.title}" moved to the trash.`); loadOverdue(); }
 }
 
 /* -------------------------------------------------------------- add a task */
@@ -505,7 +505,7 @@ function setupNewTask() {
       owner.value = me.id;
       say(`Task "${t.title}" added.`);
       await loadTasks();
-      loadMarquee();
+      loadOverdue();
       document.getElementById(`task-${t.id}`)?.querySelector('input, a')?.focus();
     } catch (err) { sayError(err, 'Could not add the task'); }
   });
@@ -513,8 +513,8 @@ function setupNewTask() {
 
 /* ------------------------------------------------------------------- misc */
 
-async function loadMarquee() {
-  try { renderMarquee(document.getElementById('marquee'), await fetchOverdue(config, state.project.id)); } catch { /* decorative */ }
+async function loadOverdue() {
+  try { await refreshOverdue(config, { project: state.project.id }); } catch (err) { sayError(err, 'Could not check for overdue tasks'); }
 }
 
 /** Scroll to #task-<id> when linked from the feed or search. */
@@ -527,6 +527,9 @@ function jumpToHash() {
   tr.scrollIntoView({ block: 'center' });
   tr.querySelector('input, select, a')?.focus();
 }
+
+// A same-page link (the overdue line, say) changes only the hash: follow it to the row.
+window.addEventListener('hashchange', jumpToHash);
 
 /* ------------------------------------------------------------------ start */
 // Last, so every const above (columns, TASK_COLUMNS) is initialized first.

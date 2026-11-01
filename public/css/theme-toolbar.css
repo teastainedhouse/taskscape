@@ -238,6 +238,7 @@ nav a[aria-current="page"] {
   font-size: 13px;
 }
 .marquee__label { color: var(--overdue); font-weight: 700; }
+.marquee__stop { flex: none; padding: 2px 8px; font-size: 12px; }
 
 /* Status line: an info bar across the top of the page, like a modern browser's. */
 .status { min-height: 0; margin: 0; }
@@ -318,8 +319,9 @@ tr.overdue td.col-due_date { color: var(--overdue); font-weight: 700; }
 tr.overdue td.col-due_date::after { content: " (overdue)"; font-weight: 400; }
 tr.trashed td { color: var(--ink-muted); font-style: italic; }
 tr.overdue td.col-due { color: var(--overdue); font-weight: 700; }
-.overdue-line { margin: 0 0 8px; font-weight: 700; }
-.overdue-line.has-overdue { color: var(--overdue); }
+.overdue-line { margin: 0 0 12px; padding: 6px 10px; border-left: 4px solid var(--overdue); background: color-mix(in srgb, var(--overdue) 8%, var(--view)); }
+.overdue-line b { color: var(--overdue); }
+.overdue-line--none { border-left-color: var(--rule); background: none; }
 .notes-row td { background: var(--zebra); }
 
 /* The project's key/value header has no frame. */

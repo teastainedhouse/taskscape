@@ -1,10 +1,10 @@
 // projects.js — the project list (index.html): sort, filter, search,
-// new project, trash with confirm, overdue marquee, What's New preview.
+// new project, trash with confirm, overdue line and marquee, What's New preview.
 
 import { boot, say, sayError, attempt } from './page.js';
 import { get, post, del, projectPath } from './api.js';
 import { el, btn, option, clear, setChildren, padlock, projectLink, tagChip, timeEl } from './dom.js';
-import { fetchOverdue, renderMarquee } from './overdue.js';
+import { refreshOverdue } from './overdue.js';
 import { allTags } from './tags.js';
 import { describeActivity } from './activity-words.js';
 
@@ -41,7 +41,7 @@ buildHeader();
 setupNewProject();
 setupSearch();
 await loadProjects();
-loadMarquee();
+loadOverdue();
 loadPreview();
 
 /** Status / owner / tag filters, data-driven from config and the API. */
@@ -195,11 +195,11 @@ function setupSearch() {
   }
 }
 
-/** Overdue marquee across all visible projects. */
-async function loadMarquee() {
+/** Overdue tasks across all visible projects: the static line, and the marquee. */
+async function loadOverdue() {
   try {
-    renderMarquee(document.getElementById('marquee'), await fetchOverdue(config), { showProject: true });
-  } catch (err) { console.error(err); }
+    await refreshOverdue(config, {}, { showProject: true });
+  } catch (err) { sayError(err, 'Could not check for overdue tasks'); }
 }
 
 /** Five latest activity entries. */

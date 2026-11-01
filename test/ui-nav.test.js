@@ -1,5 +1,6 @@
 // ui-nav.test.js — every page with the main toolbar has the same entries, in
-// the same order, and every entry has a pixel icon in the theme.
+// the same order, and every entry has a pixel icon in the theme. The overdue
+// marquee in the toolbar is decoration: a page that has it also has the static line.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,4 +38,21 @@ test('sign-in can send people back to every toolbar page and the project page', 
   assert.ok(m, 'login.js has a PAGES allowlist');
   const pages = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
   for (const page of [...NAV, 'project.html']) assert.ok(pages.includes(page), `login.js PAGES lacks ${page}`);
+});
+
+test('the overdue marquee is never the only overdue signal', () => {
+  const pages = readdirSync(PUBLIC).filter((f) => f.endsWith('.html'));
+  let withMarquee = 0;
+  for (const page of pages) {
+    const html = readFileSync(path.join(PUBLIC, page), 'utf8');
+    if (!html.includes('id="marquee"')) continue;
+    withMarquee++;
+    assert.match(html, /id="overdue-line"/, `${page} has the marquee but no static overdue line`);
+  }
+  assert.ok(withMarquee >= 2);
+  const overdue = readFileSync(path.join(PUBLIC, 'js', 'overdue.js'), 'utf8');
+  assert.match(overdue, /class: 'marquee', 'aria-hidden': 'true'/, 'the marquee is hidden from assistive tech');
+  assert.match(overdue, /class: 'marquee__stop'/, 'the marquee has a Stop button for keyboard and pointer users');
+  const base = readFileSync(path.join(PUBLIC, 'css', 'base.css'), 'utf8');
+  assert.match(base, /prefers-reduced-motion: reduce\)[\s\S]*animation: none !important/, 'reduced motion stops every animation');
 });
