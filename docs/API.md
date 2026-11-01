@@ -94,7 +94,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | `include_trashed` | `false` (default), `true`, `only` | tasks of a trashed project are excluded by default and under `only` (they carry no `deleted_at` of their own); `true` includes everything |
 | `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date` | `status` sorts in config order; `due_date` nulls last |
 | `dir` | `asc`, `desc` | default `desc`, except `asc` for `name`, `title`, `due_date` |
-| `limit`, `offset` | `limit`: default `limits.page_size` (500), max 1000; `offset`: 0 to 2^53 − 1 | no total count |
+| `limit`, `offset` | `limit`: default `limits.page_size` (500), max `limits.max_page_size` (1000); `offset`: 0 to 2^53 − 1 | no total count |
 
 List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
@@ -170,7 +170,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "privacy": { "default_private": false },
   "permissions": { "edit": "everyone" },
   "webring": [],
-  "limits": { "page_size": 500 },
+  "limits": { "page_size": 500, "max_page_size": 1000 },
   "catch_all_project_id": "general",
   "auth": { "provider": "dev", "dev_users": [ { "id": "alice", "name": "Alice Lin" } ] } }
 ```
@@ -224,3 +224,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-01 (review fixes): a request that changes nothing is not a write (section 1): tag attach of an attached tag, detach of an absent one, and a `PATCH` matching the stored values check `version` but no longer increment it or write an activity entry. When the owner's stored name differs from their current one, a `PATCH` by the owner refreshes it and that counts as a change. The MCP `tag` tool takes each step's version from the returned record, so an unchanged step threads correctly.
 - 2026-11-01 (review fixes): `GET /api/people` also lists the server's directory: every enabled `users` row under `password` (configured dev users were already listed under `dev`); `system` is never listed. When `owner_id` names someone in the directory, the server uses the directory's name and `owner_name` becomes optional; under `password` an `owner_id` outside the directory (other than the caller's own) is 400; under `headers` `owner_name` is still required. `owner_id: "system"` is refused under every provider. MCP `create`/`update` describe `owner_name` accordingly; the UI keeps sending it.
 - 2026-11-01 (review fixes): an `offset` above 2^53 − 1 is a 400 `validation_failed` on `offset`; it was a 500. The MCP list tools take no `offset`, so they are unchanged.
+- 2026-11-01 (review fixes): `GET /api/config` also returns `limits.max_page_size`, so the UI can ask for the largest page (the overdue count, the task table's "Move to project" list) without guessing.

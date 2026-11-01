@@ -1,6 +1,7 @@
 // tasks.js — one project (project.html?id=…): editable header, privacy
 // toggle, tags, export, trash, hit counter, and the task table with sort,
-// filter, inline edit, move, add, and trash.
+// filter, add, and read-only rows that an Edit button turns into a form
+// (one PATCH of the changed fields), plus notes, tags, move, and trash.
 //
 // Columns are data-driven: TASK_COLUMNS knows how to render each field and
 // config.task_fields picks which ones show, in order ("add a field" recipe).
@@ -33,7 +34,7 @@ const state = {
 };
 
 /** True when the viewer may change things on this page. */
-const editing = () => !!me.can_edit && !state.project?.deleted_at;
+const mayEdit = () => !!me.can_edit && !state.project?.deleted_at;
 /** The viewer owns the task (private flag and reassigning a private task are owner-only). */
 const owns = (item) => item.owner_id === me.id;
 
@@ -77,7 +78,7 @@ async function start() {
 function renderHeader() {
   const p = state.project;
   document.title = `${p.name} - ${config.site_title || 'Taskscape'}`;
-  const canEditProject = editing();
+  const canEditProject = mayEdit();
   const owner = owns(p);
 
   const parts = [];
@@ -230,23 +231,64 @@ async function recordHit() {
 /* ------------------------------------------------------------------- tasks */
 
 /**
- * How each task field renders. `sort` is the API sort field (or absent).
- * `cell(t)` returns DOM for the cell; the Actions column is always added.
+ * How each task field shows. Rows read first: `view(t)` is the read-only
+ * cell. A column with `edit(t)` appears in the row's Edit form: `edit`
+ * returns `{control, changes}`, where `changes()` gives only the fields that
+ * differ from `t` (Save sends one PATCH with just those), or null when this
+ * viewer may not change the field, which then shows `still(t)` (else
+ * `view(t)`) instead. `sort` is the API sort field (or absent). The Actions
+ * column is always added.
  */
 const TASK_COLUMNS = {
-  title: { label: 'Title', sort: 'title', cell: (t) => [t.private ? padlock() : null, editing() ? titleInput(t) : t.title] },
-  status: { label: 'Status', sort: 'status', cell: (t) => (editing() ? select(t, 'status', statusOptions(config.statuses.task, t.status), (v) => ({ status: v })) : t.status) },
-  owner: { label: 'Owner', sort: 'owner_name', cell: (t) => (editing() && (!t.private || owns(t)) ? select(t, 'owner', peopleOptions(t.owner_id), (v) => ({ owner_id: v, owner_name: personName(v) })) : t.owner_name) },
-  due_date: { label: 'Due', sort: 'due_date', cell: (t) => (editing() ? dueInput(t) : (t.due_date ?? '')) },
-  tags: { label: 'Tags', cell: (t) => tagEditor({ type: 'task', item: t, canEdit: editing(), compact: true, config, onUpdated: replaceTask }) },
-  private: { label: 'Private', cell: privateCell },
-  notes: { label: 'Notes', cell: (t) => notesEditor(t) },
-  project: { label: 'Project', cell: (t) => projectLink(t.project_id, t.project_name) },
-  created_at: { label: 'Created', sort: 'created_at', cell: (t) => timeEl(t.created_at) },
-  updated_at: { label: 'Updated', sort: 'updated_at', cell: (t) => timeEl(t.updated_at) },
+  title: { label: 'Title', sort: 'title',
+    view: (t) => [t.private ? padlock() : null, t.title],
+    edit: (t) => {
+      const input = el('input', { type: 'text', value: t.title, required: true, maxlength: '500' });
+      return { control: input, changes: () => changed(t, 'title', input.value.trim()) };
+    } },
+  status: { label: 'Status', sort: 'status',
+    view: (t) => t.status,
+    edit: (t) => {
+      const s = el('select', null, statusOptions(config.statuses.task, t.status));
+      return { control: s, changes: () => changed(t, 'status', s.value) };
+    } },
+  owner: { label: 'Owner', sort: 'owner_name',
+    view: (t) => t.owner_name,
+    edit: (t) => {
+      if (t.private && !owns(t)) return null;
+      const s = el('select', null, peopleOptions(t.owner_id));
+      return { control: s, changes: () => (s.value === t.owner_id ? {} : { owner_id: s.value, owner_name: personName(s.value) }) };
+    } },
+  due_date: { label: 'Due', sort: 'due_date',
+    view: (t) => t.due_date ?? '',
+    edit: (t) => {
+      const input = el('input', { type: 'date', value: t.due_date ?? '' });
+      return { control: input, changes: () => changed(t, 'due_date', input.value || null) };
+    } },
+  // Tag chips save on their own (each attach or detach is its own versioned write), so the Edit row only shows them.
+  tags: { label: 'Tags',
+    view: (t) => tagEditor({ type: 'task', item: t, canEdit: mayEdit(), compact: true, config, onUpdated: replaceTask }),
+    edit: () => null,
+    still: (t) => (t.tags?.length ? tagEditor({ type: 'task', item: t, canEdit: false, compact: true, config }) : el('span', { class: 'muted' }, 'none')) },
+  private: { label: 'Private',
+    view: (t) => (t.private ? [padlock(), 'yes'] : 'no'),
+    edit: (t) => {
+      if (!owns(t)) return null;
+      const cb = el('input', { type: 'checkbox', checked: !!t.private });
+      return { control: cb, changes: () => changed(t, 'private', cb.checked) };
+    } },
+  notes: { label: 'Notes',
+    view: (t) => { const span = el('span', null, t.notes ?? ''); span.style.whiteSpace = 'pre-wrap'; return span; },
+    edit: (t) => {
+      const ta = el('textarea', { rows: '3', value: t.notes ?? '' });
+      return { control: ta, changes: () => changed(t, 'notes', ta.value, '') };
+    } },
+  project: { label: 'Project', view: (t) => projectLink(t.project_id, t.project_name) },
+  created_at: { label: 'Created', sort: 'created_at', view: (t) => timeEl(t.created_at) },
+  updated_at: { label: 'Updated', sort: 'updated_at', view: (t) => timeEl(t.updated_at) },
 };
 const columns = (config.task_fields ?? ['title', 'status', 'owner', 'due_date', 'tags', 'private'])
-  .map((f) => ({ key: f, ...(TASK_COLUMNS[f] ?? { label: f, cell: (t) => String(t[f] ?? '') }) }));
+  .map((f) => ({ key: f, ...(TASK_COLUMNS[f] ?? { label: f, view: (t) => String(t[f] ?? '') }) }));
 const notesInColumns = columns.some((c) => c.key === 'notes');
 
 function statusOptions(list, current) {
@@ -328,6 +370,11 @@ async function loadTasks() {
 function renderTasks() {
   clear(tbody);
   for (const t of state.tasks) appendRow(t);
+  showEmpty();
+}
+
+/** The table, or the right empty-state message when there are no rows. */
+function showEmpty() {
   const filtered = !!(state.status || state.owner || state.tag);
   const none = state.tasks.length === 0;
   table.parentElement.hidden = none;
@@ -345,21 +392,109 @@ function appendRow(t, before) {
 /** @param {any} t */
 function taskRow(t) {
   const tr = el('tr', { id: `task-${t.id}`, class: isOverdue(t, config) ? 'overdue' : '' });
-  for (const c of columns) tr.appendChild(el('td', { class: `col-${c.key}` }, c.cell(t)));
+  for (const c of columns) tr.appendChild(el('td', { class: `col-${c.key}`, 'data-label': c.label }, c.view(t)));
   const actions = el('td', { class: 'row-actions' });
+  if (mayEdit()) actions.append(btn('Edit', () => editRow(t), { class: 'edit', 'aria-label': `Edit task ${t.title}` }), ' ');
   if (!notesInColumns) {
     const label = t.notes ? 'Notes *' : 'Notes';
-    actions.appendChild(btn(label, () => toggleNotes(t), { 'aria-expanded': state.openNotes.has(t.id) ? 'true' : 'false', 'aria-label': `${t.notes ? 'Notes (has text)' : 'Notes'} for ${t.title}` }));
+    actions.appendChild(btn(label, () => toggleNotes(t), { class: 'notes-toggle', 'aria-expanded': state.openNotes.has(t.id) ? 'true' : 'false', 'aria-label': `${t.notes ? 'Notes (has text)' : 'Notes'} for ${t.title}` }));
   }
-  if (editing()) {
-    actions.append(' ', moveSelect(t), ' ', btn('Trash', () => trashTask(t), { class: 'danger', 'aria-label': `Move task ${t.title} to the trash` }));
-  }
+  if (mayEdit()) actions.append(' ', btn('Trash', () => trashTask(t), { class: 'danger', 'aria-label': `Move task ${t.title} to the trash` }));
   tr.appendChild(actions);
   return tr;
 }
 
-/** Replace a task in state and its row in the table (used after saves and 409s). @param {any} rec */
-function replaceTask(rec) {
+/**
+ * Turn a row into a form: one cell across the table holding a labelled
+ * control for each column that has one (wrapping to fit any width), the
+ * read-only value for a column this viewer may not change, then Save,
+ * Cancel, and "Move to…". Enter saves, Escape cancels; either way focus
+ * goes back to the row's Edit button.
+ * @param {any} t
+ */
+function editRow(t) {
+  const tr = document.getElementById(`task-${t.id}`);
+  if (!tr) return;
+  const editors = [];
+  const fields = columns.filter((c) => c.edit).map((c) => {
+    const ed = c.edit(t);
+    if (!ed) return el('div', { class: `field col-${c.key}` }, el('span', { class: 'field-label' }, c.label), (c.still ?? c.view)(t));
+    editors.push(ed);
+    ed.control.id = `edit-${t.id}-${c.key}`;
+    return el('div', { class: `field col-${c.key}` }, el('label', { for: ed.control.id }, c.label), ed.control);
+  });
+  const move = moveSelect();
+  move.id = `edit-${t.id}-move`;
+  const save = el('button', { type: 'button', class: 'save' }, 'Save');
+  save.addEventListener('click', () => saveRow(t, editors, move, save));
+  const form = el('div', { class: 'task-edit', role: 'group', 'aria-label': `Edit task ${t.title}` }, fields,
+    el('div', { class: 'field col-move' }, el('label', { for: move.id }, 'Move to project'), move),
+    el('div', { class: 'field task-edit__buttons' }, save, ' ', btn('Cancel', () => { if (!save.disabled) closeRow(t); })));
+  const fresh = el('tr', { id: tr.id, class: `${tr.className} editing` }, el('td', { colspan: String(columns.length + 1) }, form));
+  fresh.addEventListener('keydown', (ev) => {
+    if (ev.isComposing) return; // an IME is still choosing characters
+    if (ev.key === 'Escape') { ev.preventDefault(); if (!save.disabled) closeRow(t); }
+    else if (ev.key === 'Enter' && !(ev.target instanceof HTMLTextAreaElement) && !(ev.target instanceof HTMLButtonElement)) {
+      ev.preventDefault();
+      saveRow(t, editors, move, save);
+    }
+  });
+  tr.replaceWith(fresh);
+  fresh.querySelector('input, select, textarea')?.focus();
+}
+
+/** Back to the read-only row for `t`, focus on its Edit button. @param {any} t */
+function closeRow(t) {
+  const tr = document.getElementById(`task-${t.id}`);
+  if (!tr) return;
+  tr.replaceWith(taskRow(t));
+  focusEdit(t.id);
+}
+
+/** @param {string} id */
+function focusEdit(id) { document.getElementById(`task-${id}`)?.querySelector('button.edit')?.focus(); }
+
+/**
+ * One PATCH with only the changed fields and the version the row was read at.
+ * @param {any} t @param {Array<{changes: () => object}>} editors @param {HTMLSelectElement} move @param {HTMLButtonElement} save
+ */
+async function saveRow(t, editors, move, save) {
+  if (save.disabled) return;
+  // An open Notes row under the form saves with it, so neither Save throws away the other's typing.
+  const notes = notesInColumns ? null : /** @type {HTMLTextAreaElement|null} */ (document.getElementById(`notes-${t.id}`));
+  const fields = Object.assign({}, ...editors.map((e) => e.changes()), notes ? changed(t, 'notes', notes.value, '') : {},
+    move.value ? { project_id: move.value } : {});
+  if ('title' in fields && !fields.title) { say('A task needs a title.', { error: true }); document.getElementById(`edit-${t.id}-title`)?.focus(); return; }
+  if (!Object.keys(fields).length) { closeRow(t); return; }
+  if (fields.private === false && !confirm('Make this task public?\nEveryone will see it, and its history becomes visible too.')) return;
+  save.disabled = true;
+  const rec = await attempt(() => patch(taskPath(t.id), { version: t.version, ...fields }), (current) => { replaceTask(current, { keepForm: false }); focusEdit(current.id); });
+  save.disabled = false;
+  if (!rec) return;
+  if (rec.project_id !== state.project.id) {
+    dropTask(t.id);
+    say(`"${rec.title}" moved to ${rec.project_name}.`);
+  } else {
+    replaceTask(rec, { keepForm: false });
+    focusEdit(rec.id);
+    say('Saved.');
+  }
+  loadOverdue();
+}
+
+/** Compare one field with the task: `{[key]: v}` when it changed, else nothing. */
+function changed(t, key, v, empty = null) {
+  return v === (t[key] ?? empty) ? {} : { [key]: v };
+}
+
+/**
+ * Replace a task in state and its row in the table (used after saves and 409s).
+ * A row with its Edit form open keeps the form (a late tag write must not wipe
+ * someone's typing); its Save then meets the new version as a 409. The form's
+ * own Save passes keepForm: false.
+ * @param {any} rec @param {{keepForm?: boolean}} [opts]
+ */
+function replaceTask(rec, { keepForm = true } = {}) {
   const i = state.tasks.findIndex((x) => x.id === rec.id);
   // An edit can move a loaded row out of the loaded range (a new sort key, a filter it no longer
   // matches), which pulls an unseen row in. Stepping back one never skips it; if the row did not
@@ -367,6 +502,7 @@ function replaceTask(rec) {
   if (i >= 0 && rec.version !== state.tasks[i].version) taskPager?.removed();
   if (i >= 0) state.tasks[i] = rec; else state.tasks.push(rec);
   const old = document.getElementById(`task-${rec.id}`);
+  if (old?.classList.contains('editing') && keepForm) return;
   if (old) {
     const next = old.nextElementSibling;
     if (next?.classList.contains('notes-row')) next.remove();
@@ -376,15 +512,24 @@ function replaceTask(rec) {
   } else appendRow(rec);
 }
 
-/** Remove a task from state and the table. @param {string} id */
+/**
+ * Remove a task from state and the table, and move focus to the next row's
+ * Edit (or Notes) button, else the previous row's, else the Tasks heading.
+ * @param {string} id
+ */
 function dropTask(id) {
+  const i = state.tasks.findIndex((x) => x.id === id);
+  const neighbour = state.tasks[i + 1] ?? state.tasks[i - 1];
   state.tasks = state.tasks.filter((x) => x.id !== id);
   taskPager?.removed();
   const tr = document.getElementById(`task-${id}`);
   if (tr?.nextElementSibling?.classList.contains('notes-row')) tr.nextElementSibling.remove();
   tr?.remove();
   state.openNotes.delete(id);
-  renderTasks();
+  showEmpty(); // only this row goes, so other rows keep an open Edit form
+  const row = neighbour && document.getElementById(`task-${neighbour.id}`);
+  const target = row && (row.querySelector('button.edit') ?? row.querySelector('button.notes-toggle'));
+  (target ?? document.getElementById('tasks-h'))?.focus();
 }
 
 /**
@@ -402,47 +547,7 @@ async function patchTask(t, fields) {
   return rec;
 }
 
-/* --- cells --- */
-
-function titleInput(t) {
-  const input = el('input', { type: 'text', value: t.title, required: true, maxlength: '500', 'aria-label': `Title of task ${t.title}` });
-  input.addEventListener('change', () => { const v = input.value.trim(); if (v && v !== t.title) patchTask(t, { title: v }); else input.value = t.title; });
-  input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { input.value = t.title; } if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); } });
-  return input;
-}
-
-function select(t, field, options, toFields) {
-  const s = el('select', { 'aria-label': `${field} of task ${t.title}` }, options);
-  s.addEventListener('change', () => patchTask(t, toFields(s.value)));
-  return s;
-}
-
-function dueInput(t) {
-  const input = el('input', { type: 'date', value: t.due_date ?? '', 'aria-label': `Due date of task ${t.title}` });
-  input.addEventListener('change', () => patchTask(t, { due_date: input.value || null }));
-  return input;
-}
-
-function privateCell(t) {
-  if (editing() && owns(t)) {
-    const cb = el('input', { type: 'checkbox', checked: !!t.private, 'aria-label': `Private: ${t.title}` });
-    cb.addEventListener('change', async () => {
-      if (!cb.checked && !confirm('Make this task public?\nEveryone will see it, and its history becomes visible too.')) { cb.checked = true; return; }
-      const rec = await patchTask(t, { private: cb.checked });
-      if (!rec) cb.checked = !!t.private;
-    });
-    return [cb, t.private ? padlock() : null];
-  }
-  return t.private ? [padlock(), 'yes'] : 'no';
-}
-
-/** Notes as an inline column (when "notes" is in config.task_fields). */
-function notesEditor(t) {
-  if (!editing()) { const p = el('span', null, t.notes ?? ''); p.style.whiteSpace = 'pre-wrap'; return p; }
-  const ta = el('textarea', { rows: '2', value: t.notes ?? '', 'aria-label': `Notes for task ${t.title}` });
-  const save = btn('Save', () => patchTask(t, { notes: ta.value }));
-  return [ta, save];
-}
+/* --- notes and moving --- */
 
 function toggleNotes(t) {
   const tr = document.getElementById(`task-${t.id}`);
@@ -454,14 +559,19 @@ function toggleNotes(t) {
     tr?.after(notesRow(t));
     tr?.nextElementSibling?.querySelector('textarea, .notes-text')?.focus();
   }
-  tr?.querySelector('.row-actions button')?.setAttribute('aria-expanded', state.openNotes.has(t.id) ? 'true' : 'false');
+  tr?.querySelector('.row-actions button.notes-toggle')?.setAttribute('aria-expanded', state.openNotes.has(t.id) ? 'true' : 'false');
 }
 
 function notesRow(t) {
   const td = el('td', { colspan: String(columns.length + 1) });
-  if (editing()) {
+  if (mayEdit()) {
     const ta = el('textarea', { id: `notes-${t.id}`, value: t.notes ?? '' });
-    td.append(el('label', { for: ta.id }, `Notes for "${t.title}"`), ta, ' ', btn('Save notes', () => patchTask(t, { notes: ta.value })));
+    // While the task's Edit form is open, its Save sends these notes too, so this button goes through it.
+    const save = () => {
+      const row = document.getElementById(`task-${t.id}`);
+      if (row?.classList.contains('editing')) row.querySelector('button.save')?.click(); else patchTask(t, { notes: ta.value });
+    };
+    td.append(el('label', { for: ta.id }, `Notes for "${t.title}"`), ta, ' ', btn('Save notes', save));
   } else {
     const p = el('p', { class: 'notes-text', tabindex: '-1' }, t.notes || '(no notes)');
     p.style.whiteSpace = 'pre-wrap';
@@ -470,23 +580,17 @@ function notesRow(t) {
   return el('tr', { class: 'notes-row' }, td);
 }
 
-/** "Move to…" select of other visible projects (loaded on first focus). */
-function moveSelect(t) {
-  const s = el('select', { 'aria-label': `Move task ${t.title} to another project` }, option('', 'Move to…'));
+/** "Move to…" select of other visible projects for the Edit row (loaded on first focus). */
+function moveSelect() {
+  const s = el('select', { 'aria-label': 'Move to project' }, option('', 'Move to…'));
   const fill = async () => {
     if (!state.moveTargets) {
-      try { state.moveTargets = (await get('/api/projects', { sort: 'name', limit: 1000 })).items ?? []; } catch { state.moveTargets = []; }
+      try { state.moveTargets = (await get('/api/projects', { sort: 'name', limit: config.limits?.max_page_size })).items ?? []; } catch { state.moveTargets = []; }
     }
     if (s.options.length === 1) for (const p of state.moveTargets) if (p.id !== state.project.id) s.appendChild(option(p.id, p.name));
   };
   s.addEventListener('focus', fill);
   s.addEventListener('pointerdown', fill);
-  s.addEventListener('change', async () => {
-    const target = s.value;
-    if (!target) return;
-    const rec = await patchTask(t, { project_id: target });
-    if (!rec) s.value = '';
-  });
   return s;
 }
 
@@ -500,7 +604,7 @@ async function trashTask(t) {
 
 function setupNewTask() {
   const form = document.getElementById('new-task');
-  if (!editing()) { form.hidden = true; return; }
+  if (!mayEdit()) { form.hidden = true; return; }
   const status = document.getElementById('nt-status');
   const owner = document.getElementById('nt-owner');
   setChildren(status, statusOptions(config.statuses.task, config.default_status.task));
@@ -525,7 +629,7 @@ function setupNewTask() {
       say(`Task "${t.title}" added.`);
       await loadTasks();
       loadOverdue();
-      document.getElementById(`task-${t.id}`)?.querySelector('input, a')?.focus();
+      document.getElementById(`task-${t.id}`)?.querySelector('button.edit, a')?.focus();
     } catch (err) { sayError(err, 'Could not add the task'); }
   });
 }
@@ -544,7 +648,7 @@ function jumpToHash() {
   const tr = document.getElementById(id);
   if (!tr) return;
   tr.scrollIntoView({ block: 'center' });
-  tr.querySelector('input, select, a')?.focus();
+  (tr.querySelector('button.edit') ?? tr.querySelector('button.notes-toggle') ?? tr.querySelector('a'))?.focus();
 }
 
 // A same-page link (the overdue line, say) changes only the hash: follow it to the row.

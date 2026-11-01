@@ -292,7 +292,7 @@ input[type="text"], input[type="search"], input[type="date"], input[type="url"],
 }
 input[readonly] { background: var(--zebra); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-.field label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.field label, .field .field-label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
 .field { margin: 10px 0; }
 .filters .field { margin: 0; }
 
@@ -316,8 +316,10 @@ td input[type="text"] { min-width: 10em; }
 td input[type="date"] { min-width: 9em; }
 .row-actions button { padding: 2px 8px; font-size: 12px; }
 tr.overdue td.col-due_date { color: var(--overdue); font-weight: 700; }
-tr.overdue td.col-due_date::after { content: " (overdue)"; font-weight: 400; }
+tr.overdue td.col-due_date::after { content: "(overdue)"; display: block; font-weight: 400; }
 tr.trashed td { color: var(--ink-muted); font-style: italic; }
+tr.editing td, tbody tr.editing:nth-child(even) td { background: color-mix(in srgb, var(--accent) 14%, var(--view)); }
+tr.editing td.row-actions { white-space: normal; }
 tr.overdue td.col-due { color: var(--overdue); font-weight: 700; }
 .overdue-line { margin: 0 0 12px; padding: 6px 10px; border-left: 4px solid var(--overdue); background: color-mix(in srgb, var(--overdue) 8%, var(--view)); }
 .overdue-line b { color: var(--overdue); }

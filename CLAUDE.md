@@ -108,7 +108,7 @@ scripts/
 public/                    served as-is; no build step
   favicon.svg
   index.html               project list (filters, search, new project, marquee of overdue tasks)
-  project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table
+  project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table (read-only rows, per-row Edit form)
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default
   whats-new.html           activity feed with "Load more"
   trash.html               trashed projects and tasks, restore
@@ -162,7 +162,7 @@ Example: a nullable `priority` text column.
 3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `create()`; add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
 4. `api/lib/validate.js`, `validateItem()`: inside `if (kind === 'task')`, accept and check the value (allowlist, length, or `null`). Add it to `READ_ONLY` instead if the API computes it.
 5. `docs/API.md`: the Task shape in §4, the `POST`/`PATCH /api/tasks` bodies in §6, and a dated line in §9 Changes.
-6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js` (header, render, and inline editor), then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text.
+6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js`: `label`, `sort` if the API sorts by it, `view(t)` for the read-only cell, and `edit(t)` returning `{ control, changes }` (`changes()` gives only the fields that differ from `t`; see `changed()`) or null when this viewer may not change it; then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text.
 7. MCP: the per-type field lists and the `fields` JSON Schema of `create` and `update` in `mcp/tools.js` (the `TOOLS` array and the field check in `callTool`).
 8. Tests: `test/tasks.test.js` (create, patch, validation, default) and `test/activity.test.js` if the `changes` shape matters.
 9. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, and `public/js/projects.js`.

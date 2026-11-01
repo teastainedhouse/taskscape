@@ -77,10 +77,31 @@ textarea { width: 100%; min-height: 4em; }
   .marquee__track { padding-left: 0; display: inline; }
 }
 
+/* Task table: rows read first and titles wrap; the Edit row's controls fit their cells. */
+#tasks td.col-title { overflow-wrap: anywhere; min-width: 8em; }
+#tasks td.col-due_date { white-space: nowrap; }
+#tasks td.row-actions { white-space: normal; min-width: 7em; }
+#tasks td.row-actions button { margin: 0 0 4px; }
+.task-edit { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; }
+.task-edit .field { margin: 0; }
+.task-edit .field-label { display: block; }
+.task-edit .col-title, .task-edit .col-notes { flex: 1 1 100%; }
+.task-edit .col-title input { width: 100%; }
+
 /* Small-screen touches */
 @media (max-width: 600px) {
   .filters { gap: 6px 10px; }
   .row-actions { white-space: normal; }
+  /* The task table stacks: one block per task, each cell labelled; the header keeps only its sort buttons. */
+  #tasks, #tasks tbody, #tasks tr, #tasks td { display: block; }
+  #tasks thead tr { display: flex; flex-wrap: wrap; gap: 4px; }
+  #tasks thead th { display: block; }
+  #tasks thead th:not(:has(button)) { display: none; } /* only the sort buttons are worth a header here */
+  #tasks tbody td.col-title { font-weight: 600; }
+  #tasks tbody tr { border-bottom: 2px solid; padding: 4px 0; }
+  #tasks tbody td { border: 0; }
+  #tasks tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
+  #tasks tbody td.col-title::before { content: none; }
 }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
