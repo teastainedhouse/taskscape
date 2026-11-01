@@ -109,6 +109,7 @@ public/                    served as-is; no build step
   favicon.svg
   index.html               project list (filters, search, new project, marquee of overdue tasks)
   project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table
+  mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default
   whats-new.html           activity feed with "Load more"
   trash.html               trashed projects and tasks, restore
   tokens.html              "My MCP tokens": issue (plaintext shown once), revoke; a change-password section for password sessions
@@ -124,7 +125,7 @@ public/                    served as-is; no build step
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/activity-words.js     activity entry -> words + link
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
-  js/projects.js tasks.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
+  js/projects.js tasks.js mine.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
 mcp/                       the MCP server (local stdio script)
@@ -135,7 +136,8 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, markdown, http, db, mcp (fake fetch), login (password provider), ui-escaping (greps public/)
+                           hits, search, export, markdown, http, db, mcp (fake fetch), login (password provider), ui-escaping (greps public/),
+                           ui-nav (every page has the same toolbar entries, each with an icon)
 
 docs/
   ONE-PAGER.md             the original pitch, scrubbed of company and vendor names; historical, not kept current

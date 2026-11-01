@@ -322,3 +322,17 @@ test('owner fields on a write: a private id and a missing id answer byte for byt
   }
   await t.close();
 });
+
+test('the task owner filter (My tasks) stacks on the privacy predicate', async () => {
+  const t = await createTestApp();
+  const { a, b, c, P, T2, S, S1 } = await seed(t);
+  const mineBob = (await b.post('/api/tasks', { title: 'Bob public', project_id: P.id })).body;
+  const ids = async (client, owner) => (await client.get(`/api/tasks?owner=${owner}`)).body.items.map((x) => x.id);
+  assert.deepEqual(await ids(b, 'me'), [mineBob.id]);
+  assert.deepEqual(await ids(b, 'carol'), []); // S1 sits in carol's private project
+  assert.equal((await ids(b, 'alice')).includes(T2.id), false); // alice's private task
+  assert.ok((await ids(a, 'me')).includes(T2.id));
+  assert.deepEqual(await ids(c, 'me'), [S1.id]);
+  assert.ok(S.private);
+  await t.close();
+});

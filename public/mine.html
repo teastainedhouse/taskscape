@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My tasks - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="mine.html">My tasks</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+      <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>My tasks</h1>
+      <p id="overdue-line" class="overdue-line" aria-live="polite"></p>
+      <div class="filters" role="group" aria-label="Filter my tasks">
+        <div class="field"><label><input type="checkbox" id="show-closed"> Show closed tasks</label></div>
+      </div>
+      <div class="table-wrap">
+        <table id="mine">
+          <caption class="visually-hidden">Tasks assigned to you in every project you can see: overdue first, then by due date.</caption>
+          <thead>
+            <tr><th scope="col">Due</th><th scope="col">Task</th><th scope="col">Project</th><th scope="col">Status</th><th scope="col">Tags</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="mine-empty" hidden>Nothing assigned to you.</p>
+    </main>
+
+    <footer class="site-footer">
+      <address data-served-by>Taskscape</address>
+    </footer>
+  </div>
+  <script type="module" src="js/mine.js"></script>
+</body>
+</html>
