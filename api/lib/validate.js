@@ -88,6 +88,20 @@ export function validateVersionOnly(body) {
   return { version: body.version };
 }
 
+/** Longest guestbook comment, in characters. */
+export const COMMENT_MAX = 2000;
+
+/**
+ * A guestbook comment: `body`, trimmed at the ends, 1 to COMMENT_MAX characters.
+ * @param {Record<string, unknown>} body @returns {{body: string}}
+ */
+export function validateComment(body) {
+  // one kind of line break, so every reader (and the export's quote blocks) agrees where lines end
+  const text = typeof body.body === 'string' ? body.body.replace(/\r\n?/g, '\n').trim() : '';
+  if (!text || [...text].length > COMMENT_MAX) throw validationFailed({ body: `must be 1 to ${COMMENT_MAX} characters` });
+  return { body: text };
+}
+
 /** @param {Record<string, unknown>} body @returns {{name: string, color?: string}} */
 export function validateTag(body) {
   const errors = {};
@@ -215,7 +229,7 @@ export function parseActivityQuery(q) {
   const errors = {};
   const limit = q.limit === undefined ? 50 : Number(q.limit);
   if (!Number.isInteger(limit) || limit < 1 || limit > 200) errors.limit = 'must be 1 to 200';
-  if (q.item_type && !['project', 'task', 'tag'].includes(q.item_type)) errors.item_type = 'must be project, task, or tag';
+  if (q.item_type && !['project', 'task', 'tag', 'comment'].includes(q.item_type)) errors.item_type = 'must be project, task, tag, or comment';
   if (q.via && !['ui', 'mcp'].includes(q.via)) errors.via = 'must be ui or mcp';
   if (q.for && q.for !== 'me') errors.for = 'must be me';
   if (Object.keys(errors).length) throw validationFailed(errors);

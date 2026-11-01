@@ -8,7 +8,7 @@ _Copied from the owner's one-pager on 2026-10-31. Company and vendor names are r
 >
 > - **The look.** Neither theme described under "The look" exists any more. There is one theme, `public/css/theme-toolbar.css`: old browser chrome (dithered toolbars, pixel icons, a starfield throbber, a status bar) around a modern, readable page. There is no `theme` config key.
 > - **Sign-in.** Besides the host's single sign-on (the `headers` provider), Taskscape has its own password sign-in (the `password` provider) for hosts without one. That adds `users` and `sessions` tables.
-> - **Guestbook comments** are not built yet.
+> - **Guestbook comments** exist on projects and on tasks, but with rules the pitch does not spell out: a comment is visible exactly when its item is, only its author can trash or restore it, nobody edits one, and the activity log names the item, never the comment's text. Search does not look in comments.
 > - **Open questions** at the end were all answered in [PLAN.md](PLAN.md): Node, a local MCP script with a personal token, everyone signed in can edit (configurable to a group), and others see nothing of private items.
 
 ## What it is

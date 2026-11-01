@@ -53,16 +53,21 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the eight tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'tag']);
+test('tool definitions: exactly the nine tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'tag']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
     assert.equal(JSON.parse(JSON.stringify(t.inputSchema)).type, 'object', 'schema is plain JSON');
   }
   const del = TOOLS.find((t) => t.name === 'delete');
-  assert.match(del.description, /Moves ONE item to the trash \(nothing is permanently deleted\)\. Call once per item; never loop over a list without the user confirming each item\./);
+  assert.match(del.description, /Moves ONE item to the trash \(nothing is permanently deleted\)/);
+  assert.match(del.description, /Call once per item; never loop over a list without the user confirming each item\./);
   assert.equal(del.inputSchema.properties.id.type, 'string');
+  assert.deepEqual(del.inputSchema.properties.type.enum, ['project', 'task', 'comment']);
+  const comment = TOOLS.find((t) => t.name === 'comment');
+  assert.deepEqual(comment.inputSchema.required, ['type', 'id', 'body']);
+  assert.deepEqual(comment.inputSchema.properties.type.enum, ['project', 'task'], 'comments go on projects and tasks only');
   const upd = TOOLS.find((t) => t.name === 'update');
   assert.ok(upd.inputSchema.required.includes('version'));
   assert.match(upd.description, /version/);
@@ -156,12 +161,38 @@ test('list_tasks / list_projects map array filters to comma-separated query para
   assert.deepEqual(parsed(r), { items: [], limit: 500, offset: 0 });
 });
 
-test('get returns the record as pretty JSON', async () => {
-  const { client, calls } = makeClient(({ path }) => (path === '/api/projects/p%201' ? json(200, { id: 'p 1', version: 3 }) : null));
+test('get returns the record with its guestbook as pretty JSON', async () => {
+  const comment = { id: 'c1', item_type: 'project', item_id: 'p 1', author_id: 'bob', body: 'hi', version: 1, deleted_at: null };
+  const { client, calls } = makeClient(({ path }) => (path === '/api/projects/p%201' ? json(200, { id: 'p 1', version: 3 })
+    : path === '/api/projects/p%201/comments' ? json(200, { items: [comment] }) : null));
   const r = await callTool('get', { type: 'project', id: 'p 1' }, client);
   assert.equal(r.isError, undefined);
-  assert.equal(text(r), JSON.stringify({ id: 'p 1', version: 3 }, null, 2));
-  assert.equal(calls[0].path, '/api/projects/p%201');
+  assert.equal(text(r), JSON.stringify({ id: 'p 1', version: 3, comments: [comment] }, null, 2));
+  assert.deepEqual(calls.map((c) => c.path), ['/api/projects/p%201', '/api/projects/p%201/comments']);
+});
+
+test('comment posts one comment; delete and restore take a single comment id', async () => {
+  const { client, calls } = makeClient(({ method, path }) => {
+    if (method === 'POST' && path === '/api/tasks/t1/comments') return json(201, { id: 'c1', version: 1 });
+    if (method === 'DELETE' && path === '/api/comments/c1') return json(200, { id: 'c1', version: 2 });
+    if (method === 'POST' && path === '/api/comments/c1/restore') return json(200, { id: 'c1', version: 3 });
+    return null;
+  });
+  let r = await callTool('comment', { type: 'task', id: 't1', body: 'Looks good' }, client);
+  assert.equal(r.isError, undefined, text(r));
+  assert.deepEqual(calls.at(-1).body, { body: 'Looks good' });
+  r = await callTool('delete', { type: 'comment', id: 'c1', version: 1 }, client);
+  assert.equal(parsed(r).version, 2);
+  r = await callTool('restore', { type: 'comment', id: 'c1', version: 2 }, client);
+  assert.equal(parsed(r).version, 3);
+  for (const bad of [{ type: 'comment', id: ['c1', 'c2'], version: 1 }, { type: 'tag', id: 'c1', version: 1 }]) {
+    r = await callTool('delete', bad, client);
+    assert.equal(r.isError, true, JSON.stringify(bad));
+  }
+  r = await callTool('comment', { type: 'comment', id: 'c1', body: 'reply' }, client);
+  assert.equal(r.isError, true, 'no comments on comments');
+  r = await callTool('comment', { type: 'task', id: 't1', body: '' }, client);
+  assert.equal(r.isError, true);
 });
 
 test('update requires an integer version (schema) and sends version with the fields', async () => {

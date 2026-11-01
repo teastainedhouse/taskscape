@@ -111,6 +111,14 @@ textarea { width: 100%; min-height: 4em; }
 .center { text-align: center; }
 .muted { opacity: 0.8; }
 .notes-row textarea { min-height: 5em; }
+.guestbook { margin-top: 16px; }
+.guestbook-list { list-style: none; margin: 0; padding: 0; max-width: 40em; }
+.guestbook-entry { margin: 0 0 10px; padding: 6px 10px; }
+.guestbook-entry p { margin: 0 0 4px; }
+.guestbook-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.guestbook-sign { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; max-width: 40em; }
+.guestbook-sign label { flex-basis: 100%; }
+.guestbook-sign textarea { flex: 1 1 16em; min-height: 4em; }
 .activity-what { max-width: 36em; }
 .plaintext { width: 100%; font-family: monospace; }
 pre { overflow-x: auto; }

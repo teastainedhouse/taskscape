@@ -10,6 +10,7 @@ import { ensureCatchAll } from '../api/lib/repo/projects.js';
 import * as projects from '../api/lib/repo/projects.js';
 import * as tasks from '../api/lib/repo/tasks.js';
 import * as tags from '../api/lib/repo/tags.js';
+import * as comments from '../api/lib/repo/comments.js';
 import { daysFromNow } from '../api/lib/time.js';
 
 try { process.loadEnvFile('.env'); } catch { /* optional */ }
@@ -35,7 +36,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'projects', 'tags']) {
+    for (const table of ['comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -82,12 +83,21 @@ await tasks.update(db, mcp('carol', 'seed-session-0001'), T.orgchart.id, { versi
 const trashed = await tasks.trash(db, alice, T.midi.id, T.midi.version, tick());
 await tasks.restore(db, alice, T.midi.id, trashed.version, tick());
 
+// guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
+await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
+await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
+await comments.create(db, alice, 'task', T.checklist.id, 'Note to self: check the counter before launch.', tick());
+await comments.create(db, carol, 'project', P.reorg.id, 'Draft only, nothing is decided.', tick());
+const regret = await comments.create(db, bob, 'project', P.web.id, 'First!', tick());
+await comments.trash(db, bob, regret.id, regret.version, tick());
+
 for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], [P.party.id, 0], [config.catch_all_project.id, 3]]) {
   await db.query('UPDATE projects SET hit_count = ? WHERE id = ?', [hits, id]);
 }
 
 console.log(`seeded ${url}`);
 console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
+console.log(`  guestbook comments: 5 (one trashed)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

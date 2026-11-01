@@ -343,6 +343,12 @@ tr.overdue td.col-due { color: var(--overdue); font-weight: 700; }
 .overdue-line--none { border-left-color: var(--rule); background: none; }
 .notes-row td { background: var(--zebra); }
 
+/* Guestbook: signatures on ruled paper, the pen-and-ink kind every homepage had. */
+.guestbook-entry { background: var(--field); border: 1px solid var(--rule); border-left: 4px double var(--accent); }
+.guestbook-entry.trashed { border-left-style: dashed; color: var(--ink-muted); font-style: italic; }
+.guestbook-by { font-size: 13px; color: var(--ink-muted); }
+.guestbook-by b { color: var(--ink); font-style: normal; }
+
 /* The project's key/value header has no frame. */
 table.meta, table.meta th, table.meta td { border: 0; background: none; }
 table.meta th { padding: 3px 16px 3px 0; color: var(--ink-muted); font-size: 13px; font-weight: 600; }

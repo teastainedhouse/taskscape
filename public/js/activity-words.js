@@ -30,7 +30,13 @@ export function describeActivity(a, ctx = {}) {
   const projectName = (id) => ctx.projectNames?.get(id) ?? null;
 
   let what;
-  switch (a.action) {
+  const on = a.changes?.on;
+  if (type === 'comment') {
+    // the entry names the parent, never the text
+    const where = title ? `${on?.type ?? 'item'} "${title}"` : `(${on?.type ?? 'item'} no longer visible)`;
+    what = { create: `signed the guestbook of ${where}`, trash: `trashed a guestbook entry on ${where}`,
+      restore: `restored a guestbook entry on ${where}` }[a.action] ?? `${a.action} a guestbook entry on ${where}`;
+  } else switch (a.action) {
     case 'create':
       what = `created ${type} ${quoted}`;
       if (type === 'task' && a.changes?.project_id?.to) {
@@ -69,6 +75,9 @@ export function describeActivity(a, ctx = {}) {
   let link = null;
   if (type === 'project' && a.item_id) link = projectLink(a.item_id, 'Open project');
   else if (type === 'task' && a.project_id) link = projectLink(a.project_id, 'Open task', `task-${a.item_id}`);
+  else if (type === 'comment' && a.project_id) {
+    link = on?.type === 'task' ? projectLink(a.project_id, 'Open task', `task-${on.id}`) : projectLink(a.project_id, 'Open project');
+  }
   return { via, what, link };
 }
 

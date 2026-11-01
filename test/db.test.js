@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, copyFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { openDb } from '../api/lib/db/index.js';
@@ -30,12 +30,43 @@ test('placeholders: read statements are detected', () => {
 test('sqlite: migrate applies the shipped migrations once and is idempotent', async () => {
   const db = await openDb('sqlite::memory:');
   const first = await db.migrate(MIGRATIONS);
-  assert.deepEqual(first.applied, ['001_init', '002_password_auth']);
+  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type']);
   const second = await db.migrate(MIGRATIONS);
   assert.deepEqual(second.applied, []);
   const { rows } = await db.query('SELECT id, name FROM schema_migrations ORDER BY id');
-  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }]);
+  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }]);
   await db.close();
+});
+
+test('sqlite: 004 widens the activity item_type CHECK and keeps every row and index', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'tsk-mig-'));
+  try {
+    const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql'));
+    for (const f of files.filter((f) => !f.startsWith('004_'))) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
+    const db = await openDb('sqlite::memory:');
+    await db.migrate(dir);
+    const row = (id, type, session) => db.query(
+      'INSERT INTO activity (id, created_at, actor_id, actor_name, via, session_id, item_type, item_id, action, changes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, `2026-11-01T00:00:0${id}.000Z`, 'alice', 'Alice', session ? 'mcp' : 'ui', session, type, 'x', 'update', '{"a":{"from":1,"to":2}}']);
+    await row('1', 'project', null);
+    await row('2', 'task', 's1');
+    await row('3', 'tag', null);
+    await assert.rejects(row('4', 'comment', null), /CHECK/, 'before 004 a comment entry is refused');
+    const before = (await db.query('SELECT * FROM activity ORDER BY id')).rows;
+    for (const f of files.filter((f) => f.startsWith('004_'))) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
+    assert.deepEqual((await db.migrate(dir)).applied, ['004_activity_comment_type']);
+    assert.deepEqual((await db.query('SELECT * FROM activity ORDER BY id')).rows, before);
+    const indexes = (await db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'activity' AND sql IS NOT NULL ORDER BY name")).rows;
+    assert.deepEqual(indexes.map((r) => r.name), ['idx_activity_created', 'idx_activity_item']);
+    await row('4', 'comment', null);
+    await assert.rejects(row('5', 'bogus', null), /CHECK/);
+    await assert.rejects(db.query(
+      'INSERT INTO activity (id, created_at, actor_id, actor_name, via, session_id, item_type, item_id, action, changes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ['6', 'now', 'a', 'A', 'web', null, 'task', 'x', 'update', '{}']), /CHECK/, 'the other CHECKs survive the rebuild');
+    await db.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('sqlite: transaction rolls back on throw and commits otherwise', async () => {

@@ -1,7 +1,8 @@
 // tasks.js — one project (project.html?id=…): editable header, privacy
 // toggle, tags, export, trash, hit counter, and the task table with sort,
 // filter, add, and read-only rows that an Edit button turns into a form
-// (one PATCH of the changed fields), plus notes, tags, move, and trash.
+// (one PATCH of the changed fields), plus notes, tags, move, and trash, and
+// a guestbook for the project and for each task (in its notes row).
 //
 // Columns are data-driven: TASK_COLUMNS knows how to render each field and
 // config.task_fields picks which ones show, in order ("add a field" recipe).
@@ -12,6 +13,7 @@ import { el, btn, option, clear, setChildren, padlock, projectLink, timeEl } fro
 import { refreshOverdue, isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
 import { createPager } from './pager.js';
+import { guestbook } from './guestbook.js';
 
 const { config, me } = await boot({ title: 'Project' });
 // The counter and webring are decoration, loaded on their own: if a content
@@ -30,6 +32,8 @@ const state = {
   dir: config.default_views?.tasks?.dir ?? null,
   status: '', owner: '', tag: '',
   openNotes: new Set(),
+  /** Task guestbooks, kept while the page lives so a rebuilt notes row keeps its draft. @type {Map<string, any>} */
+  guestbooks: new Map(),
   hitDone: false,
 };
 
@@ -44,6 +48,7 @@ const table = document.getElementById('tasks');
 const thead = table.querySelector('thead');
 const tbody = table.querySelector('tbody');
 const counterHost = el('span', { class: 'hit-host' });
+/** @type {any} */ let projectBook = null;
 
 async function start() {
   try {
@@ -66,6 +71,8 @@ async function start() {
   buildTaskHeader();
   setupNewTask();
   await loadTasks();
+  projectBook = guestbook({ type: 'project', id: state.project.id, label: 'this project', heading: 'h2', me, canSign: mayEdit });
+  document.getElementById('project-guestbook').appendChild(projectBook);
   loadOverdue();
   recordHit();
   const bar = odometer?.buildWebringBar(config.webring);
@@ -128,6 +135,7 @@ function renderHeader() {
   parts.push(actions);
 
   setChildren(projectHost, parts);
+  projectBook?.refresh(); // trash and restore open or close it
 }
 
 /**
@@ -396,8 +404,8 @@ function taskRow(t) {
   const actions = el('td', { class: 'row-actions' });
   if (mayEdit()) actions.append(btn('Edit', () => editRow(t), { class: 'edit', 'aria-label': `Edit task ${t.title}` }), ' ');
   if (!notesInColumns) {
-    const label = t.notes ? 'Notes *' : 'Notes';
-    actions.appendChild(btn(label, () => toggleNotes(t), { class: 'notes-toggle', 'aria-expanded': state.openNotes.has(t.id) ? 'true' : 'false', 'aria-label': `${t.notes ? 'Notes (has text)' : 'Notes'} for ${t.title}` }));
+    const label = t.notes ? 'Notes * & guestbook' : 'Notes & guestbook';
+    actions.appendChild(btn(label, () => toggleNotes(t), { class: 'notes-toggle', 'aria-expanded': state.openNotes.has(t.id) ? 'true' : 'false', 'aria-label': `${t.notes ? 'Notes (has text)' : 'Notes'} & guestbook for ${t.title}` }));
   }
   if (mayEdit()) actions.append(' ', btn('Trash', () => trashTask(t), { class: 'danger', 'aria-label': `Move task ${t.title} to the trash` }));
   tr.appendChild(actions);
@@ -526,6 +534,7 @@ function dropTask(id) {
   if (tr?.nextElementSibling?.classList.contains('notes-row')) tr.nextElementSibling.remove();
   tr?.remove();
   state.openNotes.delete(id);
+  state.guestbooks.delete(id);
   showEmpty(); // only this row goes, so other rows keep an open Edit form
   const row = neighbour && document.getElementById(`task-${neighbour.id}`);
   const target = row && (row.querySelector('button.edit') ?? row.querySelector('button.notes-toggle'));
@@ -577,6 +586,13 @@ function notesRow(t) {
     p.style.whiteSpace = 'pre-wrap';
     td.append(el('b', null, 'Notes'), p);
   }
+  let book = state.guestbooks.get(t.id);
+  if (!book) {
+    book = guestbook({ type: 'task', id: t.id, label: `"${t.title}"`, heading: 'h3', me,
+      canSign: () => mayEdit() && !state.tasks.find((x) => x.id === t.id)?.deleted_at });
+    state.guestbooks.set(t.id, book);
+  } else { book.relabel(`"${t.title}"`); book.refresh(); }
+  td.appendChild(book);
   return el('tr', { class: 'notes-row' }, td);
 }
 

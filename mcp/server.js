@@ -18,10 +18,10 @@ const NAME = 'taskscape';
 const VERSION = '0.1.0';
 
 const INSTRUCTIONS = [
-  'Taskscape is a small work tracker: projects contain tasks; both can carry tags and be marked private.',
+  'Taskscape is a small work tracker: projects contain tasks; both can carry tags and guestbook comments, and be marked private.',
   'You act as the person who owns the token, and you only see what they can see.',
   'Read with list_projects, list_tasks and get. Every write (update, delete, restore, tag) needs the record\'s current "version" from the latest get or list; a conflict returns the current record so you can retry with its version.',
-  'delete moves ONE item to the trash (restore undoes it); never trash several items without the user confirming each one.',
+  'delete moves ONE item to the trash (restore undoes it), including a guestbook comment the user wrote; never trash several items without the user confirming each one.',
   DATA_NOTICE,
 ].join(' ');
 

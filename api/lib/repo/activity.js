@@ -6,7 +6,7 @@ import { activityVisible, projectVisible } from './visibility.js';
  * Append one activity entry. Always called inside the write's transaction.
  * @param {import('../db/index.js').Db} tx
  * @param {import('../auth/index.js').Principal} user
- * @param {{item_type: 'project'|'task'|'tag', item_id: string, action: 'create'|'update'|'trash'|'restore', changes: object}} entry
+ * @param {{item_type: 'project'|'task'|'tag'|'comment', item_id: string, action: 'create'|'update'|'trash'|'restore', changes: object}} entry
  * @param {string} now
  */
 export async function record(tx, user, entry, now) {
@@ -78,8 +78,11 @@ export async function list(db, user, f) {
     // badge on every page never scans the whole log.
     where.push(`a.actor_id <> ? AND (
       (a.item_type = 'project' AND a.item_id IN (SELECT fp.id FROM projects fp WHERE fp.owner_id = ?))
-      OR (a.item_type = 'task' AND a.item_id IN (SELECT ft.id FROM tasks ft WHERE ft.owner_id = ?)))`);
-    params.push(user.id, user.id, user.id);
+      OR (a.item_type = 'task' AND a.item_id IN (SELECT ft.id FROM tasks ft WHERE ft.owner_id = ?))
+      OR (a.item_type = 'comment' AND a.item_id IN (
+            SELECT fc.id FROM comments fc WHERE (fc.item_type = 'project' AND fc.item_id IN (SELECT fcp.id FROM projects fcp WHERE fcp.owner_id = ?))
+                                          OR (fc.item_type = 'task' AND fc.item_id IN (SELECT fct.id FROM tasks fct WHERE fct.owner_id = ?)))))`);
+    params.push(user.id, user.id, user.id, user.id, user.id);
   }
   if (f.item_type) { where.push('a.item_type = ?'); params.push(f.item_type); }
   if (f.item_id) { where.push('a.item_id = ?'); params.push(f.item_id); }
@@ -87,8 +90,11 @@ export async function list(db, user, f) {
   if (f.via) { where.push('a.via = ?'); params.push(f.via); }
   if (f.project) {
     where.push(`((a.item_type = 'project' AND a.item_id = ?) OR (a.item_type = 'task' AND EXISTS (
-      SELECT 1 FROM tasks t2 WHERE t2.id = a.item_id AND t2.project_id = ?)))`);
-    params.push(f.project, f.project);
+      SELECT 1 FROM tasks t2 WHERE t2.id = a.item_id AND t2.project_id = ?))
+      OR (a.item_type = 'comment' AND EXISTS (
+      SELECT 1 FROM comments c2 LEFT JOIN tasks ct2 ON c2.item_type = 'task' AND ct2.id = c2.item_id
+       WHERE c2.id = a.item_id AND ((c2.item_type = 'project' AND c2.item_id = ?) OR ct2.project_id = ?))))`);
+    params.push(f.project, f.project, f.project, f.project);
   }
   if (f.before) {
     const c = decodeCursor(f.before);
@@ -101,10 +107,16 @@ export async function list(db, user, f) {
             CASE a.item_type
               WHEN 'project' THEN (SELECT p.name FROM projects p WHERE p.id = a.item_id)
               WHEN 'task' THEN (SELECT t.title FROM tasks t WHERE t.id = a.item_id)
+              WHEN 'comment' THEN (SELECT COALESCE(cp.name, ct.title) FROM comments c
+                  LEFT JOIN projects cp ON c.item_type = 'project' AND cp.id = c.item_id
+                  LEFT JOIN tasks ct ON c.item_type = 'task' AND ct.id = c.item_id WHERE c.id = a.item_id)
               ELSE (SELECT g.name FROM tags g WHERE g.id = a.item_id) END AS item_title,
             CASE a.item_type
               WHEN 'project' THEN a.item_id
               WHEN 'task' THEN (SELECT t.project_id FROM tasks t WHERE t.id = a.item_id)
+              WHEN 'comment' THEN (SELECT COALESCE(cp.id, ct.project_id) FROM comments c
+                  LEFT JOIN projects cp ON c.item_type = 'project' AND cp.id = c.item_id
+                  LEFT JOIN tasks ct ON c.item_type = 'task' AND ct.id = c.item_id WHERE c.id = a.item_id)
               ELSE NULL END AS project_id
        FROM activity a
       WHERE ${where.join(' AND ')}

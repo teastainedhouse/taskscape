@@ -70,6 +70,13 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Tag** `{ "id", "name", "color", "created_at" }` (no usage counts).
 
+**Comment** (a guestbook entry on a project or a task)
+```json
+{ "id": "…", "item_type": "task", "item_id": "9a2e…", "author_id": "bob", "author_name": "Bob Ortiz",
+  "body": "Love the GIFs!", "version": 1, "created_at": "…", "updated_at": "…", "deleted_at": null }
+```
+`item_type` and `item_id` name the parent. `body` is plain text, stored trimmed with every line break as `\n` (`\r\n` and a bare `\r` are converted), 1–2000 characters. There is no edit: `updated_at` and `version` move only on trash and restore.
+
 **Activity entry**
 ```json
 { "id": "…", "created_at": "…", "actor_id": "bob", "actor_name": "Bob Ortiz", "via": "mcp", "session_id": "3c1d…",
@@ -130,8 +137,14 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | DELETE | `/api/tasks/:id/tags/:tagId` | any | `{version}` | `200 Task` | 404, 409 |
 | GET | `/api/tags` | any | — | `200 {items:[Tag]}` by name | |
 | POST | `/api/tags` | any | `{name, color?}` | `201 Tag`, or `200 Tag` if the normalized name exists | 400 (name 1–40 chars, color `#rrggbb`, default next palette color) |
+| GET | `/api/projects/:id/comments` | any | — | `200 {"items":[Comment]}` oldest first: live comments, plus the caller's own trashed ones | 404 |
+| POST | `/api/projects/:id/comments` | any | `{body}` | `201 Comment` | 400 (`body` 1–2000 characters; invalid_state when the project is in the trash), 403, 404 |
+| GET | `/api/tasks/:id/comments` | any | — | as for projects | 404 |
+| POST | `/api/tasks/:id/comments` | any | `{body}` | `201 Comment` | 400 (as for projects; invalid_state when the task or its project is in the trash), 403, 404 |
+| DELETE | `/api/comments/:id` | any | `{version}` | `200 Comment` (with `deleted_at`) | 400 invalid_state, 403 (not the author), 404, 409 |
+| POST | `/api/comments/:id/restore` | any | `{version}` | `200 Comment` | 400 invalid_state (not trashed, or the parent is in the trash), 403 (not the author), 404, 409 |
 | GET | `/api/trash` | any | — | `200 {"projects":[Project],"tasks":[Task]}` by `deleted_at` desc; tasks only those with their own `deleted_at` | |
-| GET | `/api/activity` | any | `limit` (50, max 200), `before` (cursor), `item_type`, `item_id`, `project`, `actor`, `via`, `for` (`me`) | `200 {"items":[Activity],"next_cursor":"…"\|null}` | 400 |
+| GET | `/api/activity` | any | `limit` (50, max 200), `before` (cursor), `item_type` (`project`, `task`, `tag`, `comment`), `item_id`, `project`, `actor`, `via`, `for` (`me`) | `200 {"items":[Activity],"next_cursor":"…"\|null}` | 400 |
 | GET | `/api/search` | any | `q` (min 2 chars), `limit` (20, max 100) | `200 {"projects":[Project],"tasks":[Task]}` | 400 |
 | GET | `/api/tokens` | human | — | `200 {items:[Token]}` own tokens, revoked included | 403 |
 | POST | `/api/tokens` | human | `{label}` | `201 {"token": Token, "plaintext": "tsk_…"}`; plaintext never shown again | 400, 403 |
@@ -151,7 +164,11 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
 
-**Activity for me:** `for=me` keeps only entries written by someone other than the caller about a project or task the caller owns now (`owner_id` at read time, not when the entry was written; tag entries never match). Visibility is the same read-time rule as the rest of the feed, so an item that goes private to someone else drops out along with its history. It combines with the other filters and the cursor. Any other value of `for` is 400.
+**Activity for me:** `for=me` keeps only entries written by someone other than the caller about a project or task the caller owns now, or about a comment on one (`owner_id` at read time, not when the entry was written; tag entries never match). Visibility is the same read-time rule as the rest of the feed, so an item that goes private to someone else drops out along with its history. It combines with the other filters and the cursor. Any other value of `for` is 400.
+
+**Guestbook comments.** A comment has no privacy of its own: it is visible exactly when its parent is, through every route, so a non-owner reaching a comment on a private item, or a comment's guestbook route on one, gets the same 404 as a missing id. A project that goes private takes its guestbook with it, including from the people who wrote in it, who then get 404 trashing their own comments too; a task moved to the catch-all by that flip keeps its comments. Reassigning a private item hands its guestbook to the new owner, the previous owner's comments included. Anyone who may edit can sign a visible, live parent; signing is not an edit of the parent (its `version` and `updated_at` stay). Only the author can trash or restore a comment, each a compare-and-set on the comment's `version` with an activity entry; nobody edits one and nothing hard-deletes one. A trashed comment shows only to its author, in the parent's guestbook, until restored; `GET /api/trash` does not list comments. Trashing the parent does not trash its comments, but closes the guestbook: no new comments, and no restores until the parent is back (the 400 message names what is in the trash, the task or its project). A trashed comment's activity entries remain. `GET /api/search` does not look in comments. The export lists live comments under their task and in a `## Guestbook` section (section 8).
+
+**Comment activity entries** have `item_type: "comment"`, `item_id` the comment id, `action` `create`, `trash`, or `restore`, and `changes: {"on": {"type": "project"|"task", "id": "…"}}` naming the parent. `item_title` is the parent's title and `project_id` the parent's project (the project itself for a project comment). An entry never carries the comment's text. The `project` filter includes comments on the project and on its tasks.
 
 **Activity cursor:** opaque base64 of `created_at|id`; the query is `created_at < ? OR (created_at = ? AND id < ?) ORDER BY created_at DESC, id DESC`.
 
@@ -206,11 +223,24 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 <notes, raw block>
 
+Guestbook:
+
+**Bob Ortiz**, 2026-10-31:
+
+> Love the GIFs!
+
+## Guestbook
+
+**Carol Nkemelu**, 2026-10-31:
+
+> Signed!
+> Second line.
+
 ---
 Exported from Taskscape on 2026-10-31 by Alice Lin.
 ```
 
-Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. Only tasks visible to the caller are included; the footer does not mention omissions.
+Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. A bare `\r` counts as a line break everywhere, as in CommonMark. Comments are quote blocks (every line prefixed `> `, so none can start a heading, and every `[` escaped, so none can define a link), with the author's name, like the footer's, escaped as Markdown text; oldest first, live ones only, even for their author; a task gets a `###` section when it has notes or comments, and `## Guestbook` appears only when the project has comments. Only tasks visible to the caller are included; the footer does not mention omissions.
 
 ## 9. Changes
 
@@ -228,3 +258,5 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-01 (review fixes): an `offset` above 2^53 − 1 is a 400 `validation_failed` on `offset`; it was a 500. The MCP list tools take no `offset`, so they are unchanged.
 - 2026-11-01 (review fixes): `GET /api/config` also returns `limits.max_page_size`, so the UI can ask for the largest page (the overdue count, the task table's "Move to project" list) without guessing.
 - 2026-11-01 (review fixes): `GET /api/activity` takes `for=me`: entries by others about the projects and tasks the caller owns now, under the same visibility. The MCP server has no activity tool, so nothing changes there: the feed carries other people's free text and names, and the eight tools stay as they are.
+- 2026-11-01 (review fixes): guestbook comments. New Comment shape and routes `GET`/`POST /api/projects/:id/comments`, `GET`/`POST /api/tasks/:id/comments`, `DELETE /api/comments/:id`, and `POST /api/comments/:id/restore`; visibility follows the parent; only the author trashes or restores; no edit and no hard delete. Activity gains `item_type: "comment"` (entries name the parent in `changes.on`, never the text), which `item_type`, `project`, and `for=me` filter on. The export lists live comments. Migrations `003_comments.sql` and `004_activity_comment_type` (one file per dialect) add the table and widen the activity `item_type` check. MCP: `get` returns a `comments` array, a new `comment` tool signs a guestbook, and `delete` and `restore` take `type: "comment"` for one's own comment, one id per call.
+- 2026-11-01 (security review): the export treats a bare `\r` as a line break in table cells and headings (a title containing one could start a new line), and escapes Markdown punctuation in the footer's user name. Comment bodies are stored with `\n` line breaks.
