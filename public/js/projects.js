@@ -1,9 +1,10 @@
 // projects.js — the project list (index.html): sort, filter, search,
-// new project, trash with confirm, overdue line and marquee, What's New preview.
+// new project, overdue line and marquee, What's New preview. Trashing a
+// project happens on its own page.
 
-import { boot, say, sayError, attempt } from './page.js';
-import { get, post, del, projectPath } from './api.js';
-import { el, btn, option, clear, setChildren, padlock, projectLink, tagChip, timeEl } from './dom.js';
+import { boot, say, sayError } from './page.js';
+import { get, post } from './api.js';
+import { el, btn, option, clear, setChildren, padlock, projectLink, taskLink, tagChip, timeEl } from './dom.js';
 import { refreshOverdue } from './overdue.js';
 import { allTags } from './tags.js';
 import { createPager } from './pager.js';
@@ -31,7 +32,6 @@ const state = {
 };
 
 const { config, me } = await boot({ title: 'Projects' });
-const canEdit = !!me.can_edit;
 
 const table = document.getElementById('projects');
 const thead = table.querySelector('thead');
@@ -97,7 +97,6 @@ function buildHeader() {
     } else th.textContent = c.label;
     tr.appendChild(th);
   }
-  if (canEdit) tr.appendChild(el('th', { scope: 'col' }, 'Actions'));
   setChildren(thead, [tr]);
 }
 
@@ -116,33 +115,7 @@ function renderRows() {
 function row(p) {
   const tr = el('tr', { id: `project-${p.id}` });
   for (const c of COLUMNS) tr.appendChild(el('td', { class: `col-${c.key}` }, c.cell(p)));
-  if (canEdit) {
-    const actions = el('td', { class: 'row-actions' });
-    if (p.id !== config.catch_all_project_id) {
-      actions.appendChild(btn('Trash', () => trashProject(p), { class: 'danger', 'aria-label': `Move project ${p.name} to the trash` }));
-    }
-    tr.appendChild(actions);
-  }
   return tr;
-}
-
-/** Trash with confirm; on 409 reload the row from the live record. @param {any} p */
-async function trashProject(p) {
-  if (!confirm(`Move the project "${p.name}" to the trash?\nIts tasks go with it. You can restore it from the Trash page.`)) return;
-  const rec = await attempt(() => del(projectPath(p.id), { version: p.version }), (current) => replaceRow(current));
-  if (rec) {
-    state.projects = state.projects.filter((x) => x.id !== p.id);
-    projectPager.removed();
-    renderRows();
-    say(`"${rec.name}" moved to the trash.`);
-  }
-}
-
-/** @param {any} current */
-function replaceRow(current) {
-  const i = state.projects.findIndex((x) => x.id === current.id);
-  if (i >= 0) state.projects[i] = current;
-  renderRows();
 }
 
 /** The "New project" form. */
@@ -199,7 +172,7 @@ function setupSearch() {
     }
     if (tasks.length) {
       out.push(el('h3', null, `Tasks (${tasks.length})`));
-      out.push(el('ul', null, tasks.map((t) => el('li', null, t.private ? padlock() : null, projectLink(t.project_id, t.title, `task-${t.id}`),
+      out.push(el('ul', null, tasks.map((t) => el('li', null, t.private ? padlock() : null, taskLink(t.id, t.title),
         ` — ${t.status}, ${t.owner_name}, in `, projectLink(t.project_id, t.project_name)))));
     }
     setChildren(results, out);

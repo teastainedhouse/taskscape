@@ -2,7 +2,7 @@
 
 import { boot, say, attempt, sayError } from './page.js';
 import { get, post, itemPath } from './api.js';
-import { el, btn, clear, padlock, projectLink, timeEl } from './dom.js';
+import { el, btn, clear, padlock, projectLink, taskLink, timeEl } from './dom.js';
 
 const { me } = await boot({ title: 'Trash' });
 const canEdit = !!me.can_edit;
@@ -36,7 +36,7 @@ function projectRow(p) {
 /** @param {any} t */
 function taskRow(t) {
   const tr = el('tr', { class: 'trashed' },
-    el('td', null, t.private ? padlock() : null, t.title),
+    el('td', null, t.private ? padlock() : null, taskLink(t.id, t.title)),
     el('td', null, projectLink(t.project_id, t.project_name)),
     el('td', null, t.status),
     el('td', null, t.owner_name),

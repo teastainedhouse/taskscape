@@ -14,11 +14,10 @@ const MAX = 2000;
 const commentPath = (id) => `/api/comments/${encodeURIComponent(id)}`;
 
 /**
- * A guestbook section. It loads on creation; keep the element to keep a draft
- * (the task table reuses it when it rebuilds a notes row).
+ * A guestbook section. It loads on creation and keeps its draft for the life of the page.
  * @param {{type: 'project'|'task', id: string, label: string, heading: 'h2'|'h3', me: {id: string},
  *          canSign: () => boolean}} opts  label names the parent for screen readers
- * @returns {HTMLElement & {refresh: () => void, relabel: (label: string) => void}}  refresh() after canSign() may have changed
+ * @returns {HTMLElement & {refresh: () => void}}  refresh() after canSign() may have changed
  */
 export function guestbook({ type, id, label, heading, me, canSign }) {
   const headingId = `guestbook-${type}-${id}-h`;
@@ -28,7 +27,7 @@ export function guestbook({ type, id, label, heading, me, canSign }) {
   const form = el('form', { class: 'guestbook-sign' },
     el('label', { for: textarea.id }, 'Sign the guestbook'), textarea, ' ', el('button', { type: 'submit' }, 'Sign'));
   const forWhom = el('span', { class: 'visually-hidden' }, ` for ${label}`);
-  const section = /** @type {HTMLElement & {refresh: () => void, relabel: (label: string) => void}} */ (el('section', { class: 'guestbook', 'aria-labelledby': headingId },
+  const section = /** @type {HTMLElement & {refresh: () => void}} */ (el('section', { class: 'guestbook', 'aria-labelledby': headingId },
     el(heading, { id: headingId }, 'Guestbook', forWhom), empty, list, form));
 
   /** @type {any[]} */
@@ -96,6 +95,5 @@ export function guestbook({ type, id, label, heading, me, canSign }) {
   });
   form.hidden = true;
   section.refresh = () => { if (loaded) show(); };
-  section.relabel = (l) => { forWhom.textContent = ` for ${l}`; };
   return section;
 }

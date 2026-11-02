@@ -112,8 +112,9 @@ scripts/
 public/                    served as-is; no build step
   favicon.svg
   index.html               project list (filters, search, new project, marquee of overdue tasks)
-  project.html             one project: header edits, privacy toggle, tags, hit counter, export, task table (read-only rows, per-row Edit form)
-  mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default
+  project.html             one project: click-to-edit header, privacy toggle, tags, hit counter, export, trash, task table (click-to-edit cells)
+  task.html                one task: every field click-to-edit, notes, tags, project, comments, activity, trash and restore
+  mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default; status, due date, tags editable
   whats-new.html           activity feed with "Load more"; Show: Everything / For you (?for=me)
   trash.html               trashed projects and tasks, restore
   tokens.html              "My MCP tokens": issue (plaintext shown once), revoke; a change-password section for password sessions
@@ -128,12 +129,13 @@ public/                    served as-is; no build step
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
   js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
+  js/inline-edit.js        inlineEdit(): click a value (a real button) to edit it; Enter/blur saves one field with version, Escape cancels; selectFor(), focusEditable()
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
-  js/guestbook.js          guestbook(): a project's or task's comments, the sign form, Trash/Restore on one's own; used by tasks.js
+  js/guestbook.js          guestbook(): a project's or task's comments, the sign form, Trash/Restore on one's own; used by tasks.js and task.js
   js/activity-words.js     activity entry -> words + link
   js/for-you.js            For you: unread badge on the toolbar's What's New entry; last seen per user in localStorage (try/catch)
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
-  js/projects.js tasks.js mine.js whats-new.js trash.js tokens.js   one module per page; tasks.js has the data-driven TASK_COLUMNS map
+  js/projects.js tasks.js task.js mine.js whats-new.js trash.js tokens.js   one module per page; tasks.js (project page) has the data-driven TASK_COLUMNS map
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
 mcp/                       the MCP server (local stdio script)
@@ -168,10 +170,10 @@ Example: a nullable `priority` text column.
 3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `create()`; add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
 4. `api/lib/validate.js`, `validateItem()`: inside `if (kind === 'task')`, accept and check the value (allowlist, length, or `null`). Add it to `READ_ONLY` instead if the API computes it.
 5. `docs/API.md`: the Task shape in §4, the `POST`/`PATCH /api/tasks` bodies in §6, and a dated line in §9 Changes.
-6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js`: `label`, `sort` if the API sorts by it, `view(t)` for the read-only cell, and `edit(t)` returning `{ control, changes }` (`changes()` gives only the fields that differ from `t`; see `changed()`) or null when this viewer may not change it; then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text.
+6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js`: `label`, `sort` if the API sorts by it, and either `view(t)` for a read-only cell or `value(t)`, `control(t, v)` and `fields(t, v)` for a click-to-edit cell (plus `allowed(t)`, `format(v)`, `empty`, `confirm(t, v)` as needed; see the comment above the map); then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text. Add a row for it to `render()` in `public/js/task.js`, which shows every field.
 7. MCP: the per-type field lists and the `fields` JSON Schema of `create` and `update` in `mcp/tools.js` (the `TOOLS` array and the field check in `callTool`).
 8. Tests: `test/tasks.test.js` (create, patch, validation, default) and `test/activity.test.js` if the `changes` shape matters.
-9. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, and `public/js/projects.js`.
+9. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, `renderHeader()` in `public/js/tasks.js` (the project page), and the `COLUMNS` list in `public/js/projects.js` if it should show in the project list.
 
 ### Add a status
 

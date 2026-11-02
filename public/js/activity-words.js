@@ -1,7 +1,7 @@
 // activity-words.js — turn an activity entry into words and a link.
 // Values inside entries (titles, names, notes) are rendered as text only.
 
-import { el, projectLink } from './dom.js';
+import { el, projectLink, taskLink } from './dom.js';
 
 /** Labels for the `via` field. */
 const VIA = { ui: 'UI', mcp: 'Claude' };
@@ -74,9 +74,9 @@ export function describeActivity(a, ctx = {}) {
 
   let link = null;
   if (type === 'project' && a.item_id) link = projectLink(a.item_id, 'Open project');
-  else if (type === 'task' && a.project_id) link = projectLink(a.project_id, 'Open task', `task-${a.item_id}`);
-  else if (type === 'comment' && a.project_id) {
-    link = on?.type === 'task' ? projectLink(a.project_id, 'Open task', `task-${on.id}`) : projectLink(a.project_id, 'Open project');
+  else if (type === 'task' && a.item_id) link = taskLink(a.item_id, 'Open task');
+  else if (type === 'comment' && on?.id) {
+    link = on.type === 'task' ? taskLink(on.id, 'Open task') : projectLink(on.id, 'Open project');
   }
   return { via, what, link };
 }

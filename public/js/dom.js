@@ -57,6 +57,34 @@ export function append(parent, children) {
   }
 }
 
+/**
+ * An SVG element (createElementNS). Attributes go through setAttribute; event handler attributes are refused.
+ * @param {string} tag
+ * @param {Record<string, string>} [attrs]
+ * @param {...(Node|null|undefined)} children
+ */
+export function svg(tag, attrs, ...children) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs ?? {})) {
+    if (v == null) continue;
+    if (k.startsWith('on') || k === 'href') throw new Error('not allowed on an SVG element');
+    node.setAttribute(k, String(v));
+  }
+  for (const c of children) if (c) node.appendChild(c);
+  return node;
+}
+
+/**
+ * User text made safe for a confirm() dialog: one line, no control or
+ * bidirectional override characters (which could rewrite what the dialog
+ * appears to say), cut to `max` characters.
+ * @param {unknown} s @param {number} [max]
+ */
+export function oneLine(s, max = 80) {
+  const t = String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
+  return [...t].length > max ? [...t].slice(0, max - 1).join('') + '…' : t;
+}
+
 /** Remove every child of a node. @param {Node} node */
 export function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
@@ -118,10 +146,18 @@ export function padlock() {
  * Link to a project page (ids are URL-encoded).
  * @param {string} id
  * @param {string} label
- * @param {string} [hash]
  */
-export function projectLink(id, label, hash) {
-  return el('a', { href: `project.html?id=${encodeURIComponent(id)}${hash ? '#' + encodeURIComponent(hash) : ''}` }, label);
+export function projectLink(id, label) {
+  return el('a', { href: `project.html?id=${encodeURIComponent(id)}` }, label);
+}
+
+/**
+ * Link to a task page.
+ * @param {string} id
+ * @param {string} label
+ */
+export function taskLink(id, label) {
+  return el('a', { href: `task.html?id=${encodeURIComponent(id)}` }, label);
 }
 
 /**

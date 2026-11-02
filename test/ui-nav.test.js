@@ -38,7 +38,7 @@ test('sign-in can send people back to every toolbar page and the project page', 
   const m = /const PAGES = new Set\(\[([^\]]*)\]\)/.exec(login);
   assert.ok(m, 'login.js has a PAGES allowlist');
   const pages = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  for (const page of [...NAV, 'project.html']) assert.ok(pages.includes(page), `login.js PAGES lacks ${page}`);
+  for (const page of [...NAV, 'project.html', 'task.html']) assert.ok(pages.includes(page), `login.js PAGES lacks ${page}`);
 });
 
 test('the overdue marquee is never the only overdue signal', () => {

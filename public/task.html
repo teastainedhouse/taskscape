@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Task - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
+      <nav aria-label="Main">
+        <a href="index.html">Projects</a> |
+        <a href="mine.html">My tasks</a> |
+        <a href="whats-new.html">What's New?</a> |
+        <a href="trash.html">Trash</a> |
+        <a href="tokens.html">My tokens</a>
+      </nav>
+      <span id="whoami" class="muted"></span>
+      <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <p id="crumbs"><a href="index.html">&laquo; All projects</a></p>
+      <section id="task">
+        <h1 id="task-title">Loading&hellip;</h1>
+      </section>
+
+      <section id="notes-section" aria-labelledby="notes-h" hidden>
+        <h2 id="notes-h">Notes</h2>
+        <div id="notes"></div>
+      </section>
+
+      <div id="task-guestbook"></div>
+
+      <section id="activity-section" aria-labelledby="activity-h" hidden>
+        <h2 id="activity-h">Activity</h2>
+        <ol id="task-activity" class="activity-list"></ol>
+        <p id="activity-empty" class="muted" hidden>No changes recorded yet.</p>
+        <p><button type="button" id="activity-more" hidden>Load more</button></p>
+      </section>
+
+      <p id="task-actions" class="project-actions" hidden></p>
+    </main>
+
+    <footer class="site-footer">
+      <address data-served-by>Taskscape</address>
+    </footer>
+  </div>
+  <script type="module" src="js/task.js"></script>
+</body>
+</html>

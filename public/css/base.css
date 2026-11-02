@@ -77,16 +77,34 @@ textarea { width: 100%; min-height: 4em; }
   .marquee__track { padding-left: 0; display: inline; }
 }
 
-/* Task table: rows read first and titles wrap; the Edit row's controls fit their cells. */
-#tasks td.col-title { overflow-wrap: anywhere; min-width: 8em; }
-#tasks td.col-due_date { white-space: nowrap; }
-#tasks td.row-actions { white-space: normal; min-width: 7em; }
-#tasks td.row-actions button { margin: 0 0 4px; }
-.task-edit { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; }
-.task-edit .field { margin: 0; }
-.task-edit .field-label { display: block; }
-.task-edit .col-title, .task-edit .col-notes { flex: 1 1 100%; }
-.task-edit .col-title input { width: 100%; }
+/* Task table: titles wrap; every other cell is a value you click to edit. */
+#tasks td.col-title, #mine td.col-title { overflow-wrap: anywhere; min-width: 8em; }
+#tasks td.col-due_date, #mine td.col-due { white-space: nowrap; }
+
+/* Click to edit (js/inline-edit.js): the value is a button that reads as text. */
+button.editable__value {
+  all: unset;
+  display: inline;
+  max-width: 100%;
+  cursor: text;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  border-bottom: 1px dotted transparent;
+  overflow-wrap: anywhere;
+}
+button.editable__value:hover { border-bottom-color: currentColor; }
+button.editable__value:focus-visible { outline: 3px solid #ffff00; outline-offset: 2px; }
+.editable--block, .editable--block button.editable__value, .editable--block .editable__text { display: block; white-space: pre-wrap; min-height: 1.4em; }
+.editable--block textarea { width: 100%; }
+.editable textarea { min-height: 6em; }
+h1 .editable { display: inline; }
+h1 .editable input { font-size: inherit; font-weight: inherit; width: 100%; max-width: 30em; }
+/* A row that stopped matching the list's filters stays until reload, marked. */
+tr.filtered-out td { opacity: 0.6; }
+.overdue-mark { white-space: nowrap; }
+.activity-list { padding-left: 1.2em; max-width: 48em; }
+.activity-list li { margin: 0 0 6px; }
 
 /* Small-screen touches */
 @media (max-width: 600px) {
@@ -102,6 +120,7 @@ textarea { width: 100%; min-height: 4em; }
   #tasks tbody td { border: 0; }
   #tasks tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
   #tasks tbody td.col-title::before { content: none; }
+  #tasks tbody td.col-title { font-weight: 600; }
 }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
@@ -110,7 +129,6 @@ textarea { width: 100%; min-height: 4em; }
 .padlock img { width: 14px; height: 14px; vertical-align: -2px; }
 .center { text-align: center; }
 .muted { opacity: 0.8; }
-.notes-row textarea { min-height: 5em; }
 .guestbook { margin-top: 16px; }
 .guestbook-list { list-style: none; margin: 0; padding: 0; max-width: 40em; }
 .guestbook-entry { margin: 0 0 10px; padding: 6px 10px; }

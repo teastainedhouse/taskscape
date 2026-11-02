@@ -125,7 +125,8 @@ test('owner display name is refreshed silently when the owner edits their own it
   const r = await u1('Dana Fox').patch(`/api/projects/${p.id}`, { version: 1, status: 'Active' });
   assert.equal(r.body.owner_name, 'Dana Fox');
   const act = (await u1('Dana Fox').get(`/api/activity?item_id=${p.id}`)).body.items;
-  assert.deepEqual(Object.keys(act[0].changes), ['status']);
+  // the create and the update can share a millisecond and then sort by id, so find the update by action
+  assert.deepEqual(Object.keys(act.find((a) => a.action === 'update').changes), ['status']);
   // another editor's write does not rename the owner
   const other = t.withHeaders({ 'x-forwarded-user': 'u2', 'x-forwarded-preferred-username': 'Someone' });
   const r2 = await other.patch(`/api/projects/${p.id}`, { version: 2, status: 'Done' });
