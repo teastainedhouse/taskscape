@@ -39,7 +39,8 @@ export function describeActivity(a, ctx = {}) {
   if (type === 'comment') {
     // the entry names the parent, never the text
     const where = title ? `${on?.type ?? 'item'} "${title}"` : `(${on?.type ?? 'item'} no longer visible)`;
-    what = { create: words.signed(where), trash: words.trashedOn(where), restore: words.restoredOn(where) }[a.action] ?? words.otherOn(a.action, where);
+    what = a.mentions_you && a.action === 'create' ? words.mentioned(where)
+      : { create: words.signed(where), trash: words.trashedOn(where), restore: words.restoredOn(where) }[a.action] ?? words.otherOn(a.action, where);
   } else switch (a.action) {
     case 'create':
       what = `created ${type} ${quoted}`;

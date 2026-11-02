@@ -1,6 +1,6 @@
 import { newId } from '../ids.js';
 import { validationFailed } from '../errors.js';
-import { activityVisible, projectVisible, taskVisible } from './visibility.js';
+import { activityVisible, commentVisible, projectVisible, taskVisible } from './visibility.js';
 
 /**
  * Append one activity entry. Always called inside the write's transaction.
@@ -83,11 +83,29 @@ async function hideInvisibleProjectIds(db, user, changesList) {
 }
 
 /**
+ * Which of these comments mention the reader, among the live comments the reader can see now (a trashed comment's
+ * mentions reach nobody: its words left with it).
+ * @param {import('../db/index.js').Db} db @param {import('../auth/index.js').Principal} user @param {string[]} commentIds
+ * @returns {Promise<Set<string>>}
+ */
+async function mentionsOf(db, user, commentIds) {
+  if (!commentIds.length) return new Set();
+  const vis = commentVisible('c', user);
+  const { rows } = await db.query(
+    `SELECT m.comment_id FROM comment_mentions m JOIN comments c ON c.id = m.comment_id
+      WHERE m.person_id = ? AND c.deleted_at IS NULL AND m.comment_id IN (${commentIds.map(() => '?').join(', ')}) AND ${vis.sql}`,
+    [user.id, ...commentIds, ...vis.params]);
+  return new Set(rows.map((r) => r.comment_id));
+}
+
+/**
  * What's New, newest first, keyset-paginated.
  * @param {import('../db/index.js').Db} db
  * @param {import('../auth/index.js').Principal} user
  * @param {{limit: number, before?: string, item_type?: string, item_id?: string, project?: string, actor?: string, via?: string, for_me?: boolean}} f
- *   for_me: only entries by someone else about a project or task the caller owns now
+ *   for_me: only entries by someone else about a project or task the caller owns now, or the creation of a live comment
+ *   that mentions the caller. Either way the entry must be visible now (activityVisible), so a mention of someone who
+ *   cannot see the item brings them nothing.
  */
 export async function list(db, user, f) {
   const vis = activityVisible('a', user);
@@ -101,8 +119,10 @@ export async function list(db, user, f) {
       OR (a.item_type = 'task' AND a.item_id IN (SELECT ft.id FROM tasks ft WHERE ft.owner_id = ?))
       OR (a.item_type = 'comment' AND a.item_id IN (
             SELECT fc.id FROM comments fc WHERE (fc.item_type = 'project' AND fc.item_id IN (SELECT fcp.id FROM projects fcp WHERE fcp.owner_id = ?))
-                                          OR (fc.item_type = 'task' AND fc.item_id IN (SELECT fct.id FROM tasks fct WHERE fct.owner_id = ?)))))`);
-    params.push(user.id, user.id, user.id, user.id, user.id);
+                                          OR (fc.item_type = 'task' AND fc.item_id IN (SELECT fct.id FROM tasks fct WHERE fct.owner_id = ?))))
+      OR (a.item_type = 'comment' AND a.action = 'create' AND a.item_id IN (
+            SELECT fm.comment_id FROM comment_mentions fm JOIN comments fmc ON fmc.id = fm.comment_id WHERE fm.person_id = ? AND fmc.deleted_at IS NULL)))`);
+    params.push(user.id, user.id, user.id, user.id, user.id, user.id);
   }
   if (f.item_type) { where.push('a.item_type = ?'); params.push(f.item_type); }
   if (f.item_id) { where.push('a.item_id = ?'); params.push(f.item_id); }
@@ -149,6 +169,7 @@ export async function list(db, user, f) {
   const parsed = page.map((r) => JSON.parse(r.changes));
   await hideInvisibleProjectIds(db, user, parsed);
   await hideInvisibleTaskIds(db, user, parsed);
+  const mentioned = await mentionsOf(db, user, page.filter((r) => r.item_type === 'comment' && r.action === 'create').map((r) => r.item_id));
   return {
     items: page.map((r, i) => ({
       id: r.id,
@@ -163,6 +184,7 @@ export async function list(db, user, f) {
       project_id: r.project_id ?? null,
       action: r.action,
       changes: parsed[i],
+      mentions_you: mentioned.has(r.item_id) && r.item_type === 'comment' && r.action === 'create',
     })),
     next_cursor: rows.length > f.limit && last ? encodeCursor(last.created_at, last.id) : null,
   };

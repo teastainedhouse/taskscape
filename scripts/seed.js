@@ -38,7 +38,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['feed_tokens', 'task_checklist_items', 'task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
+    for (const table of ['feed_tokens', 'task_checklist_items', 'task_links', 'comment_mentions', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -117,11 +117,13 @@ const nextParty = await runImport(db, alice, await planDuplicate(db, alice, P.pa
   { name: 'Holiday party 1998', reset_statuses: true, due_dates: 'shift', days: 365 }, config), config, tick());
 
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
-await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
-await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
-await comments.create(db, alice, 'task', T.checklist.id, 'Note to self: check the counter before launch.', tick());
-await comments.create(db, carol, 'project', P.reorg.id, 'Draft only, nothing is decided.', tick());
-const regret = await comments.create(db, bob, 'project', P.web.id, 'First!', tick());
+await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick(), config);
+await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick(), config);
+await comments.create(db, alice, 'task', T.checklist.id, 'Note to self: check the counter before launch.', tick(), config);
+await comments.create(db, carol, 'project', P.reorg.id, 'Draft only, nothing is decided.', tick(), config);
+const regret = await comments.create(db, bob, 'project', P.web.id, 'First!', tick(), config);
+// mentions: alice owns the GIF task (For you twice over); carol can see it too
+await comments.create(db, bob, 'task', T.gifs.id, '@carol agreed. @alice can you swap it in before launch?', tick(), config);
 await comments.trash(db, bob, regret.id, regret.version, tick());
 
 for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], [P.party.id, 0], [config.catch_all_project.id, 3]]) {
@@ -130,7 +132,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 
 console.log(`seeded ${url}`);
 console.log(`  projects: ${Object.keys(P).length + 2} (incl. ${config.catch_all_project.name} and a duplicate), tasks: ${Object.keys(T).length + 5 + nextParty.tasks.length}, tags: ${Object.keys(tag).length}`);
-console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
+console.log(`  comments: 6 (one trashed, one with mentions); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  alice's calendar feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/calendar.ics`);
 console.log(`  alice's For you Atom feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/activity.atom`);

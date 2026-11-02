@@ -68,6 +68,8 @@ test('tool definitions: exactly the thirteen tools, plain JSON Schema, data-not-
   const comment = TOOLS.find((t) => t.name === 'comment');
   assert.deepEqual(comment.inputSchema.required, ['type', 'id', 'body']);
   assert.deepEqual(comment.inputSchema.properties.type.enum, ['project', 'task'], 'comments go on projects and tasks only');
+  assert.match(comment.description, /To mention someone, write @ and their id/);
+  assert.match(comment.description, /Mention only people the user asked you to mention/);
   const upd = TOOLS.find((t) => t.name === 'update');
   assert.ok(upd.inputSchema.required.includes('version'));
   assert.match(upd.description, /version/);

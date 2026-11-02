@@ -46,6 +46,7 @@ export function describeEntry(a) {
   if (type === 'comment') {
     // the entry names the parent, never the text
     const where = a.item_title ? `${ch.on?.type ?? 'item'} "${a.item_title}"` : `(${ch.on?.type ?? 'item'} no longer visible)`;
+    if (a.mentions_you && a.action === 'create') return `mentioned you in a comment on ${where}`;
     return { create: `commented on ${where}`, trash: `trashed a comment on ${where}`, restore: `restored a comment on ${where}` }[a.action]
       ?? `${a.action} a comment on ${where}`;
   }

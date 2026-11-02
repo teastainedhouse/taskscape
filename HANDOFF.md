@@ -1,6 +1,6 @@
 # Handoff: Phases 7–10
 
-This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–8 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
+This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–9 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
 
 ## Where things stand
 
@@ -14,10 +14,10 @@ This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–8 of the feature b
 | 6 Calendar and iCal feed | `feeds: calendar feed links, and a calendar page` | done |
 | 7 Atom feed | `atom: What's New as an Atom feed, through the same feed links` | done |
 | 8 Duplicate project | `duplicate: copy a project, from its records through the import's rules` | done |
-| 9 @mentions | — | **to do** |
-| 10 Final checks, whole-repo review, draft PR | — | to do |
+| 9 @mentions | `mentions: @id in comments, For you when you can see the item` | done |
+| 10 Final checks, whole-repo review, draft PR | — | **to do** |
 
-No PR has been opened yet. `npm test` passes on SQLite (313). Phases 1–6 passed on PostgreSQL 16 in the cloud container; Phases 7 and 8 were built on a laptop without a PostgreSQL server, so they have not been run there (neither adds SQL: the feed reads through `activity.list()`, the duplicate through the repo's list and createIn functions).
+No PR has been opened yet. `npm test` passes on SQLite (322). Phases 1–6 passed on PostgreSQL 16 in the cloud container; Phases 7–9 were built on a laptop without a PostgreSQL server, so they have not been run there. 7 and 8 add no SQL; **9 does** (migration 012, the For you clause, `mentionable()`, `withMentions()`), so Phase 10 must run the suite on PostgreSQL.
 
 ## How the earlier phases were built (reuse these)
 
@@ -63,6 +63,7 @@ Standing rules from the brief: every Agent call sets `model` ("opus" for reviewe
 12. **Atom feed**: the newest 50 entries, no paging (a reader keeps what it has seen); `mine` is For you (others' changes to what you own), not your own task changes, unlike the calendar's `mine`; the profile's scope option now reads "Mine (my tasks, For you)". Entries are plain text. The feed says less than the page in two places: an unlabelled link is named by its host (task links are often shared-document URLs with a key), and moves say "another project". It always says "comment", not the owner's Guestbook preference. Both feeds now send `Content-Security-Policy: default-src 'none'; sandbox`.
 13. What's New (page and feed) no longer says "it repeats, so the next one was created" when the reader cannot see the copy.
 14. **Duplicate is not a Markdown round trip** (the brief said "using the Markdown export and import code"): it uses the import's planner and writer and the export's reads, but builds the plan from the records, because the text round trip leaked private notes onto public copies (Phase 8 review). The copy is the caller's; tasks keep their owners by id unless private (then the caller's); `default_private` makes a copy private with every task the caller's, as for an import. API defaults: statuses kept, dates kept; the button's form starts with "Reset statuses" ticked. Refused: a trashed project, more live tasks than `max_page_size`, more text than 4 × `body_bytes`. The response carries every created Task (the MCP tool returns only a count). There is an MCP `duplicate` tool (PLAN.md says why, unlike import).
+15. **@mentions**: `@id`, resolved only among the people the author may pick on `/api/people` (so a token never resolves the directory); a directory id first (exactly, then ignoring case), anyone else exactly; a comment's stored mentions (ids, names) show to every reader of the comment, even one with no directory (the author chose to name them); trailing punctuation belongs to the sentence unless the id has it. Stored even when the person cannot see the item (refusing would tell the author something); reaches them only through For you under read-time visibility; a trashed comment's mention reaches nobody. At most 20 people per comment, later names stay text (no 400). The comment box is a textarea, so it follows the combobox pattern with textbox + `aria-autocomplete`/`aria-activedescendant` (HTML forbids `role=combobox` on a textarea); Enter picks, Tab leaves. Under `headers` a mention's stored name is the newest visible owner_name, which a client can set (owner names are client-supplied under `headers`, pre-existing).
 
 ## Review findings so far
 
@@ -191,11 +192,29 @@ Dismissed:
 - upstream-check: none (it suggested a placeholder for the test password above, done).
 Re-audit (privacy-auditor, after the fix): the fix holds on all four points (content stays with its task; owners by id reveal nothing; nothing hidden is read, including by the cap and the budget; the import's 72 differential responses are byte-identical to before). Its stale-wording notes are fixed, and its test gaps added (General, a disabled owner under password, hidden text and the budget).
 
+## Phase 9 (@mentions)
+Fixed:
+- privacy + security + general: a trashed comment's mention kept notifying (For you entry, unread count, Atom); now only live comments (test).
+- privacy + security: tokens could list sign-in usernames by posting `@guess` (mention resolution used the directory for every principal), and the 20-person 400 was a probe that left no trace; now resolution uses exactly what `/api/people` gives the caller, and past 20 the rest is text (tests).
+- security (medium): an owner id differing only in case ("Alice" vs "alice") took a real person's mentions; case-insensitive matching now reaches only directory ids (test).
+- security (medium-low): an export of a project with ~33,600 comments was a 500 (one IN list past SQLite's placeholder limit); mentions are read in chunks of 500 (test that fails without it).
+- security (medium-low): resolving a mention scanned every visible owner inside the write transaction; now only the named ids.
+- general (medium): `@bob_` mentioned bob (ids may end in `._-` under password); now the longest form that names someone wins (test). Email-style ids under `headers` could never be mentioned; `@`/`+` are id characters now (test). Non-ASCII letters end a mention correctly (`@josé` is nothing; `café@bob` is not one).
+- general/security (UI): the people list could load several times and draw a stale filter; one request in flight, a failure retried, drawn only for what is typed now and only while focused. An exact id sorts first; Tab and Shift+Tab never pick; IME composition is ignored; picking replaces the whole word around the caret, adds a space only where needed, respects maxlength, and keeps undo-friendly `setRangeText`.
+- docs: API.md (the id rule, resolution, tokens, cap, trash), PLAN.md, CLAUDE.md (rule 4 names `comment_mentions`; code map), MCP description (owner ids; `DATA_NOTICE` names mentioned names); whats-new.html text. A test compares the client and server patterns.
+Dismissed:
+- security: under `headers` the stored name can be a client-chosen owner_name (pre-existing trust of owner names under `headers`; storing the person's own actor name would read activity outside the visibility rule). Decision to check.
+- general: two ids differing only in case under `dev`/`headers` (password ids are lower case): handled by exact-first matching; the highlight prefers exact.
+- privacy: the read before the comment's transaction for resolution is inside it now; no change needed.
+- upstream-check: none.
+Re-audit (privacy-auditor, after the fixes): the hard requirement holds; trash and restore as stated; tokens and lower-case lookups reveal no hidden owner or name. Acted on: a directory person now wins over a made-up exact-case owner id (`@Alice` reaches alice); readers seeing another author's mentions documented as the author's choice; tests for restore and the password provider. Not changed: a token can tell an enabled from a disabled visible owner (the same oracle `ownerNameFor` already gives editors).
+
 ## Not verified yet
 
 - A browser sweep of Phase 6 was done (calendar, profile, both themes, 375px, keyboard), but no screen reader was used anywhere; the checks were scripted (names, focus styles, overflow) plus screenshots.
 - No real calendar app was pointed at the `.ics` feed; it was checked against RFC 5545 by tests only.
 - Follow-up test gap the Phase 6 general reviewer listed: `last_used_at` throttling (DTEND, the trashed project, and `passwd` on feeds are now covered).
 - The second-review fixes were not run on PostgreSQL (the `NOT IN` clause is the one `due=overdue` already uses there).
+- Phase 9 was not run on PostgreSQL (it adds SQL). The picker was checked in the browser (keyboard, 375px, dark mode), not with a screen reader.
 - Phase 8 was not run on PostgreSQL. The Duplicate form was checked in the browser (desktop, 375px, dark mode, Escape, a 199-character name), not with a screen reader.
 - Phase 7 was not run on PostgreSQL (no PostgreSQL server on the laptop) and no real feed reader was pointed at `activity.atom`; it was parsed by the browser's XML parser (seeded data) and, by the security reviewer, by a strict expat parser over 302 generated documents. The profile page was checked at desktop and 375px widths, light mode only.

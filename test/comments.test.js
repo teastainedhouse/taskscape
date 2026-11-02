@@ -21,7 +21,7 @@ test('sign a guestbook: 201 with the documented shape, trimmed, oldest first', a
   const r = await b.post(`/api/projects/${P.id}/comments`, { body: '  Nice page!\nLove the GIFs.  ' });
   assert.equal(r.status, 201);
   assert.deepEqual(Object.keys(r.body).sort(),
-    ['author_id', 'author_name', 'body', 'created_at', 'deleted_at', 'id', 'item_id', 'item_type', 'updated_at', 'version']);
+    ['author_id', 'author_name', 'body', 'created_at', 'deleted_at', 'id', 'item_id', 'item_type', 'mentions', 'updated_at', 'version']);
   assert.equal(r.body.body, 'Nice page!\nLove the GIFs.');
   assert.equal(r.body.author_id, 'bob');
   assert.equal(r.body.author_name, 'Bob Ortiz');

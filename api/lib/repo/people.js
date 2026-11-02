@@ -20,7 +20,7 @@ import { validationFailed } from '../errors.js';
  * @param {import('../auth/index.js').Principal} user
  * @param {import('../config.js').Config} config
  */
-export async function list(db, user, config) {
+export async function list(db, user, config, { directory: withDirectory = user.via === 'ui' && canEdit(config, user) } = {}) {
   const pv = projectVisible('p', user);
   const tv = taskVisible('t', 'p', user);
   const { rows } = await db.query(
@@ -35,9 +35,75 @@ export async function list(db, user, config) {
   const people = new Map();
   for (const r of rows) people.set(r.id, r.name); // later rows win; fine for a display snapshot
   people.set(user.id, user.name);
-  if (user.via === 'ui' && canEdit(config, user)) for (const u of await directory(db, config)) people.set(u.id, u.name);
+  if (withDirectory) for (const u of await directory(db, config)) people.set(u.id, u.name);
   people.delete('system'); // owns the catch-all project; never a person to pick
   return [...people.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Mention words resolved per comment at most; the rest are text (a 2000-character body holds few real mentions). */
+const MAX_MENTION_WORDS = 64;
+
+/**
+ * Who a comment by `user` mentions, from its mention words (comments.parseMentions()), looking up only the ids
+ * named. A word names, longest candidate first (comments.mentionCandidates()):
+ *   - an id exactly, if it is someone this caller may already pick (/api/people): an owner of an item the caller can
+ *     see, the caller, or (an editor in the browser) the directory, so a mention never tells anyone an id or name
+ *     they could not already list (an MCP token never resolves the directory);
+ *   - a directory id is tried first, exactly and then ignoring case, and only the directory matches loosely, so an
+ *     owner id made up to differ from a real person only in case cannot take that person's mentions.
+ * The name stored is the directory's, else the newest owner_name the caller can see for that id.
+ * A mention grants nothing (repo/comments.js), so naming someone who cannot see the item only stores the name.
+ * @param {import('../db/index.js').Db} db
+ * @param {import('../auth/index.js').Principal} user
+ * @param {import('../config.js').Config} config
+ * @param {string[]} words  as written after the @
+ * @returns {Promise<Array<{id: string, name: string}>>}  in the order of `words`, each person once
+ */
+export async function mentionable(db, user, config, words) {
+  if (!words.length) return [];
+  const { mentionCandidates } = await import('./comments.js');
+  const tries = words.slice(0, MAX_MENTION_WORDS).map(mentionCandidates);
+  const ids = [...new Set(tries.flat().flatMap((c) => [c, c.toLowerCase()]))];
+  const pv = projectVisible('p', user);
+  const tv = taskVisible('t', 'p', user);
+  const marks = ids.map(() => '?').join(', ');
+  const { rows } = await db.query(
+    `SELECT owner_id AS id, owner_name AS name, updated_at FROM (
+       SELECT p.owner_id, p.owner_name, p.updated_at FROM projects p WHERE p.owner_id IN (${marks}) AND ${pv.sql}
+       UNION ALL
+       SELECT t.owner_id, t.owner_name, t.updated_at FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.owner_id IN (${marks}) AND ${tv.sql}
+     ) x ORDER BY updated_at ASC`,
+    [...ids, ...pv.params, ...ids, ...tv.params]);
+  /** @type {Map<string, string>} */
+  const owners = new Map();
+  for (const r of rows) owners.set(r.id, r.name); // newest last, so it wins
+  owners.delete('system');
+  const withDirectory = user.via === 'ui' && canEdit(config, user);
+  /** @type {Map<string, string|null>} */
+  const dir = new Map();
+  const dirName = async (id) => { if (!dir.has(id)) dir.set(id, await directoryName(db, config, id)); return dir.get(id); };
+  /** May the caller pick `id`? Its name if so, else null. @param {string} id */
+  const pickable = async (id) => {
+    const known = await dirName(id);
+    if (id === user.id) return known ?? user.name;
+    if (owners.has(id)) return known ?? owners.get(id);
+    return withDirectory ? known : null;
+  };
+  const out = new Map();
+  for (const candidates of tries) {
+    let found = null;
+    for (const c of candidates) {
+      const lower = c.toLowerCase();
+      // a directory person first, exactly or ignoring case, then anyone else exactly: an owner id made up to differ
+      // from a real person only in case never takes a mention that, folded, names them
+      let name = null;
+      if ((await dirName(c)) !== null && (name = await pickable(c)) !== null) { found = { id: c, name }; break; }
+      if (lower !== c && (await dirName(lower)) !== null && (name = await pickable(lower)) !== null) { found = { id: lower, name }; break; }
+      if ((name = await pickable(c)) !== null) { found = { id: c, name }; break; }
+    }
+    if (found && !out.has(found.id)) out.set(found.id, found);
+  }
+  return [...out.values()];
 }
 
 /** @returns {Promise<Array<{id: string, name: string}>>} */
