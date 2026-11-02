@@ -17,11 +17,12 @@ import { el, padlock, projectLink, taskLink, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
+import { checklistProgress } from './task-checklist.js';
 
 /** Columns My tasks always shows, in order. */
 export const MINE_FIELDS = ['due_date', 'title', 'project', 'status', 'tags'];
 /** Summary columns My tasks also shows when config.task_fields lists them, after status. */
-export const OPTIONAL_SUMMARY_FIELDS = ['priority', 'links'];
+export const OPTIONAL_SUMMARY_FIELDS = ['priority', 'checklist', 'links'];
 
 /**
  * @typedef {Object} ColumnContext
@@ -74,6 +75,13 @@ export function taskColumns(ctx) {
     notes: { label: 'Notes', value: (t) => t.notes ?? '', block: true, empty: 'add notes',
       control: (t, v) => el('textarea', { rows: '3', value: v }),
       fields: (t, v) => ({ notes: v }) },
+    // progress only ("3/5", with the words for a screen reader); the items are on the task page
+    checklist: { label: 'Checklist', view: (t) => {
+      const p = checklistProgress(t);
+      if (!p) return '—';
+      const [done, all] = p.split('/');
+      return el('span', { title: `${done} of ${all} checklist items done` }, p, el('span', { class: 'visually-hidden' }, ` (${done} of ${all} done)`));
+    } },
     // a count only; the links themselves are on the task page
     links: { label: 'Links', view: (t) => ((t.links ?? []).length ? `${t.links.length} link${t.links.length === 1 ? '' : 's'}` : '—') },
     project: { label: 'Project', view: (t) => projectLink(t.project_id, t.project_name ?? 'project') },

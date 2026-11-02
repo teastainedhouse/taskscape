@@ -7,6 +7,7 @@
 import { boot, say, sayError, attempt } from './page.js';
 import { api, get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
 import { linksList, linkForm } from './task-links.js';
+import { checklistList, checklistForm } from './task-checklist.js';
 import { el, btn, setChildren, padlock, projectLink, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, focusEditable, redraw } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
@@ -35,6 +36,10 @@ const linksSection = document.getElementById('links-section');
 const linksHost = document.getElementById('links');
 const linkFormHost = document.getElementById('link-form-host');
 /** @type {HTMLElement|null} */ let linkFormEl = null;
+const checklistSection = document.getElementById('checklist-section');
+const checklistHost = document.getElementById('checklist');
+const checklistFormHost = document.getElementById('checklist-form-host');
+/** @type {HTMLElement|null} */ let checklistFormEl = null;
 const notesHost = document.getElementById('notes');
 const actions = document.getElementById('task-actions');
 const activitySection = document.getElementById('activity-section');
@@ -162,6 +167,11 @@ function render() {
   parts.push(el('div', { class: 'table-wrap' }, meta));
   redraw(host, parts); // an open editor, and focus, survive the redraw
 
+  checklistSection.hidden = false;
+  redraw(checklistHost, checklistList({ task: t, canEdit, write: writeChild, taskPath: taskPath(t.id) }));
+  if (canEdit && !checklistFormEl) { checklistFormEl = checklistForm({ write: writeChild, taskPath: taskPath(t.id), version: () => state.task.version }); checklistFormHost.append(checklistFormEl); }
+  if (checklistFormEl) checklistFormEl.hidden = !canEdit;
+
   linksSection.hidden = false;
   redraw(linksHost, [linksList({ task: t, canEdit, write: writeChild, taskPath: taskPath(t.id) })]);
   if (canEdit && !linkFormEl) { linkFormEl = linkForm({ write: writeChild, taskPath: taskPath(t.id), version: () => state.task.version }); linkFormHost.append(linkFormEl); }
@@ -211,7 +221,7 @@ async function patchTask(fields, version) {
 }
 
 /**
- * One write to something on the task (a link): the task comes back and the page redraws from it, or from
+ * One write to something on the task (a link, a checklist item): the task comes back and the page redraws from it, or from
  * `current` on a 409. Resolves with the task, or null.
  * @param {string} method @param {string} path @param {object} body
  */

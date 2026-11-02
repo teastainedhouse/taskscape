@@ -12,6 +12,7 @@ import * as tasks from '../api/lib/repo/tasks.js';
 import * as tags from '../api/lib/repo/tags.js';
 import * as comments from '../api/lib/repo/comments.js';
 import * as links from '../api/lib/repo/links.js';
+import * as checklist from '../api/lib/repo/checklist.js';
 import { daysFromNow } from '../api/lib/time.js';
 
 try { process.loadEnvFile('.env'); } catch { /* optional */ }
@@ -37,7 +38,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
+    for (const table of ['task_checklist_items', 'task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -89,6 +90,13 @@ let gifs = await links.add(db, alice, T.gifs.id, (await tasks.get(db, alice, T.g
 gifs = await links.add(db, mcp('alice', 'seed-session-0002'), T.gifs.id, gifs.version, { url: 'https://example.test/style-guide#images', label: null }, tick());
 await links.add(db, alice, T.checklist.id, T.checklist.version, { url: 'https://example.test/launch-plan', label: 'Launch plan (draft)' }, tick());
 
+// checklists: progress on a public task (one ticked by Claude), and a private one
+let steps = await checklist.add(db, alice, T.gifs.id, gifs.version, { text: 'Find the original GIF' }, tick());
+for (const text of ['Re-export at 256 colors', 'Upload and check the home page']) steps = await checklist.add(db, alice, T.gifs.id, steps.version, { text }, tick());
+steps = await checklist.update(db, mcp('alice', 'seed-session-0002'), T.gifs.id, steps.checklist[0].id, steps.version, { done: true }, tick());
+let launch = await tasks.get(db, alice, T.checklist.id);
+for (const text of ['Test in two browsers', 'Turn on the counter', 'Announce on the webring']) launch = await checklist.add(db, alice, T.checklist.id, launch.version, { text }, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -103,7 +111,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 
 console.log(`seeded ${url}`);
 console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
-console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links`);
+console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

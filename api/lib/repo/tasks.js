@@ -7,16 +7,17 @@ import * as tags from './tags.js';
 import * as projects from './projects.js';
 import * as people from './people.js';
 import * as links from './links.js';
+import * as checklist from './checklist.js';
 
 const SETTABLE = ['project_id', 'title', 'status', 'priority', 'owner_id', 'owner_name', 'private', 'due_date', 'notes'];
 const SORTS = { updated_at: 't.updated_at', created_at: 't.created_at', title: 'LOWER(t.title)', status: null, owner_name: 'LOWER(t.owner_name)', due_date: null, priority: null };
 const SELECT = 'SELECT t.*, p.name AS project_name FROM tasks t JOIN projects p ON p.id = t.project_id';
 
-/** Tags and links for rows already read through the visibility predicate. */
+/** Tags, links and the checklist for rows already read through the visibility predicate. */
 async function withTags(db, user, rows) {
   const ids = rows.map((r) => r.id);
-  const [tagMap, linkMap] = await Promise.all([tagsFor(db, 'task', ids), links.linksFor(db, user, ids)]);
-  return rows.map((r) => ({ ...rowToTask(r, tagMap.get(r.id)), links: linkMap.get(r.id) ?? [] }));
+  const [tagMap, linkMap, checkMap] = await Promise.all([tagsFor(db, 'task', ids), links.linksFor(db, user, ids), checklist.checklistFor(db, user, ids)]);
+  return rows.map((r) => ({ ...rowToTask(r, tagMap.get(r.id)), links: linkMap.get(r.id) ?? [], checklist: checkMap.get(r.id) ?? [] }));
 }
 
 /** Visible read by id (trash state ignored). */
@@ -57,10 +58,11 @@ export async function list(db, user, f, config) {
     params.push(...f.tag.map(tags.normalizeTagName));
   }
   if (f.q) {
-    // title, notes, and the task's live links (a URL or a label is often what someone remembers)
+    // title, notes, the task's live links (a URL or a label is often what someone remembers), and its checklist items
     where.push(`(LOWER(t.title) LIKE ? ESCAPE '\\' OR LOWER(t.notes) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM task_links ql
-      WHERE ql.task_id = t.id AND ql.deleted_at IS NULL AND (LOWER(ql.url) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(ql.label, '')) LIKE ? ESCAPE '\\')))`);
-    const l = likeContains(f.q); params.push(l, l, l, l);
+      WHERE ql.task_id = t.id AND ql.deleted_at IS NULL AND (LOWER(ql.url) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(ql.label, '')) LIKE ? ESCAPE '\\'))
+      OR EXISTS (SELECT 1 FROM task_checklist_items qc WHERE qc.task_id = t.id AND qc.deleted_at IS NULL AND LOWER(qc.text) LIKE ? ESCAPE '\\'))`);
+    const l = likeContains(f.q); params.push(l, l, l, l, l);
   }
   if (f.due_before) { where.push('t.due_date IS NOT NULL AND t.due_date <= ?'); params.push(f.due_before); }
   if (f.due_after) { where.push('t.due_date >= ?'); params.push(f.due_after); }
@@ -109,8 +111,8 @@ async function targetProject(tx, user, projectId) {
 }
 
 /**
- * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[], links?: Array<{url: string, label: string|null}>}} input
- *   `links` only from internal callers (the import), already validated
+ * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[], links?: Array<{url: string, label: string|null}>, checklist?: Array<{text: string, done?: boolean}>}} input
+ *   `links` and `checklist` only from internal callers (the import), already validated
  */
 export async function create(db, user, input, config, now) {
   return db.transaction((tx) => createIn(tx, user, input, config, now));
@@ -146,10 +148,13 @@ export async function createIn(tx, user, input, config, now) {
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
     const linkList = (input.links ?? []).slice(0, links.MAX_LINKS);
     await links.insertIn(tx, user, id, linkList, now);
+    const checkList = (input.checklist ?? []).slice(0, checklist.MAX_ITEMS);
+    await checklist.insertIn(tx, user, id, checkList, now);
     const tagNames = tagList.map((tag) => tag.name);
     const changes = Object.fromEntries(SETTABLE.map((k) => [k, { to: row[k] }]));
     if (tagNames.length) changes.tags = { to: tagNames.sort() };
     if (linkList.length) changes.links = { to: linkList.map((l) => ({ url: l.url, label: l.label ?? null })) };
+    if (checkList.length) changes.checklist = { to: checkList.map((c) => ({ text: c.text, done: c.done === true })) };
     await record(tx, user, { item_type: 'task', item_id: id, action: 'create', changes }, now);
     return mustGet(tx, user, id);
   }

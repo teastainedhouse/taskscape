@@ -3,7 +3,7 @@ import * as tagsRepo from './repo/tags.js';
 import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
 
-const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links'];
+const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
@@ -94,8 +94,9 @@ export function validateVersionOnly(body) {
   return { version: body.version };
 }
 
-/** Control characters and the bidirectional overrides and isolates, which could make a label read as something else. */
-export const UNSAFE_LABEL_CHARS = /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+/** Control characters, the Unicode line and paragraph separators (a line break to some editors), and the bidirectional
+ * overrides and isolates, which could make a one-line label or item read as something else. */
+export const UNSAFE_LABEL_CHARS = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
 
 /** Longest link URL and label, in characters. */
 export const LINK_URL_MAX = 2000;
@@ -148,6 +149,41 @@ export function validateLink(body, { partial }) {
     else out.position = body.position;
   }
   for (const k of Object.keys(body)) if (!['version', 'url', 'label', 'position'].includes(k)) errors.body = 'has a key that is not a link field'; // never echo the caller's key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
+}
+
+/** Longest checklist item, in characters. */
+export const CHECKLIST_TEXT_MAX = 500;
+
+/**
+ * A checklist item body: `text` (required on create; one line, 1 to CHECKLIST_TEXT_MAX characters), and on PATCH
+ * optional `done` (boolean) and `position` (0-based among the task's live items), plus the task's `version`.
+ * @param {Record<string, unknown>} body
+ * @param {{partial: boolean}} opts
+ * @returns {{version: number} & Partial<{text: string, done: boolean, position: number}>}
+ */
+export function validateChecklistItem(body, { partial }) {
+  const errors = {};
+  const out = {};
+  if (!Number.isInteger(body.version) || body.version < 1) errors.version = 'is required and must be a positive integer';
+  else out.version = body.version;
+  if ('text' in body || !partial) {
+    const t = typeof body.text === 'string' ? body.text.trim() : '';
+    if (!t || UNSAFE_LABEL_CHARS.test(t) || [...t].length > CHECKLIST_TEXT_MAX) errors.text = `must be one line of 1 to ${CHECKLIST_TEXT_MAX} characters`;
+    else out.text = t;
+  }
+  if ('done' in body) {
+    if (typeof body.done !== 'boolean') errors.done = 'must be true or false';
+    else if (!partial) errors.done = 'can only be set when changing an item';
+    else out.done = body.done;
+  }
+  if ('position' in body) {
+    if (!partial) errors.position = 'can only be set when changing an item';
+    else if (!Number.isInteger(body.position) || body.position < 0) errors.position = 'must be a non-negative integer';
+    else out.position = body.position;
+  }
+  for (const k of Object.keys(body)) if (!['version', 'text', 'done', 'position'].includes(k)) errors.body = 'has a key that is not a checklist field'; // never echo the key
   if (Object.keys(errors).length) throw validationFailed(errors);
   return out;
 }

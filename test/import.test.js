@@ -22,7 +22,10 @@ async function seeded(t) {
   await a.post('/api/tasks', { project_id: p.id, title: 'Carol does that', owner_id: 'carol', status: 'Done', due_date: '2026-11-07' });
   let v = t1.version;
   v = (await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/spec?a=1&b=2#top', label: 'Spec [v2] \\ (draft) *x* <b>' })).body.version;
-  await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/plain' });
+  v = (await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/plain' })).body.version;
+  v = (await a.post(`/api/tasks/${t1.id}/checklist`, { version: v, text: 'Find the [old] GIF *now*' })).body.version;
+  const item = (await a.post(`/api/tasks/${t1.id}/checklist`, { version: v, text: '- [x] looks done but is text' })).body;
+  await a.patch(`/api/tasks/${t1.id}/checklist/${item.checklist[0].id}`, { version: item.version, done: true });
   await a.post(`/api/projects/${p.id}/comments`, { body: 'Project comment' });
   await t.as('bob').post(`/api/tasks/${t1.id}/comments`, { body: 'Task comment' });
   return { a, p };
@@ -53,6 +56,8 @@ test('round trip: export, import, export again; same text apart from ids, dates 
   assert.equal(byTitle['Fix | GIFs'].priority, 'Medium');
   assert.deepEqual(byTitle['Fix | GIFs'].links.map((l) => [l.url, l.label, l.position]), [
     ['https://example.test/spec?a=1&b=2#top', 'Spec [v2] \\ (draft) *x* <b>', 0], ['https://example.test/plain', null, 1]]);
+  assert.deepEqual(byTitle['Fix | GIFs'].checklist.map((c) => [c.text, c.done]), [['Find the [old] GIF *now*', true], ['- [x] looks done but is text', false]]);
+  assert.ok(first.includes('Checklist:\n\n- [x] Find the \\[old\\] GIF \\*now\\*\n- [ ] - \\[x\\] looks done but is text\n'), first);
   assert.ok(first.includes('Links:\n\n- [Spec \\[v2\\] \\\\ \\(draft\\) \\*x\\* \\<b\\>](<https://example.test/spec?a=1&b=2#top>)\n- <https://example.test/plain>\n'), first);
   assert.equal(byTitle['Bob does this'].priority, null);
   assert.equal(copies.length, 3);
@@ -288,7 +293,7 @@ test('import: notes that start like a Links block stay notes through a round tri
   const t2 = (await a.post('/api/tasks', { project_id: p.id, title: 'Has links', notes: sneaky })).body;
   await a.post(`/api/tasks/${t2.id}/links`, { version: t2.version, url: 'https://example.test/real\\path?q=a\\b' });
   const md = (await a.get(`/api/projects/${p.id}/export.md`)).text;
-  assert.ok(md.includes('### No links\n\nLinks:\n\n_None._\n\nLinks:\n\n- [Click]'), 'an empty block shields the notes');
+  assert.ok(md.includes('### No links\n\nLinks:\n\n_None._\n\nChecklist:\n\n_None._\n\nLinks:\n\n- [Click]'), 'empty blocks shield the notes');
   assert.ok(md.includes('(<https://example.test/real/path?q=a%5Cb>)') || md.includes('- <https://example.test/real/path?q=a%5Cb>'), 'a backslash is encoded');
   const r = await a.post('/api/projects/import', md, MD);
   assert.equal(r.status, 201, JSON.stringify(r.body));
@@ -302,5 +307,20 @@ test('import: notes that start like a Links block stay notes through a round tri
   const r2 = await a.post('/api/projects/import?dry_run=true', two, MD);
   assert.deepEqual(r2.body.tasks[0].links.map((l) => l.url), ['https://example.test/a']);
   assert.equal(r2.body.tasks[0].notes, 'Links:\n\n- <https://example.test/b>');
+  await t.close();
+});
+
+test('import: checklist items must be one line within the limit; a "Checklist:" deeper in the notes stays notes', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const head = '# P\n\n## Tasks\n\n| Title | Status |\n| --- | --- |\n| One | To do |\n\n### One\n\n';
+  let r = await a.post('/api/projects/import?dry_run=true', head + 'Checklist:\n\n- [ ] ' + 'x'.repeat(501) + '\n', MD);
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.checklist, 'items must be one line of 1 to 500 characters (line 13)');
+  r = await a.post('/api/projects/import?dry_run=true', head + 'Links:\n\n- <https://example.test/a>\n\nChecklist:\n\n- [x] Done thing\n- [ ] Open thing\n\nNotes here.\n\nChecklist:\n\n- [ ] not an item\n', MD);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks[0].checklist, [{ text: 'Done thing', done: true }, { text: 'Open thing', done: false }]);
+  assert.equal(r.body.tasks[0].links.length, 1);
+  assert.equal(r.body.tasks[0].notes, 'Notes here.\n\nChecklist:\n\n- [ ] not an item');
   await t.close();
 });

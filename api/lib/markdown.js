@@ -9,7 +9,7 @@
 
 const LINE_BREAK = /\r\n?|\n/;
 /** The label lines of a task section's structured blocks (the import reads them before the notes). */
-export const BLOCK_LABEL = /^(Links):\s*$/;
+export const BLOCK_LABEL = /^(Links|Checklist):\s*$/;
 
 /** @param {unknown} v @returns {string} one-line table cell */
 export function mdCell(v) {
@@ -52,6 +52,11 @@ function mdQuote(text) {
  */
 function linkLines(list) {
   return list.map((l) => (l.label ? `- [${mdText(l.label)}](<${l.url}>)` : `- <${l.url}>`));
+}
+
+/** A task's checklist as task-list items, `- [ ] text` or `- [x] text`, the text escaped as Markdown text. @param {Array<{text: string, done: boolean}>} list */
+function checklistLines(list) {
+  return list.map((c) => `- [${c.done ? 'x' : ' '}] ${mdText(c.text)}`);
 }
 
 /** @param {Array<{author_name: string, created_at: string, body: string}>} list @returns {string[]} */
@@ -98,13 +103,15 @@ export function renderProjectExport(project, tasks, meta, comments = {}) {
     for (const t of tasks) {
       const list = comments.tasks?.get(t.id) ?? [];
       const links = t.links ?? [];
-      if (!t.notes && !list.length && !links.length) continue;
+      const items = t.checklist ?? [];
+      if (!t.notes && !list.length && !links.length && !items.length) continue;
       lines.push(`### ${mdInline(t.title)}`, '');
       // structured blocks first, then the raw notes, so notes can never end a block. Notes that themselves start with
       // a block's label line get every block written, empty ones as "_None._", so the import reads them as notes.
       const firstNotesLine = (t.notes ?? '').split(LINE_BREAK).find((l) => l.trim() !== '') ?? '';
       const all = BLOCK_LABEL.test(firstNotesLine);
       if (links.length || all) lines.push('Links:', '', ...(links.length ? linkLines(links) : ['_None._']), '');
+      if (items.length || all) lines.push('Checklist:', '', ...(items.length ? checklistLines(items) : ['_None._']), '');
       if (t.notes) lines.push(t.notes.trimEnd(), '');
       if (list.length) lines.push('Comments:', '', ...commentLines(list));
     }

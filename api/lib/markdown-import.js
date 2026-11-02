@@ -15,7 +15,8 @@
  */
 
 /** @typedef {{url: string, label: string|null, line: number}} ParsedLink */
-/** @typedef {{title: string, status: string|null, priority: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, links: ParsedLink[], line: number}} ParsedTask */
+/** @typedef {{text: string, done: boolean, line: number}} ParsedCheckItem */
+/** @typedef {{title: string, status: string|null, priority: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, links: ParsedLink[], checklist: ParsedCheckItem[], line: number}} ParsedTask */
 /**
  * @typedef {Object} ParsedExport
  * @property {{name: string, description: string, status: string|null, owner_name: string|null, private: boolean|null, tags: string[]}} project
@@ -33,6 +34,8 @@ const COMMENTS_LABEL = /^(Comments|Guestbook):\s*$/;
 const COMMENT_SIGNATURE = /^\*\*.*\*\*, \d{4}-\d{2}-\d{2}:$/;
 /** `- [label](<url>)` or `- <url>`, as the export writes a task's links. */
 const LINK_LINE = /^- (?:\[((?:\\.|[^\\\]])*)\]\(<([^<>\s]+)>\)|<([^<>\s]+)>)\s*$/;
+/** `- [ ] text` or `- [x] text`, as the export writes a checklist item. */
+const CHECK_LINE = /^- \[([ xX])\] (.*\S)\s*$/;
 /** Undo the export's backslash escapes in a label. @param {string} s */
 const unescapeText = (s) => s.replace(/\\([!-/:-@[-`{-~])/g, '$1');
 
@@ -162,7 +165,7 @@ export function parseProjectExport(text) {
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
       tasks.push({
         title, status: orNull(cell('status')), priority: orNull(cell('priority')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
-        tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', links: [], line: at(),
+        tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', links: [], checklist: [], line: at(),
       });
       i++;
     }
@@ -192,7 +195,7 @@ export function parseProjectExport(text) {
       pending.set(key, pending.get(key) - 1);
       i++;
       // structured blocks come first, each at most once and in this order, a label line followed by its items
-      // ("_None._" for an empty one, written when the notes themselves start with a label line): "Links:"
+      // ("_None._" for an empty one, written when the notes themselves start with a label line): "Links:", then "Checklist:"
       const block = (label, itemRe) => {
         let k = i;
         while (k < n && lines[k].trim() === '') k++;
@@ -208,6 +211,8 @@ export function parseProjectExport(text) {
       };
       const linkList = (block(/^Links:\s*$/, LINK_LINE) ?? [])
         .map(({ m, line: at }) => ({ url: m[2] ?? m[3], label: m[1] === undefined ? null : unescapeText(m[1]), line: at }));
+      const checkList = (block(/^Checklist:\s*$/, CHECK_LINE) ?? [])
+        .map(({ m, line: at }) => ({ text: unescapeText(m[2]), done: m[1] !== ' ', line: at }));
       const body = [];
       while (i < n && !endsSection(i)) {
         if (COMMENTS_LABEL.test(lines[i]) && startsComments(i)) { // the task's comments: count signatures, skip to the next section
@@ -219,7 +224,7 @@ export function parseProjectExport(text) {
         i++;
       }
       const list = notesFor.get(key) ?? [];
-      list.push({ notes: trimBlank(body).join('\n'), links: linkList });
+      list.push({ notes: trimBlank(body).join('\n'), links: linkList, checklist: checkList });
       notesFor.set(key, list);
       continue;
     }
@@ -243,7 +248,7 @@ export function parseProjectExport(text) {
     const list = notesFor.get(key);
     if (!list) continue;
     const k = used.get(key) ?? 0;
-    if (k < list.length) { t.notes = list[k].notes; t.links = list[k].links; used.set(key, k + 1); }
+    if (k < list.length) { t.notes = list[k].notes; t.links = list[k].links; t.checklist = list[k].checklist; used.set(key, k + 1); }
     if (pending.get(key) !== 0 || titleKeys.filter((x) => x === key).length > list.length) ambiguous++;
   }
 

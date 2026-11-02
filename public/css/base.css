@@ -127,7 +127,12 @@ tr.filtered-out td { opacity: 0.6; }
 .task-links { padding-left: 1.5em; }
 .task-links li { margin: 0 0 6px; overflow-wrap: anywhere; }
 .task-links .link-edit { font-size: 0.9em; }
-.new-link { margin-top: 8px; }
+.new-link, .new-check { margin-top: 8px; }
+/* The checklist (js/task-checklist.js): a ticked item is struck through; its checkbox, labelled by the item, says ticked or not. */
+.checklist { list-style: none; padding-left: 0; }
+.checklist li { margin: 0 0 6px; overflow-wrap: anywhere; }
+.checklist__item--done .editable__value, .checklist__item--done .editable__text { text-decoration: line-through; }
+.checklist-progress { margin: 0 0 6px; }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
 .tag-chip button { margin-left: 3px; padding: 0 3px; line-height: 1; }

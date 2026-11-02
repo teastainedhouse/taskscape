@@ -68,6 +68,10 @@ export function describeActivity(a, ctx = {}) {
           case 'description': case 'notes': phrases.push(`edited the ${field}`); break;
           case 'tags': phrases.push(`tags: ${show(from)} → ${show(to)}`); break;
           case 'link': phrases.push(!from ? `added the link ${linkName(to)}` : !to ? `removed the link ${linkName(from)}` : `changed the link ${linkName(from)} to ${linkName(to)}`); break;
+          case 'checklist_item': phrases.push(!from ? `added the checklist item "${show(to?.text)}"` : !to ? `removed the checklist item "${show(from?.text)}"`
+            : from.text !== to.text ? `renamed the checklist item "${show(from.text)}" to "${show(to.text)}"${from.done !== to.done ? (to.done ? ' and ticked it' : ' and unticked it') : ''}`
+              : `${to.done ? 'ticked' : 'unticked'} "${show(to.text)}"`); break;
+          case 'checklist_moved': phrases.push(`moved the checklist item "${show(d?.item?.text)}" ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           case 'link_moved': phrases.push(`moved the link ${linkName(d?.link)} ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           default: phrases.push(`${FIELD_LABELS[field] ?? field}: ${show(from)} → ${show(to)}`);
         }

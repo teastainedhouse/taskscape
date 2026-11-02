@@ -8,8 +8,9 @@
 // record instead of a file and run the same way.
 
 import { parseProjectExport, ImportParseError } from './markdown-import.js';
-import { validateItem, validateTag, cleanLinkUrl, LINK_LABEL_MAX, UNSAFE_LABEL_CHARS } from './validate.js';
+import { validateItem, validateTag, cleanLinkUrl, LINK_LABEL_MAX, UNSAFE_LABEL_CHARS, CHECKLIST_TEXT_MAX } from './validate.js';
 import { MAX_LINKS } from './repo/links.js';
+import { MAX_ITEMS } from './repo/checklist.js';
 import { ApiError, validationFailed, forbidden } from './errors.js';
 import * as people from './repo/people.js';
 import * as projects from './repo/projects.js';
@@ -20,7 +21,8 @@ import { canEdit } from './config.js';
 /**
  * @typedef {{name: string, description: string, status: string, owner_id: string, owner_name: string, private: boolean, tags: string[]}} PlannedProject
  * @typedef {{url: string, label: string|null}} PlannedLink
- * @typedef {{title: string, status: string, priority: string|null, links: PlannedLink[], owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
+ * @typedef {{text: string, done: boolean}} PlannedCheckItem
+ * @typedef {{title: string, status: string, priority: string|null, links: PlannedLink[], checklist: PlannedCheckItem[], owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
  * @typedef {{project: PlannedProject, tasks: PlannedTask[], comments_skipped: number, notes: string[]}} ImportPlan
  */
 
@@ -168,7 +170,13 @@ export async function planImport(db, user, text, config, { makePrivate = false }
       if (label !== null && ([...label].length > LINK_LABEL_MAX || UNSAFE_LABEL_CHARS.test(label))) throw validationFailed({ links: `labels must be one line of at most ${LINK_LABEL_MAX} characters without control characters (line ${l.line})` });
       return { url, label };
     });
-    plannedTasks.push({ ...fields, links, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
+    if (t.checklist.length > MAX_ITEMS) throw validationFailed({ checklist: `at most ${MAX_ITEMS} items on one task (line ${t.checklist[MAX_ITEMS].line})` });
+    const checklist = t.checklist.map((c) => {
+      const text = c.text.trim();
+      if (!text || [...text].length > CHECKLIST_TEXT_MAX || UNSAFE_LABEL_CHARS.test(text)) throw validationFailed({ checklist: `items must be one line of 1 to ${CHECKLIST_TEXT_MAX} characters (line ${c.line})` });
+      return { text, done: c.done };
+    });
+    plannedTasks.push({ ...fields, links, checklist, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
   }
 
   const privateCount = (projectPrivate ? 1 : 0) + plannedTasks.filter((t) => t.private).length;

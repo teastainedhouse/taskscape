@@ -53,8 +53,8 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the eleven tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'tag']);
+test('tool definitions: exactly the twelve tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'checklist', 'tag']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
@@ -73,7 +73,7 @@ test('tool definitions: exactly the eleven tools, plain JSON Schema, data-not-in
   assert.match(upd.description, /version/);
   assert.match(upd.description, /latest get or list/);
   assert.match(upd.description, /conflict.*current record/i);
-  for (const name of ['update', 'delete', 'restore', 'link', 'tag']) {
+  for (const name of ['update', 'delete', 'restore', 'link', 'checklist', 'tag']) {
     const t = TOOLS.find((x) => x.name === name);
     assert.equal(t.inputSchema.properties.version.type, 'integer', `${name}.version is an integer`);
     assert.ok(t.inputSchema.required.includes('version'), `${name} requires version`);
@@ -533,4 +533,20 @@ test('an id of "." or ".." is refused before any request: dot segments would tur
   assert.equal(calls.length, 0);
   // and through a real URL parser, a link route with a normal id stays a link route
   assert.equal(new URL('http://x.test/api/tasks/t1/links/' + encodeURIComponent('a.b')).pathname, '/api/tasks/t1/links/a.b');
+});
+
+test('checklist: one add, update (rename, tick, untick, move) or remove per call; bad combinations never reach the API', async () => {
+  const { client, calls } = makeClient(() => json(200, { ...task(), checklist: [] }));
+  await callTool('checklist', { id: 't1', version: 1, action: 'add', text: 'Step one' }, client);
+  assert.deepEqual([calls[0].method, calls[0].path, calls[0].body], ['POST', '/api/tasks/t1/checklist', { version: 1, text: 'Step one' }]);
+  await callTool('checklist', { id: 't1', version: 2, action: 'update', item_id: 'c1', done: true }, client);
+  assert.deepEqual([calls[1].method, calls[1].path, calls[1].body], ['PATCH', '/api/tasks/t1/checklist/c1', { version: 2, done: true }]);
+  await callTool('checklist', { id: 't1', version: 3, action: 'remove', item_id: 'c1' }, client);
+  assert.deepEqual([calls[2].method, calls[2].path], ['DELETE', '/api/tasks/t1/checklist/c1']);
+  for (const bad of [
+    { id: 't1', version: 1, action: 'add' }, { id: 't1', version: 1, action: 'add', text: 'x', done: true },
+    { id: 't1', version: 1, action: 'update', item_id: 'c1' }, { id: 't1', version: 1, action: 'remove', item_id: 'c1', done: false },
+    { id: 't1', version: 1, action: 'remove', item_id: '..' }, { id: 't1', version: 1, action: 'update', item_id: 'c1', done: 'yes' },
+  ]) assert.equal((await callTool('checklist', bad, client)).isError, true, JSON.stringify(bad));
+  assert.equal(calls.length, 3);
 });

@@ -67,7 +67,9 @@ export function linksList({ task, canEdit, write, taskPath }) {
     const li = el('li', { id: `link-${l.id}` }, linkAnchor(l));
     if (canEdit) {
       const path = `${taskPath}/links/${encodeURIComponent(l.id)}`;
-      const move = (to, dir) => once(async () => { if (await write('PATCH', path, { version: task.version, position: to })) focusAfter(l.id, `[data-move="${dir}"]`, 'new-link-url'); });
+      const move = (to, dir) => once(async () => {
+        if (await write('PATCH', path, { version: task.version, position: to })) { say(`Moved link ${linkText(l)} ${dir} to ${to + 1} of ${list.length}.`); focusAfter(l.id, `[data-move="${dir}"]`, 'new-link-url'); }
+      });
       li.append(el('div', { class: 'link-edit' },
         el('span', { class: 'muted' }, 'Label: '),
         inlineEdit({ key: `link-${l.id}-label`, label: 'Link label', allowed: true, value: l.label ?? '', empty: 'none',
@@ -106,8 +108,10 @@ export function linkForm({ write, taskPath, version }) {
     el('div', { class: 'field' }, el('button', { type: 'submit' }, 'Add link')));
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const rec = await write('POST', `${taskPath}/links`, { version: version(), url: url.value.trim(), label: label.value.trim() || null });
-    if (rec) { form.reset(); say('Link added.'); url.focus(); }
+    await once(async () => {
+      const rec = await write('POST', `${taskPath}/links`, { version: version(), url: url.value.trim(), label: label.value.trim() || null });
+      if (rec) { form.reset(); say('Link added.'); url.focus(); }
+    });
   });
   return form;
 }
