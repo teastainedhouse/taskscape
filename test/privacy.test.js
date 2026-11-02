@@ -433,3 +433,18 @@ test('one PATCH cannot make an item private for someone else; handing over an al
   assert.equal((await b.get(`/api/tasks/${T.id}`)).body.private, true);
   await t.close();
 });
+
+test('moving a public task out of a private project reveals its history, as making it public would', async () => {
+  const t = await createTestApp();
+  const c = t.as('carol');
+  const b = t.as('bob');
+  const r = (await c.post('/api/projects', { name: 'R', private: true })).body;
+  const task = (await c.post('/api/tasks', { title: 'plan', project_id: r.id })).body;
+  const v2 = (await c.patch(`/api/tasks/${task.id}`, { version: task.version, title: 'secret plan' })).body;
+  assert.equal((await b.get(`/api/activity?item_id=${task.id}`)).body.items.length, 0, 'hidden while in the private project');
+  await c.patch(`/api/tasks/${task.id}`, { version: v2.version, project_id: t.catchAllId });
+  const seen = (await b.get(`/api/activity?item_id=${task.id}`)).body.items;
+  assert.equal(seen.length, 3, 'the move reveals the create, the rename and the move');
+  assert.ok(seen.some((e) => e.changes?.title?.to === 'secret plan'), 'old values included: the task page asks before a move like this');
+  await t.close();
+});

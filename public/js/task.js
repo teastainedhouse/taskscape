@@ -109,7 +109,13 @@ function render() {
   row('Project', inlineEdit({ key: 'task-project', label: 'Project', allowed: canEdit && (state.projects?.length ?? 0) > 0, value: t.project_id,
     format: (id) => projectName(id),
     control: (v) => selectFor(projectOptions(), v),
-    save: (v) => patchTask({ project_id: v }, t.version) }));
+    save: (v) => {
+      // out of a private project into a public one: the task and its whole history become visible, like making it public
+      const target = state.projects?.find((p) => p.id === v);
+      if (state.project?.private && target && !target.private && !t.private
+        && !confirm(`Move this task to ${oneLine(target.name)}?\nIt leaves your private project, so everyone will see it, and its history becomes visible too.`)) return null;
+      return patchTask({ project_id: v }, t.version);
+    } }));
 
   row('Status', inlineEdit({ key: 'task-status', label: 'Status', allowed: canEdit, value: t.status,
     control: (v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
@@ -118,7 +124,11 @@ function render() {
   row('Owner', inlineEdit({ key: 'task-owner', label: 'Owner', allowed: canEdit && (!t.private || owns()), value: t.owner_id,
     format: (id) => personName(id),
     control: (v) => selectFor(state.people.map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
-    save: (v) => patchTask({ owner_id: v, owner_name: personName(v) }, t.version) }));
+    save: (v) => {
+      // handing over a private task hands over its history and comments, and you lose sight of it
+      if (t.private && v !== t.owner_id && !confirm(`Hand this private task to ${oneLine(personName(v))}?\nIt will be private to them: you will no longer see it, its history, or its comments.`)) return null;
+      return patchTask({ owner_id: v, owner_name: personName(v) }, t.version);
+    } }));
 
   const due = inlineEdit({ key: 'task-due', label: 'Due date', allowed: canEdit, value: t.due_date,
     empty: 'no due date',

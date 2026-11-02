@@ -25,6 +25,8 @@ import { canEdit } from './config.js';
 /** Caps, so one file cannot hold the database or fill everyone's tag picker; each is a 400 naming field and line. */
 export const MAX_TAGS_PER_ITEM = 20;
 export const MAX_NEW_TAGS = 50;
+/** The most comma-separated parts one 40-character tag name can be split into. */
+const MAX_PARTS_PER_TAG = 14;
 
 /** Re-throw a validation error from validateItem() with the line it came from. @param {unknown} err @param {number|null} line */
 function withLine(err, line) {
@@ -57,7 +59,8 @@ export function regroupTags(parts, known) {
   const out = [];
   for (let i = 0; i < parts.length;) {
     let taken = 1;
-    for (let len = parts.length - i; len > 1; len--) {
+    // a tag name is at most 40 characters and parts are joined with ", ", so no name spans more than 14 parts
+    for (let len = Math.min(parts.length - i, MAX_PARTS_PER_TAG); len > 1; len--) {
       if (known.has(tags.normalizeTagName(parts.slice(i, i + len).join(', ')))) { taken = len; break; }
     }
     out.push(parts.slice(i, i + taken).join(', '));
@@ -119,6 +122,8 @@ export async function planImport(db, user, text, config, { makePrivate = false }
 
   /** Tag names regrouped against existing tags and checked like POST /api/tags, with the line. @param {string[]} parts @param {number} line */
   const tagNames = (parts, line) => {
+    // the parts check comes before regrouping, which is bounded by it (a cell of thousands of commas is not an export)
+    if (parts.length > MAX_TAGS_PER_ITEM * MAX_PARTS_PER_TAG) throw validationFailed({ tags: `at most ${MAX_TAGS_PER_ITEM} tags on one item (line ${line})` });
     const names = regroupTags(parts, known);
     if (names.length > MAX_TAGS_PER_ITEM) throw validationFailed({ tags: `at most ${MAX_TAGS_PER_ITEM} tags on one item (line ${line})` });
     for (const name of names) {

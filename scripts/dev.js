@@ -34,7 +34,8 @@ const app = createApp({ config, db });
 
 async function serveStatic(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  let rel = decodeURIComponent(url.pathname);
+  let rel;
+  try { rel = decodeURIComponent(url.pathname); } catch { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Not found'); return; }
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(ROOT, rel));
   if (!file.startsWith(ROOT + path.sep) && file !== ROOT) { res.writeHead(404); res.end('Not found'); return; }

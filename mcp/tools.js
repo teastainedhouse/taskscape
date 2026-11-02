@@ -124,7 +124,7 @@ export const TOOLS = [
     description:
       'Create a project or a task. Project fields: name (required), description, status, owner_id, owner_name, private, tags. ' +
       'Task fields: title (required), project_id (omit for the catch-all project), status, owner_id, owner_name, private, due_date, notes, tags. ' +
-      '"tags" are tag NAMES; missing tags are created first. Returns the new record. ' + DATA_NOTICE,
+      '"tags" are tag NAMES; missing tags are created first, and tag names and colours are visible to everyone, even on private items. Returns the new record. ' + DATA_NOTICE,
     inputSchema: {
       type: 'object',
       properties: {
@@ -146,7 +146,8 @@ export const TOOLS = [
       'Change fields on a project or task. "version" is required: use the version from the latest get or list result for this record. ' +
       'If someone changed the record since, the call fails with a conflict that includes the current record; re-read it (or use the embedded copy) and retry with its version. ' +
       'Project fields: name, description, status, owner_id, owner_name, private. Task fields: title, status, owner_id, owner_name, private, due_date, notes, project_id. ' +
-      'To change tags use the tag tool. ' + DATA_NOTICE,
+      'To change tags use the tag tool. Moving a task out of a private project into a public one, or making an item public, shows it and its whole history to everyone; ' +
+      'handing a private item to someone else hides it from its previous owner. Confirm those with the user first. ' + DATA_NOTICE,
     inputSchema: {
       type: 'object',
       properties: {
@@ -219,7 +220,7 @@ export const TOOLS = [
   {
     name: 'tag',
     description:
-      'Add and/or remove tags on a project or task, by tag NAME. Tags named in "add" are created if missing. ' +
+      'Add and/or remove tags on a project or task, by tag NAME. Tags named in "add" are created if missing; tag names and colours are visible to everyone, even on private items. ' +
       '"version" must be the current version; each real change bumps it (adding a tag that is already there, or removing one that is not, leaves it as is) ' +
       'and the returned record carries the final version. ' + DATA_NOTICE,
     inputSchema: {
@@ -556,6 +557,9 @@ const handlers = {
     if (add.length === 0 && remove.length === 0) {
       return fail('Invalid arguments: tag needs "add" and/or "remove" with at least one tag name.');
     }
+    // the item first: a hidden or missing target must not leave new public tags behind
+    const target = await client.get(`${collection(args.type)}/${enc(args.id)}`);
+    if (!isOk(target)) return errorResult(target, args);
     const toAdd = await resolveTagNames(add, client, { create: true });
     if (toAdd.error) return toAdd.error;
     const toRemove = await resolveTagNames(remove, client, { create: false });

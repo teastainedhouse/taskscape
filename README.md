@@ -100,7 +100,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
 5. **Wire the host.** Three pieces:
 
-   - **Static files:** serve `public/` as-is at the site root. `/` is `public/index.html`.
+   - **Static files:** serve `public/` as-is at the site root. `/` is `public/index.html`. Send the HTML pages with the headers the dev server sends (`Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` and `X-Content-Type-Options: nosniff`), so no other site can frame a page or run a script in one; this matters most under `headers`, whose sign-on cookie may not be `SameSite=Strict`.
    - **The API:** route `/api/*` to one function that calls `app.fetch(request)`. The adapter is a thin file under `host/<your-host>/`; the shape depends on what your host hands you:
 
      *Fetch-style host* (receives a Web `Request`, returns a `Response`):

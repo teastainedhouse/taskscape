@@ -116,7 +116,7 @@ function renderHeader() {
     format: (id) => personName(id),
     control: (v) => selectFor(state.people.map((x) => ({ value: x.id, label: x.name })), v),
     save: async (v) => {
-      if (p.private && v !== p.owner_id && !confirm(`Hand this private project to ${personName(v)}? Your tasks in it move to ${await catchAllName()} and stay private to you, and the project will be private to its new owner.`)) return null;
+      if (p.private && v !== p.owner_id && !confirm(`Hand this private project to ${oneLine(personName(v))}? Your tasks in it move to ${oneLine(await catchAllName())} and stay private to you, and the project will be private to its new owner.`)) return null;
       return patchProject({ owner_id: v, owner_name: personName(v) }, p.version);
     } }));
 
@@ -175,11 +175,11 @@ async function togglePrivacy() {
     if (rec) say('This project is now public, including its history.');
   } else {
     const name = await catchAllName();
-    if (!confirm(`Make this project private?\nOnly you will see it. Tasks owned by others will be moved to ${name}.`)) return;
+    if (!confirm(`Make this project private?\nOnly you will see it. Tasks owned by others will be moved to ${oneLine(name)}.`)) return;
     const rec = await patchProject({ private: true }, p.version);
     if (rec) {
       const n = Number(rec.moved_tasks ?? 0);
-      say(`This project is now private. ${n} task${n === 1 ? '' : 's'} owned by others ${n === 1 ? 'was' : 'were'} moved to ${name}.`);
+      say(`This project is now private. ${n} task${n === 1 ? '' : 's'} owned by others ${n === 1 ? 'was' : 'were'} moved to ${oneLine(name)}.`);
       await loadTasks();
       loadOverdue();
     }
@@ -232,6 +232,7 @@ const TASK_COLUMNS = {
   owner: { label: 'Owner', sort: 'owner_name', value: (t) => t.owner_id, allowed: (t) => !t.private || owns(t),
     format: (id, t) => (id === t.owner_id ? t.owner_name : personName(id)),
     control: (t, v) => selectFor(state.people.map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
+    confirm: (t, v) => !t.private || v === t.owner_id || confirm(`Hand this private task to ${oneLine(personName(v))}?\nIt will be private to them: you will no longer see it, its history, or its comments.`),
     fields: (t, v) => ({ owner_id: v, owner_name: personName(v) }) },
   due_date: { label: 'Due', sort: 'due_date', value: (t) => t.due_date, empty: '—',
     control: (t, v) => el('input', { type: 'date', value: v ?? '' }),

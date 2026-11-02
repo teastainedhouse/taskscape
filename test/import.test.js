@@ -226,3 +226,13 @@ test('createIn refuses to run outside a transaction', async () => {
   await assert.rejects(projects.createIn(t.db, { id: 'alice', name: 'Alice', via: 'ui', auth: 'dev' }, { name: 'X' }, t.config, '2026-11-02T10:00:00.000Z'), /inside db\.transaction/);
   await t.close();
 });
+
+test('a tag cell with thousands of commas is refused quickly, not regrouped slowly', async () => {
+  const t = await createTestApp();
+  const started = Date.now();
+  const r = await t.as('alice').post('/api/projects/import?dry_run=true', '# P\n\n| Field | Value |\n| --- | --- |\n| Tags | ' + Array.from({ length: 5000 }, () => 'a').join(',') + ' |\n\n## Tasks\n\n_No tasks._\n', MD);
+  assert.equal(r.status, 400);
+  assert.match(r.body.error.details.fields.tags, /at most 20 tags/);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  await t.close();
+});

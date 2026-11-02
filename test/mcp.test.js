@@ -289,6 +289,7 @@ test('tag resolves names, creates missing on add, and threads version through on
   let version = 5;
   const tags = [];
   const { client, calls } = makeClient(({ method, path, body }) => {
+    if (method === 'GET' && /^\/api\/tasks\/t1$/.test(path)) return json(200, task()); // the tool reads its target before creating tags
     if (method === 'GET' && path === '/api/tags') return json(200, { items: existing });
     if (method === 'POST' && path === '/api/tags') return json(201, { id: `tg-${body.name}`, name: body.name, color: '#008000' });
     const m = /^\/api\/tasks\/t1\/tags\/(.+)$/.exec(path);
@@ -318,6 +319,7 @@ test('tag threads an unchanged version past a step that changed nothing (tag alr
   let version = 3;
   const attached = new Set(['tg-bug']);
   const { client, calls } = makeClient(({ method, path, body }) => {
+    if (method === 'GET' && /^\/api\/tasks\/t1$/.test(path)) return json(200, task()); // the tool reads its target before creating tags
     if (method === 'GET' && path === '/api/tags') return json(200, { items: [{ id: 'tg-bug', name: 'bug', color: '#ff0000' }, { id: 'tg-web', name: 'web', color: '#000080' }] });
     const m = /^\/api\/tasks\/t1\/tags\/(.+)$/.exec(path);
     if (m) {
@@ -340,6 +342,7 @@ test('tag threads an unchanged version past a step that changed nothing (tag alr
 
 test('tag with neither add nor remove is rejected; a stale version mid-way reports progress', async () => {
   const { client, calls } = makeClient(({ method, path }) => {
+    if (method === 'GET' && /^\/api\/tasks\/t1$/.test(path)) return json(200, task()); // the tool reads its target before creating tags
     if (method === 'GET' && path === '/api/tags') return json(200, { items: [{ id: 'a', name: 'a', color: '#000000' }, { id: 'b', name: 'b', color: '#000000' }] });
     if (path.endsWith('/tags/a')) return json(200, task({ version: 2 }));
     if (path.endsWith('/tags/b')) return json(409, { error: { code: 'conflict', message: 'stale' }, current: task({ version: 9 }) });
@@ -467,4 +470,12 @@ test('the MCP server never says "guestbook": comments are comments', async () =>
   assert.equal(/guestbook/i.test(DATA_NOTICE), false);
   const server = readFileSync(new URL('../mcp/server.js', import.meta.url), 'utf8');
   assert.equal(/guestbook/i.test(server), false, 'server instructions');
+});
+
+test('tag reads its target first, so a hidden or missing item leaves no new public tag behind', async () => {
+  const { client, calls } = makeClient(({ method, path }) => (path === '/api/tasks/nope' ? notFound() : path === '/api/tags' && method === 'POST' ? json(201, { id: 'x' }) : null));
+  const out = await callTool('tag', { type: 'task', id: 'nope', version: 1, add: ['secret-plan'] }, client);
+  assert.equal(out.isError, true);
+  assert.equal(text(out), NOT_FOUND_TEXT);
+  assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`), ['GET /api/tasks/nope']);
 });
