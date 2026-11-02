@@ -78,7 +78,7 @@ async function start() {
 
 function notFound() {
   document.title = `Not found - ${config.site_title || 'Taskscape'}`;
-  setChildren(projectHost, [el('h1', null, 'Not found'), el('p', null, 'This project does not exist, or it is private to someone else. ', el('a', { href: 'index.html' }, 'Back to the list'))]);
+  setChildren(projectHost, [el('h1', null, 'Not found'), el('p', null, 'This project does not exist, or it is private to someone else. ', el('a', { href: 'projects.html' }, 'Back to the list'))]);
 }
 
 /* ------------------------------------------------------------------ header */

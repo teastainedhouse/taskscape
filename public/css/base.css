@@ -134,6 +134,21 @@ tr.filtered-out td { opacity: 0.6; }
 .checklist__item--done .editable__value, .checklist__item--done .editable__text { text-decoration: line-through; }
 .checklist-progress { margin: 0 0 6px; }
 .recur-mark { white-space: nowrap; }
+/* The Today page (js/today.js): sections read at a glance; each table stacks at phone width like My tasks. */
+.today-scope { border: 0; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.today-scope legend { float: left; font-weight: 600; margin-right: 8px; padding: 0; }
+.today-section { margin-top: 18px; }
+.today-table td.col-title { overflow-wrap: anywhere; min-width: 8em; }
+.empty-line { font-style: italic; }
+@media (max-width: 600px) {
+  .today-table, .today-table tbody, .today-table tr, .today-table td { display: block; }
+  .today-table thead { display: none; }
+  .today-table tbody tr { border-bottom: 2px solid; padding: 4px 0; }
+  .today-table tbody td { border: 0; }
+  .today-table tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
+  .today-table tbody td.col-title::before { content: none; }
+  .today-table tbody td.col-title { font-weight: 600; }
+}
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
 .tag-chip button { margin-left: 3px; padding: 0 3px; line-height: 1; }

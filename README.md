@@ -63,6 +63,7 @@ Environment variables:
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |
 | `priorities` | Task priority names, highest first (shipped: `High`, `Medium`, `Low`); a task has one of these or none, and lists sort by it in this order. Same naming rules as statuses. An empty list turns priorities off |
+| `attention_statuses` | `task`: the statuses that need someone's attention (shipped: `Blocked`); the Today page lists them |
 | `tag_palette` | `#rrggbb` colors handed to new tags in turn |
 | `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`, `checklist` as "3/5", `links` as a count) |
 | `default_views` | Named sort and filter presets; `tasks` is the one the task table opens with |
@@ -101,7 +102,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
 5. **Wire the host.** Three pieces:
 
-   - **Static files:** serve `public/` as-is at the site root. `/` is `public/index.html`. Send the HTML pages with the headers the dev server sends (`Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` and `X-Content-Type-Options: nosniff`), so no other site can frame a page or run a script in one; this matters most under `headers`, whose sign-on cookie may not be `SameSite=Strict`.
+   - **Static files:** serve `public/` as-is at the site root. `/` is `public/today.html` (the home page; set it as the directory index). Send the HTML pages with the headers the dev server sends (`Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` and `X-Content-Type-Options: nosniff`), so no other site can frame a page or run a script in one; this matters most under `headers`, whose sign-on cookie may not be `SameSite=Strict`.
    - **The API:** route `/api/*` to one function that calls `app.fetch(request)`. The adapter is a thin file under `host/<your-host>/`; the shape depends on what your host hands you:
 
      *Fetch-style host* (receives a Web `Request`, returns a `Response`):

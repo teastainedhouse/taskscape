@@ -76,7 +76,7 @@ function setupPreferences() {
     el('div', { class: 'field' }, el('label', { for: zone.id }, 'Time zone'), zone, useDevice ? [' ', useDevice] : null,
       el('p', { class: 'muted', id: 'pref-zone-hint' }, prefs.chosen?.time_zone
         ? 'Due dates and "today" follow this zone, in the browser and for Claude.'
-        : `Not set: the browser uses this device's zone, and Claude uses the site default (${prefs.time_zone}). Save to make one zone follow you everywhere.`)),
+        : `Not set: times show in this device's zone, while "today" and overdue follow the site default (${prefs.time_zone}), for you and for Claude. Save your zone to make them match where you are.`)),
     el('div', { class: 'field' }, save),
   ]);
   zone.setAttribute('aria-describedby', 'pref-zone-hint');

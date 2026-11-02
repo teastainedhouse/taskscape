@@ -234,7 +234,7 @@ test('privacy: recurred_to and recurred_from never name a task the reader cannot
 });
 
 test('the owner\'s zone, not the closer\'s; no copy for closed-to-closed moves or tasks that start closed', async () => {
-  const t = await createTestApp({ now: () => '2026-11-02T23:30:00.000Z', config: { statuses: { task: ['To do', 'Done', 'Dropped'] }, closed_statuses: { task: ['Done', 'Dropped'] } } });
+  const t = await createTestApp({ now: () => '2026-11-02T23:30:00.000Z', config: { statuses: { task: ['To do', 'Done', 'Dropped'] }, closed_statuses: { task: ['Done', 'Dropped'] }, attention_statuses: { task: [] } } });
   const a = t.as('alice');
   const b = t.as('bob');
   await a.patch('/api/me/preferences', { time_zone: 'Pacific/Kiritimati' });

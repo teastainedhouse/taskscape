@@ -1,5 +1,6 @@
 import { json } from '../lib/http.js';
 import * as tasks from '../lib/repo/tasks.js';
+import * as preferences from '../lib/repo/preferences.js';
 import { validateItem, validateVersionOnly, parseListQuery } from '../lib/validate.js';
 import { body } from './_shared.js';
 
@@ -7,6 +8,7 @@ import { body } from './_shared.js';
 export const routes = [
   { method: 'GET', path: '/api/tasks', handler: async (_req, ctx) => {
     const f = parseListQuery(ctx.query, ctx.config, 'task');
+    if (f.due) f.today = (await preferences.todayFor(ctx.db, ctx.config, ctx.user.id, ctx.now())).today;
     const items = await tasks.list(ctx.db, ctx.user, f, ctx.config);
     return json({ items, limit: f.limit, offset: f.offset });
   } },

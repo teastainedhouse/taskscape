@@ -26,7 +26,7 @@ Each fact lives in one place: the code map and recipes here, decisions in PLAN.m
 ## Code map
 
 ```
-taskscape.config.json      site title, statuses, priorities, palette, task fields, views, privacy default, permissions, webring, limits, catch-all project,
+taskscape.config.json      site title, statuses, priorities, attention_statuses, palette, task fields, views, privacy default, permissions, webring, limits, catch-all project,
                            theme + themes (each public/css/theme-<name>.css), preference_defaults (comments label, shortcuts, time zone),
                            auth (provider, header names, dev users, password sessions)
 .env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT, HOST,
@@ -109,7 +109,8 @@ api/
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
                            create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
       sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, listForUser (never the hash), removeOwn, removeByToken/ForUser/Expired; no version, no activity
-      preferences.js       get (the row or null), effective (defaults overlaid, with `chosen`), set (one ON CONFLICT upsert); no version, no activity
+      preferences.js       get (the row or null), effective (defaults overlaid, with `chosen`), set (one ON CONFLICT upsert), todayFor() (THE today:
+                           the person's zone, else the site's); no version, no activity
 
 migrations/
   001_init.sql             projects, tasks, tags, project_tags, task_tags, activity, mcp_tokens, schema_migrations
@@ -121,6 +122,7 @@ migrations/
   007_task_links.sql       task_links (url, label, position, deleted_at)
   008_task_checklist.sql   task_checklist_items (text, done, position, deleted_at)
   009_task_recurrence.sql  tasks.recurrence, recurred_from, recurred_to
+  010_task_closed_at.sql   tasks.closed_at (set on close, cleared on reopen)
 
 scripts/
   dev.js                   node:http on HOST:PORT (loopback by default): /api/* -> node-bridge -> app.fetch; everything else static from public/
@@ -132,7 +134,8 @@ scripts/
 
 public/                    served as-is; no build step
   favicon.svg
-  index.html               project list (filters, search, new project, import from Markdown with a preview, marquee of overdue tasks)
+  today.html               the home page (served at /): overdue, due this week, needs attention, finished this week, changed by Claude; mine or everything
+  projects.html            project list (filters, search, new project, import from Markdown with a preview, marquee of overdue tasks)
   project.html             one project: click-to-edit header, privacy toggle, tags, hit counter, export, trash, task table (click-to-edit cells)
   task.html                one task: every field click-to-edit, checklist, links, notes, tags, project, comments, activity, trash and restore
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default; status, due date, tags editable
@@ -149,10 +152,10 @@ public/                    served as-is; no build step
   js/avatar.js             the header's profile link: the person's initial from a 5x7 bitmap font as SVG rects (dom.js svg()), "T" fallback
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; svg() via createElementNS; oneLine() for confirm text; tagChip() validates #rrggbb;
-                           setTimeZone() so fmtWhen() and todayLocal() follow the person's zone
+                           setTimeZone() so fmtWhen() follows the person's zone; setToday() so todayLocal() is the server's today
   js/dev-user.js           red DEV MODE banner + "Dev user" dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
   js/odometer.js           visitor counter: six digits, role=img + aria-label, webring bar revealed by three clicks in two seconds
-  js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
+  js/overdue.js            isOverdue() (due_date before Me.today, status not in closed_statuses.task); fetchOverdue() asks due=overdue; showOverdue() renders the static
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
   js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
   js/task-columns.js       taskColumns(ctx): how each task field shows in a list (view, or click-to-edit value/control/fields), shared by the
@@ -165,7 +168,7 @@ public/                    served as-is; no build step
   js/activity-words.js     activity entry -> words + link
   js/for-you.js            For you: unread badge on the toolbar's What's New entry; last seen per user in localStorage (try/catch)
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
-  js/projects.js tasks.js task.js mine.js whats-new.js trash.js profile.js   one module per page; tasks.js (project page) and mine.js build their tables from js/task-columns.js
+  js/today.js projects.js tasks.js task.js mine.js whats-new.js trash.js profile.js   one module per page; tasks.js (project page) and mine.js build their tables from js/task-columns.js
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
 mcp/                       the MCP server (local stdio script)
@@ -176,7 +179,7 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
+                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), today (due filters, closed_at), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
                            login (password provider), preferences, ui-escaping (greps public/),
                            ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 
@@ -222,7 +225,7 @@ Example: links (`task_links`). A child has no privacy or version of its own: it 
 
 ### Add a status
 
-1. `taskscape.config.json`: add the name to `statuses.task` (or `statuses.project`) at the position you want it to sort. If it means "done", add it to `closed_statuses.task` as well, so tasks in it are never overdue.
+1. `taskscape.config.json`: add the name to `statuses.task` (or `statuses.project`) at the position you want it to sort. If it means "done", add it to `closed_statuses.task` as well, so tasks in it are never overdue; if it means "stuck", to `attention_statuses.task`, so the Today page lists it. Renaming or removing a status also means updating those lists: startup refuses a name in them that is not a status.
 2. Nothing else. Statuses are validated against the config, not the schema; the UI reads them from `GET /api/config`.
 3. Renaming or removing a status leaves old rows with the old string. They still list and read, and `status` filters simply ignore unknown names, but they sort last. Rename rows with a data migration: `migrations/NNN_rename_status.sql` containing `UPDATE tasks SET status = 'New' WHERE status = 'Old';`.
 
@@ -231,7 +234,7 @@ Example: links (`task_links`). A child has no privacy or version of its own: it 
 A view is a named sort and filter preset.
 
 1. `taskscape.config.json`, `default_views`: add an entry, for example `"overdue": { "sort": "due_date", "dir": "asc", "status": "To do,Doing,Blocked" }`. The keys mirror the list query parameters in `docs/API.md` §5. The API only serves this object; it does not interpret it.
-2. UI: `public/js/tasks.js` reads `config.default_views.tasks` for the initial sort; add the new preset there as a control that sets the list parameters for `GET /api/tasks`. Overdue itself is computed in the browser: `due_date` before today and status not in `closed_statuses`.
+2. UI: `public/js/tasks.js` reads `config.default_views.tasks` for the initial sort; add the new preset there as a control that sets the list parameters for `GET /api/tasks`. Overdue, due today and due this week are `due=overdue|today|week` (the server's today for the caller), so a preset can name them too.
 
 ### Change the look
 

@@ -143,13 +143,13 @@ test('callTool: fetch rejection becomes an error result without the token', asyn
 test('list_tasks / list_projects map array filters to comma-separated query params', async () => {
   const { client, calls } = makeClient(() => json(200, { items: [], limit: 500, offset: 0 }));
   await callTool('list_tasks', {
-    project_id: 'p1', status: ['To do', 'Doing'], priority: ['High', 'Low'], owner: 'me', tag: 'bug', q: 'gif',
+    project_id: 'p1', status: ['To do', 'Doing'], priority: ['High', 'Low'], owner: 'me', tag: 'bug', q: 'gif', due: 'overdue', closed_since: '2026-11-01',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: true,
   }, client);
   assert.equal(calls[0].method, 'GET');
   assert.equal(calls[0].path, '/api/tasks');
   assert.deepEqual(calls[0].query, {
-    project: 'p1', status: 'To do,Doing', priority: 'High,Low', owner: 'me', tag: 'bug', q: 'gif',
+    project: 'p1', status: 'To do,Doing', priority: 'High,Low', owner: 'me', tag: 'bug', q: 'gif', due: 'overdue', closed_since: '2026-11-01',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: 'true',
   });
   await callTool('list_projects', { status: ['Active'], include_trashed: false }, client);

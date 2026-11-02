@@ -5,7 +5,7 @@
 //   /            focus the search box (on another page: go to the project list and focus it there)
 //   n            new item: a project on the project list, a task on a project page
 //   ?            this list, in a native <dialog>
-//   g then h/m/w/t/p   go to Home, My tasks, What's New, Trash, Profile
+//   g then h/l/m/w/t/p   go to Home (Today), the project list, My tasks, What's New, Trash, Profile
 //
 // Keys are ignored while focus is in an input, textarea, select, or
 // contenteditable element, inside an open dialog, and when Ctrl, Alt or Meta
@@ -15,7 +15,7 @@ import { el, btn } from './dom.js';
 import { say } from './page.js';
 
 /** Where `g` goes. */
-const GO = { h: ['index.html', 'Home (the project list)'], m: ['mine.html', 'My tasks'], w: ['whats-new.html', "What's New"], t: ['trash.html', 'Trash'], p: ['profile.html', 'Profile'] };
+const GO = { h: ['today.html', 'Home (Today)'], l: ['projects.html', 'The project list'], m: ['mine.html', 'My tasks'], w: ['whats-new.html', "What's New"], t: ['trash.html', 'Trash'], p: ['profile.html', 'Profile'] };
 /** How long the second key of a sequence may take, in ms. */
 const SEQUENCE_MS = 1500;
 
@@ -39,7 +39,7 @@ function typing(ev) {
 function search() {
   const box = document.getElementById('search-q');
   if (box) { box.focus(); box.select?.(); return; }
-  location.href = 'index.html#search';
+  location.href = 'projects.html#search';
 }
 
 /** Focus the new-item form this page has, if the viewer may use it. */

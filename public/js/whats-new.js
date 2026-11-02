@@ -81,7 +81,7 @@ function showEmpty() {
     : state.forMe ? [el('p', null, 'Nothing for you yet. When someone else changes a project or task you own, it shows up here.'),
       el('p', null, el('a', { href: 'whats-new.html' }, 'See everything instead'))]
     : [el('p', null, 'Nothing has happened yet. Every change to a project, task, tag or comment is listed here, newest first.'),
-      me.can_edit ? el('p', null, el('a', { href: 'index.html', class: 'button' }, 'Create a project')) : null];
+      me.can_edit ? el('p', null, el('a', { href: 'projects.html', class: 'button' }, 'Create a project')) : null];
   setChildren(empty, items);
 }
 

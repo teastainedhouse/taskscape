@@ -72,7 +72,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 `priority` is one of `/api/config` `priorities` or `null` (none); a name later removed from the config still reads, and sorts after the configured ones and before none, in either direction.
 
-`links` are the task's live web links in order (section 6, "Links"); `url` is `http:` or `https:` as the URL parser writes it, `label` is a line of text or `null`. `checklist` is the task's live checklist items in order (section 6, "Checklists"). `recurrence` is `daily`, `weekly`, `monthly`, `yearly`, or `null`; `recurred_from` and `recurred_to` are read-only task ids (section 6, "Recurring tasks").
+`links` are the task's live web links in order (section 6, "Links"); `url` is `http:` or `https:` as the URL parser writes it, `label` is a line of text or `null`. `checklist` is the task's live checklist items in order (section 6, "Checklists"). `closed_at` (read-only) is when the task last moved into a closed status, `null` while open. `recurrence` is `daily`, `weekly`, `monthly`, `yearly`, or `null`; `recurred_from` and `recurred_to` are read-only task ids (section 6, "Recurring tasks").
 
 **Tag** `{ "id", "name", "color", "created_at" }` (no usage counts).
 
@@ -94,7 +94,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Session** (a sign-in under the password provider) `{ "id", "created_at", "last_seen_at", "expires_at", "current": true }`. Never the cookie value or its hash. `last_seen_at` moves at most once a minute. There is no user-agent or address column: the table keeps only what the sign-in needs.
 
-**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true, "preferences": Preferences }`.
+**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true, "preferences": Preferences, "today": "2026-11-02" }`. `today` is the server's date for this person: the day in their chosen time zone, else in `preference_defaults.time_zone`. It is the one "today" for overdue, the `due` filters, and a recurring task's next date.
 
 **Preferences** (personal, under any provider) `{ "theme": "toolbar", "comments_label": "Comments" | "Guestbook", "shortcuts": true, "time_zone": "UTC", "chosen": { "theme": false, "comments_label": false, "shortcuts": false, "time_zone": false } }`: the site defaults from the config overlaid with what the person chose, and `chosen` saying which keys they chose. The browser follows a chosen `time_zone` everywhere, and the device's zone otherwise; the MCP `me` tool follows the effective value (the site default when none was chosen). `theme` is one of `/api/config` `themes`; `time_zone` is an IANA name; `shortcuts` says whether single-key keyboard shortcuts are on. Like the auth tables, preferences have no `version` and write no activity: last write wins.
 
@@ -108,6 +108,8 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | `owner` | owner id, or `me` | |
 | `tag` | tag name(s), comma = any of | names, not ids |
 | `q` | substring | case-insensitive on name/title and description/notes, and on a task's live link URLs and labels and checklist item text; `%` `_` `\` literal |
+| `due` | `overdue`, `today`, `week` | tasks only; by the caller's today (their time zone, else `preference_defaults.time_zone`): `overdue` is a due date before today and a status not in `closed_statuses.task`; `today` is due today; `week` is today and the next 6 days |
+| `closed_since` | ISO 8601 UTC timestamp or `YYYY-MM-DD` | tasks only: `closed_at` at or after it |
 | `due_before`, `due_after` | `YYYY-MM-DD` | tasks only, inclusive; `due_before` excludes null due dates |
 | `include_trashed` | `false` (default), `true`, `only` | tasks of a trashed project are excluded by default and under `only` (they carry no `deleted_at` of their own); `true` includes everything |
 | `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date`, `priority` | `status` and `priority` sort in config order; `due_date` and `priority` nulls last in either direction |
@@ -215,6 +217,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "closed_statuses": { "project": ["Done"], "task": ["Done"] },
   "default_status": { "project": "Planned", "task": "To do" },
   "priorities": ["High","Medium","Low"],
+  "attention_statuses": { "task": ["Blocked"] },
   "tag_palette": ["#000080","#008000","#800000","#808000","#800080","#008080","#ff0000","#0000ff"],
   "task_fields": ["title","status","priority","checklist","owner","due_date","tags","private"],
   "default_views": { "tasks": { "sort": "due_date", "dir": "asc" } },
@@ -318,3 +321,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-02 (links): tasks gain `links` (live, in order) and the routes `POST /api/tasks/:id/links`, `PATCH`/`DELETE /api/tasks/:id/links/:linkId`, each a compare-and-set on the task's version with an activity entry; removing a link trashes it. Only `http:`/`https:` URLs. `q` matches link URLs and labels. Migration `007_task_links.sql`. The export writes a `Links:` block at the top of a task's section and the import reads it. MCP: a new `link` tool (one add, update or remove per call); `get` and the list tools return `links` with each task. `task_fields` may list `links` for a count column.
 - 2026-11-02 (checklists): tasks gain `checklist` (live items in order) and the routes `POST /api/tasks/:id/checklist`, `PATCH`/`DELETE /api/tasks/:id/checklist/:itemId`, each a compare-and-set on the task's version with an activity entry; removing an item trashes it. `q` matches item text. Migration `008_task_checklist.sql`. The export writes a `Checklist:` block of `- [ ]`/`- [x]` lines after `Links:`, and the import reads it. MCP: a new `checklist` tool; tasks carry `checklist` everywhere. `task_fields` lists `checklist` by default for a "3/5" column, which My tasks shows too.
 - 2026-11-02 (recurring tasks): tasks gain `recurrence` (`daily`, `weekly`, `monthly`, `yearly`, or `null`) and the read-only `recurred_from` and `recurred_to`. Closing a repeating task creates its next copy in the same transaction, once per task. Migration `009_task_recurrence.sql`. The export's task table gains a Repeats column and the import reads it (an import starts a new series: `recurred_from` is not exported). MCP: `create` and `update` take `recurrence`, and their descriptions say what a close does.
+- 2026-11-02 (Today): one server rule for today: `GET /api/tasks` takes `due=overdue|today|week` by the caller's today (their time zone, else the site's) and `closed_since`; tasks gain the read-only `closed_at` (migration `010_task_closed_at.sql`); `Me` gains `today`; `/api/config` gains `attention_statuses`. MCP `list_tasks` takes `due` and `closed_since`. The UI marks overdue by `Me.today` and asks for `due=overdue`, so the browser and the API agree. The home page is `today.html`; the project list is `projects.html` (no forwarding page).

@@ -40,6 +40,7 @@ export function rowToTask(r, tags = []) {
     // only the visible-reference columns (tasks.js select()): a raw id could name a task the reader cannot see
     recurred_from: r.recurred_from_ref ?? null,
     recurred_to: r.recurred_to_ref ?? null,
+    closed_at: r.closed_at ?? null,
     version: Number(r.version),
     created_at: r.created_at,
     updated_at: r.updated_at,

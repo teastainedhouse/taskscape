@@ -51,6 +51,7 @@ export const OPTIONAL_SUMMARY_FIELDS = ['priority', 'checklist', 'links'];
  * @property {() => any} [project]              the project the list is in (project page), for the private-project owner rule
  * @property {(t: any, fields: object) => Promise<any>} save  one PATCH; resolves like an inline-edit save
  * @property {(rec: any) => void} onUpdated     a tag chip saved on its own
+ * @property {string} [keyPrefix]               makes edit keys unique when one task shows in several lists on a page
  */
 
 /**
@@ -126,7 +127,7 @@ export function taskCell(c, t, ctx) {
   const after = c.after?.(t) ?? null;
   if (!c.control) return [c.view(t), after];
   return [inlineEdit({
-    key: `task-${t.id}-${c.key}`, label: c.label, value: c.value(t),
+    key: `${ctx.keyPrefix ?? ''}task-${t.id}-${c.key}`, label: c.label, value: c.value(t),
     allowed: ctx.mayEdit() && (c.allowed?.(t) ?? true),
     format: c.format ? (v) => c.format(v, t) : undefined, empty: c.empty, block: c.block,
     control: (v) => c.control(t, v),

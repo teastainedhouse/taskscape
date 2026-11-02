@@ -4,7 +4,7 @@ import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
 import { RECURRENCES } from './recurrence.js';
 
-const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist', 'recurred_from', 'recurred_to'];
+const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist', 'recurred_from', 'recurred_to', 'closed_at'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
@@ -367,6 +367,14 @@ export function parseListQuery(q, config, kind) {
   if (kind === 'task') {
     f.project = q.project || undefined;
     f.priority = csv(q.priority)?.filter((s) => config.priorities.includes(s));
+    if (q.due) { if (['overdue', 'today', 'week'].includes(q.due)) f.due = q.due; else errors.due = 'must be overdue, today, or week'; }
+    if (q.closed_since) {
+      const t = Date.parse(q.closed_since);
+      // a real calendar day (no 31 February rolled over into March), alone or as the date of a UTC timestamp
+      if (/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/.test(q.closed_since) && !Number.isNaN(t) && validDate(q.closed_since.slice(0, 10))
+        && new Date(t).toISOString().slice(0, 10) === q.closed_since.slice(0, 10)) f.closed_since = new Date(t).toISOString();
+      else errors.closed_since = 'must be an ISO 8601 UTC timestamp or YYYY-MM-DD';
+    }
     for (const k of ['due_before', 'due_after']) {
       if (q[k]) { if (validDate(q[k])) f[k] = q[k]; else errors[k] = 'must be YYYY-MM-DD'; }
     }

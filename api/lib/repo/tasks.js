@@ -9,7 +9,7 @@ import * as people from './people.js';
 import * as links from './links.js';
 import * as checklist from './checklist.js';
 import * as preferences from './preferences.js';
-import { nextDue, isMonthEnd, dayOfMonth, dateInZone } from '../recurrence.js';
+import { nextDue, isMonthEnd, dayOfMonth, addDays } from '../recurrence.js';
 import { validDate } from '../validate.js';
 
 const SETTABLE = ['project_id', 'title', 'status', 'priority', 'owner_id', 'owner_name', 'private', 'due_date', 'notes', 'recurrence'];
@@ -77,6 +77,14 @@ export async function list(db, user, f, config) {
       OR EXISTS (SELECT 1 FROM task_checklist_items qc WHERE qc.task_id = t.id AND qc.deleted_at IS NULL AND LOWER(qc.text) LIKE ? ESCAPE '\\'))`);
     const l = likeContains(f.q); params.push(l, l, l, l, l);
   }
+  // `due` needs the caller's today (f.today, from preferences.todayFor()); overdue also means not in a closed status
+  if (f.due === 'overdue') {
+    where.push('t.due_date IS NOT NULL AND t.due_date < ?'); params.push(f.today);
+    const closedList = config.closed_statuses.task;
+    if (closedList.length) { where.push(`t.status NOT IN (${closedList.map(() => '?').join(', ')})`); params.push(...closedList); }
+  } else if (f.due === 'today') { where.push('t.due_date = ?'); params.push(f.today); }
+  else if (f.due === 'week') { where.push('t.due_date >= ? AND t.due_date <= ?'); params.push(f.today, addDays(f.today, 6)); }
+  if (f.closed_since) { where.push('t.closed_at IS NOT NULL AND t.closed_at >= ?'); params.push(f.closed_since); }
   if (f.due_before) { where.push('t.due_date IS NOT NULL AND t.due_date <= ?'); params.push(f.due_before); }
   if (f.due_after) { where.push('t.due_date >= ?'); params.push(f.due_after); }
   let order;
@@ -159,9 +167,10 @@ export async function createIn(tx, user, input, config, now) {
     // when there is one, else the stored one): nobody chose a new owner, so a disabled account must not block a close.
     if (ownerId !== user.id) row.owner_name = input.copyOwnerName ?? await people.ownerNameFor(tx, config, ownerId, input.owner_name);
     await tx.query(
-      `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, recurred_from, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, row.recurrence, row.recurred_from, now, now]);
+      `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, recurred_from, closed_at, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, row.recurrence, row.recurred_from,
+        config.closed_statuses.task.includes(row.status) ? now : null, now, now]);
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
     const linkList = (input.links ?? []).slice(0, links.MAX_LINKS);
     await links.insertIn(tx, user, id, linkList, now);
@@ -242,8 +251,9 @@ export async function update(db, user, id, input, config, now) {
     const copyId = makesCopy ? newId() : null;
     if (copyId) changes.recurred_to = { from: null, to: copyId };
     await cas(tx, user, id, input.version,
-      'project_id = ?, title = ?, status = ?, priority = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, recurrence = ?, recurred_to = COALESCE(?, recurred_to), updated_at = ?',
-      [next.project_id, next.title, next.status, next.priority, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, next.recurrence, copyId, now]);
+      'project_id = ?, title = ?, status = ?, priority = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, recurrence = ?, recurred_to = COALESCE(?, recurred_to), closed_at = ?, updated_at = ?',
+      [next.project_id, next.title, next.status, next.priority, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, next.recurrence, copyId,
+        closed.includes(next.status) ? (closed.includes(before.status) ? before.closed_at : now) : null, now]); // staying closed keeps it, even unknown
     await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
     if (copyId) await makeNextCopy(tx, user, { ...before, ...next }, copyId, config, now);
     // Only a reassignment can hide the task from its writer, and that path holds the project's row lock, so the
@@ -294,11 +304,7 @@ async function anchorDay(tx, task) {
  * Its create entry names the task it came from.
  */
 async function makeNextCopy(tx, user, task, copyId, config, now) {
-  let from = task.due_date;
-  if (!from) {
-    const zone = preferences.effective(config, await preferences.get(tx, task.owner_id)).time_zone;
-    from = dateInZone(new Date(now), zone);
-  }
+  const from = task.due_date ?? (await preferences.todayFor(tx, config, task.owner_id, now)).today;
   const anchor = ['monthly', 'yearly'].includes(task.recurrence) && task.due_date ? await anchorDay(tx, task) : undefined;
   const due = nextDue(from, task.recurrence, anchor);
   if (!validDate(due)) throw invalidState('The next due date would be past the year 9999. Change the due date or stop the repeat, then close it.');

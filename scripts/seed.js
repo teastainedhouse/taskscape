@@ -102,6 +102,10 @@ const plant = await tasks.create(db, bob, { id: 'water-the-plant', project_id: P
 await tasks.update(db, mcp('bob', 'seed-session-0003'), plant.id, { version: plant.version, status: 'Done' }, config, tick());
 await tasks.create(db, alice, { id: 'monthly-report', project_id: P.web.id, title: 'Send the monthly traffic report', recurrence: 'monthly', priority: 'Medium', due_date: daysFromNow(12) }, config, tick());
 
+// one task finished yesterday, so the Today page's "Finished in the last 7 days" has something to show
+const banner = await tasks.create(db, alice, { id: 'order-the-banner', project_id: P.party.id, title: 'Order the party banner', due_date: daysFromNow(-1) }, config, tick());
+await tasks.update(db, alice, banner.id, { version: banner.version, status: 'Done' }, config, new Date(Date.now() - 86_400_000).toISOString());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -115,7 +119,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 }
 
 console.log(`seeded ${url}`);
-console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 3}, tags: ${Object.keys(tag).length}`);
+console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 4}, tags: ${Object.keys(tag).length}`);
 console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);

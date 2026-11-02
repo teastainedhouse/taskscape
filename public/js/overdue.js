@@ -1,5 +1,7 @@
-// overdue.js — overdue is computed in the browser (docs/PLAN.md §2, rule 8):
-// due_date before today's local date and status not in config.closed_statuses.task.
+// overdue.js — overdue is due_date before today and a status not in
+// config.closed_statuses.task (docs/PLAN.md §2, rule 8). "Today" is the server's
+// for this person (GET /api/me `today`, through todayLocal()), and the lists
+// ask the API with `due=overdue`, so the browser and the API use one rule.
 // The signal is a static line in the page (count plus links); the marquee in the
 // toolbar repeats it as decoration only: plain text, hidden from assistive tech,
 // a CSS animation that base.css stops under reduced motion, and a Stop button
@@ -20,21 +22,17 @@ export function isOverdue(task, config, today = todayLocal()) {
 }
 
 /**
- * Fetch open tasks due before today (the API filter is inclusive, so filter again).
- * Asks for the open statuses only, so closed tasks cannot crowd the page out, and
- * takes the largest page; `more` says it came back full, so there may be more.
+ * Fetch overdue tasks (`due=overdue`: the server's today, open statuses only) at the
+ * largest page size; `more` says it came back full, so there may be more.
  * @param {any} config
  * @param {{project?: string, owner?: string}} [filters]  e.g. one project, or owner "me"
  * @returns {Promise<{tasks: any[], more: boolean}>}
  */
 export async function fetchOverdue(config, filters = {}) {
-  const today = todayLocal();
-  const closed = config.closed_statuses?.task ?? [];
-  const status = closed.length ? config.statuses.task.filter((s) => !closed.includes(s)).join(',') : undefined;
   const limit = config.limits?.max_page_size;
-  const res = await get('/api/tasks', { ...filters, status, limit, due_before: today, sort: 'due_date', dir: 'asc' });
+  const res = await get('/api/tasks', { ...filters, due: 'overdue', limit, sort: 'due_date', dir: 'asc' });
   const items = res.items ?? [];
-  return { tasks: items.filter((t) => isOverdue(t, config, today)), more: items.length >= res.limit };
+  return { tasks: items, more: items.length >= res.limit };
 }
 
 /** Bumped by every refreshOverdue(), so only the latest answer is drawn. */

@@ -56,7 +56,7 @@ function notFound() {
   document.title = `Not found - ${config.site_title || 'Taskscape'}`;
   activitySection.hidden = true;
   setChildren(host, [el('h1', null, 'Not found'),
-    el('p', null, 'This task does not exist, or it is private to someone else. ', el('a', { href: 'index.html' }, 'Back to the projects'))]);
+    el('p', null, 'This task does not exist, or it is private to someone else. ', el('a', { href: 'projects.html' }, 'Back to the projects'))]);
   document.getElementById('crumbs').hidden = true;
 }
 
@@ -97,7 +97,7 @@ function render() {
   const crumbs = document.getElementById('crumbs');
   if (crumbs.dataset.project !== t.project_id) { // redrawn only on a move, so a focused crumb link stays put
     crumbs.dataset.project = t.project_id;
-    setChildren(crumbs, [el('a', { href: 'index.html' }, '« All projects'), ' / ', projectLink(t.project_id, t.project_name ?? 'Project')]);
+    setChildren(crumbs, [el('a', { href: 'projects.html' }, '« All projects'), ' / ', projectLink(t.project_id, t.project_name ?? 'Project')]);
   }
 
   const parts = [];

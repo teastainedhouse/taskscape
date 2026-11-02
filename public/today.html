@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Today - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="site-title"><a href="today.html" data-site-title>Taskscape</a></p>
+      <nav aria-label="Main">
+        <a href="today.html">Today</a> <span aria-hidden="true">|</span>
+        <a href="projects.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
+        <a href="profile.html">Profile</a>
+      </nav>
+      <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
+      <a href="profile.html" class="avatar" id="avatar" aria-label="Your profile"></a>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>Today <span id="today-date" class="muted"></span></h1>
+      <fieldset id="today-scope" class="filters today-scope"></fieldset>
+      <div id="today-sections"></div>
+      <section id="claude-changes" class="today-section" aria-labelledby="claude-h">
+        <h2 id="claude-h">Changed by Claude since your last visit</h2>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <address data-served-by>Taskscape</address>
+    </footer>
+  </div>
+  <script type="module" src="js/today.js"></script>
+</body>
+</html>

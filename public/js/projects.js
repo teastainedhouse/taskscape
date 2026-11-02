@@ -1,4 +1,4 @@
-// projects.js — the project list (index.html): sort, filter, search,
+// projects.js — the project list (projects.html): sort, filter, search,
 // new project, overdue line and marquee, What's New preview. Trashing a
 // project happens on its own page.
 

@@ -13,6 +13,7 @@ const PUBLIC_CSS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
  * @property {{project: string[], task: string[]}} closed_statuses
  * @property {{project: string, task: string}} default_status
  * @property {string[]} priorities  task priorities, highest first; a task's priority is one of these or null
+ * @property {{task: string[]}} attention_statuses  task statuses that need someone's attention (the Today page)
  * @property {string[]} tag_palette
  * @property {string[]} task_fields
  * @property {object} default_views
@@ -70,6 +71,8 @@ function validate(c) {
   c.priorities = c.priorities ?? ['High', 'Medium', 'Low'];
   if (!Array.isArray(c.priorities) || !c.priorities.every(listName)) fail('priorities must be names of 1 to 40 characters, without commas or spaces at either end');
   if (new Set(c.priorities).size !== c.priorities.length) fail('priorities has duplicates');
+  c.attention_statuses = { task: [], ...(c.attention_statuses ?? {}) };
+  if (!Array.isArray(c.attention_statuses.task) || c.attention_statuses.task.some((s) => !c.statuses.task.includes(s))) fail('attention_statuses.task must list task statuses');
   if (!Array.isArray(c.tag_palette) || c.tag_palette.some((x) => !/^#[0-9a-f]{6}$/i.test(x))) fail('tag_palette must be #rrggbb colors');
   if (!c.catch_all_project?.id || !c.catch_all_project?.name) fail('catch_all_project needs id and name');
   if (!['everyone', 'group'].includes(c.permissions?.edit)) fail('permissions.edit must be "everyone" or "group"');
@@ -119,6 +122,7 @@ export function publicConfig(c) {
     closed_statuses: c.closed_statuses,
     default_status: c.default_status,
     priorities: c.priorities,
+    attention_statuses: c.attention_statuses,
     tag_palette: c.tag_palette,
     task_fields: c.task_fields,
     default_views: c.default_views,

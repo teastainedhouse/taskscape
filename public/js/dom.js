@@ -202,8 +202,16 @@ export function timeEl(iso) {
   return iso ? el('time', { datetime: iso }, fmtWhen(iso)) : text('');
 }
 
-/** Today's date as YYYY-MM-DD in the preferred time zone (else the device's). */
+/** The server's today for this person (GET /api/me `today`), the one rule for overdue; page.js sets it. */
+let serverToday = null;
+/** @param {string|null|undefined} d YYYY-MM-DD */
+export function setToday(d) {
+  serverToday = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+}
+
+/** Today's date as YYYY-MM-DD: the server's for this person when known, else in the preferred time zone (else the device's). */
 export function todayLocal() {
+  if (serverToday) return serverToday;
   const d = new Date();
   if (zone) {
     try {

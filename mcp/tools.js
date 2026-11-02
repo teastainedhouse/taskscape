@@ -107,6 +107,8 @@ export const TOOLS = [
         owner: { type: 'string', description: 'Owner id, or "me".' },
         tag: { type: 'string', description: 'Tag name(s), comma-separated = any of.' },
         q: { type: 'string', description: 'Case-insensitive substring on title, notes, link URLs and labels, and checklist item text.' },
+        due: { type: 'string', enum: ['overdue', 'today', 'week'], description: 'overdue (due before today, not in a closed status), today, or week (today and the next 6 days); "today" is in the user\'s own time zone, as the me tool reports it.' },
+        closed_since: { type: 'string', description: 'ISO 8601 UTC timestamp or YYYY-MM-DD: tasks that moved into a closed status since then.' },
         due_before: { type: 'string', description: 'YYYY-MM-DD, inclusive; excludes tasks without a due date.' },
         due_after: { type: 'string', description: 'YYYY-MM-DD, inclusive.' },
         include_trashed: { type: 'boolean', description: 'Also include trashed tasks (default false).' },
@@ -529,8 +531,9 @@ const handlers = {
     if (!me || typeof me !== 'object' || typeof me.id !== 'string') return fail('Unexpected answer from Taskscape for /api/me.');
     let timeZone = typeof me.preferences?.time_zone === 'string' && me.preferences.time_zone ? me.preferences.time_zone : 'UTC';
     const at = new Date();
-    let today;
-    try { today = dateIn(at, timeZone); } catch { timeZone = 'UTC'; today = at.toISOString().slice(0, 10); } // a zone this runtime lacks: say UTC and mean it
+    // the server's today when it says (the one rule the due filters use); else work it out here, UTC if this runtime lacks the zone
+    let today = typeof me.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(me.today) ? me.today : null;
+    if (!today) { try { today = dateIn(at, timeZone); } catch { timeZone = 'UTC'; today = at.toISOString().slice(0, 10); } }
     const cfg = await client.get('/api/config');
     const site = isOk(cfg) && cfg.body && typeof cfg.body === 'object' ? cfg.body : {};
     return ok({ id: me.id, name: me.name, can_edit: me.can_edit === true, time_zone: timeZone, today, now: at.toISOString(),
@@ -556,6 +559,8 @@ const handlers = {
       owner: args.owner,
       tag: args.tag,
       q: args.q,
+      due: args.due,
+      closed_since: args.closed_since,
       due_before: args.due_before,
       due_after: args.due_after,
       include_trashed: args.include_trashed ? 'true' : undefined,
