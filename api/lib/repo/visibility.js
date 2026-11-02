@@ -83,6 +83,18 @@ export function activityVisible(a, user) {
   };
 }
 
+/**
+ * A column holding another task's id (recurred_from, recurred_to), as the id when that task is visible to the user,
+ * else NULL: a link between two tasks must not name one the reader cannot see.
+ * @param {string} col  e.g. 't.recurred_to'
+ * @param {{id: string}} user
+ * @returns {Fragment}
+ */
+export function visibleTaskRef(col, user) {
+  const v = taskVisible('rt', 'rp', user);
+  return { sql: `(CASE WHEN EXISTS (SELECT 1 FROM tasks rt JOIN projects rp ON rp.id = rt.project_id WHERE rt.id = ${col} AND ${v.sql}) THEN ${col} END)`, params: v.params };
+}
+
 /** @param {string} alias @returns {string} */
 export function live(alias) {
   return `${alias}.deleted_at IS NULL`;

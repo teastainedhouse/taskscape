@@ -97,6 +97,11 @@ steps = await checklist.update(db, mcp('alice', 'seed-session-0002'), T.gifs.id,
 let launch = await tasks.get(db, alice, T.checklist.id);
 for (const text of ['Test in two browsers', 'Turn on the counter', 'Announce on the webring']) launch = await checklist.add(db, alice, T.checklist.id, launch.version, { text }, tick());
 
+// a weekly task that Claude closed once, so the next one exists and points back
+const plant = await tasks.create(db, bob, { id: 'water-the-plant', project_id: P.office.id, title: 'Water the office plant', recurrence: 'weekly', due_date: daysFromNow(-2) }, config, tick());
+await tasks.update(db, mcp('bob', 'seed-session-0003'), plant.id, { version: plant.version, status: 'Done' }, config, tick());
+await tasks.create(db, alice, { id: 'monthly-report', project_id: P.web.id, title: 'Send the monthly traffic report', recurrence: 'monthly', priority: 'Medium', due_date: daysFromNow(12) }, config, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -110,8 +115,8 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 }
 
 console.log(`seeded ${url}`);
-console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
-console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists`);
+console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 3}, tags: ${Object.keys(tag).length}`);
+console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

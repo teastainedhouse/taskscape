@@ -65,6 +65,7 @@ api/
     config.js              loadConfig(), prepareConfig() (env overrides + validation, incl. that every theme has its CSS file), publicConfig(), canEdit()
     validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
                            validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), validateLink() + cleanLinkUrl() (http/https only), validateChecklistItem(), parseListQuery(), parseActivityQuery()
+    recurrence.js          RECURRENCES, nextDue() (month ends, leap years), addDays/addMonths, dateInZone(); pure date arithmetic
     markdown.js            renderProjectExport(), mdCell(), mdInline(), mdText(), slug()
     markdown-import.js     parseProjectExport(): the export format back into a project and tasks, pure; ImportParseError names field and line
     import.js              planImport() (owners by exact unique name, statuses and fields checked with the line, notes) and runImport()
@@ -89,16 +90,18 @@ api/
       migrate.js           listMigrations() (numeric order, dialect override wins; a misnamed .sql throws), runMigrations() (one transaction
                            per file; throws if an applied id's recorded name differs from its file)
     repo/
-      visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, commentVisible, commentShown, activityVisible, live, trashState, likeContains
+      visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, visibleTaskRef (a task id only if visible), commentVisible, commentShown,
+                           activityVisible, live, trashState, likeContains
       common.js            rowToProject(), rowToTask(), rowToTag(), tagsFor(), statusOrder(), diff()
       projects.js          ensureCatchAll(), get/mustGet/list/create (createIn for a held transaction)/update/trash/restore/setTag/recordHit; moveForeignTasks on flip-private
-      tasks.js             get/mustGet/list/create (createIn)/update/trash/restore/setTag; childWrite() (a CAS on the task for a child record); the "private project holds only its owner's tasks" invariant
+      tasks.js             get/mustGet/list/create (createIn)/update/trash/restore/setTag; childWrite() (a CAS on the task for a child record); closing a repeating task makes its next copy (makeNextCopy, anchorDay); the "private project holds only its owner's tasks" invariant
       tags.js              normalizeTagName(), list, create (idempotent; createIn), mustExist()
       links.js             task_links: linksFor(db, user, ids) (applies taskVisible), add/update/trash through tasks.childWrite(), insertIn(tx, user, taskId, …)
                            (copies on create); MAX_LINKS
       checklist.js         task_checklist_items: checklistFor(db, user, ids), add/update/trash through tasks.childWrite(), insertIn; MAX_ITEMS
       comments.js          comments: listFor, liveFor (export), get/mustGet, create (on a visible, live parent), trash/restore (author only)
-      activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility, and for=me
+      activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility (hidden project and task ids in
+                           `changes` become null), and for=me
       people.js            distinct owners of visible items + caller + the directory for editors in the browser (dev users, enabled users rows); directoryName();
                            ownerNameFor() (directory name, else the client's, else 400), the last check in project and task writes
       tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
@@ -117,6 +120,7 @@ migrations/
   006_task_priority.sql    tasks.priority (one of config priorities, or NULL)
   007_task_links.sql       task_links (url, label, position, deleted_at)
   008_task_checklist.sql   task_checklist_items (text, done, position, deleted_at)
+  009_task_recurrence.sql  tasks.recurrence, recurred_from, recurred_to
 
 scripts/
   dev.js                   node:http on HOST:PORT (loopback by default): /api/* -> node-bridge -> app.fetch; everything else static from public/
@@ -152,7 +156,7 @@ public/                    served as-is; no build step
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
   js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
   js/task-columns.js       taskColumns(ctx): how each task field shows in a list (view, or click-to-edit value/control/fields), shared by the
-                           project table and My tasks; columnsFor(), taskCell(); MINE_FIELDS + OPTIONAL_SUMMARY_FIELDS for My tasks
+                           project table and My tasks; columnsFor(), taskCell(); MINE_FIELDS + OPTIONAL_SUMMARY_FIELDS for My tasks; recurrenceMark(), copyNote()
   js/task-checklist.js     the task page's Checklist: checklistList() (labelled checkboxes, rename, move up/down, remove), checklistForm(); checklistProgress() "3/5"
   js/task-links.js         the task page's Links: linksList() (safeUrl, rel=noopener noreferrer, move up/down, remove), linkForm() built once; linkAnchor()
   js/inline-edit.js        inlineEdit(): click a value (a real button) to edit it; Enter/blur saves one field with version, Escape cancels; selectFor(), focusEditable()
@@ -172,7 +176,7 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
+                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
                            login (password provider), preferences, ui-escaping (greps public/),
                            ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 

@@ -9,7 +9,7 @@ const VIA = { ui: 'UI', mcp: 'Claude' };
 
 /** Human labels for changed fields; anything else uses the field name. */
 const FIELD_LABELS = {
-  title: 'title', name: 'name', status: 'status', priority: 'priority', owner_id: 'owner', owner_name: 'owner',
+  title: 'title', name: 'name', status: 'status', priority: 'priority', recurrence: 'repeats', owner_id: 'owner', owner_name: 'owner',
   due_date: 'due date', private: 'privacy', description: 'description', notes: 'notes',
   project_id: 'project', tags: 'tags', color: 'color',
 };
@@ -72,6 +72,7 @@ export function describeActivity(a, ctx = {}) {
             : from.text !== to.text ? `renamed the checklist item "${show(from.text)}" to "${show(to.text)}"${from.done !== to.done ? (to.done ? ' and ticked it' : ' and unticked it') : ''}`
               : `${to.done ? 'ticked' : 'unticked'} "${show(to.text)}"`); break;
           case 'checklist_moved': phrases.push(`moved the checklist item "${show(d?.item?.text)}" ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
+          case 'recurred_to': phrases.push('it repeats, so the next one was created'); break;
           case 'link_moved': phrases.push(`moved the link ${linkName(d?.link)} ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           default: phrases.push(`${FIELD_LABELS[field] ?? field}: ${show(from)} → ${show(to)}`);
         }

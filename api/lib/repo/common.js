@@ -36,6 +36,10 @@ export function rowToTask(r, tags = []) {
     private: bool(r.private),
     due_date: r.due_date ?? null,
     notes: r.notes ?? '',
+    recurrence: r.recurrence ?? null,
+    // only the visible-reference columns (tasks.js select()): a raw id could name a task the reader cannot see
+    recurred_from: r.recurred_from_ref ?? null,
+    recurred_to: r.recurred_to_ref ?? null,
     version: Number(r.version),
     created_at: r.created_at,
     updated_at: r.updated_at,

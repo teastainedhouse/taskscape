@@ -1,6 +1,6 @@
 import { newId } from '../ids.js';
 import { validationFailed } from '../errors.js';
-import { activityVisible, projectVisible } from './visibility.js';
+import { activityVisible, projectVisible, taskVisible } from './visibility.js';
 
 /**
  * Append one activity entry. Always called inside the write's transaction.
@@ -30,6 +30,26 @@ export function decodeCursor(cursor) {
   const i = text.indexOf('|');
   if (i <= 0) throw validationFailed({ before: 'is not a valid cursor' });
   return { created_at: text.slice(0, i), id: text.slice(i + 1) };
+}
+
+/**
+ * A recurring task's entries name the other task of the pair (recurred_to on the close, recurred_from on the copy's
+ * create). Replace an id the user cannot see with null, as hideInvisibleProjectIds() does for projects.
+ * @param {import('../db/index.js').Db} db
+ * @param {import('../auth/index.js').Principal} user
+ * @param {Array<Record<string, {from?: unknown, to?: unknown}>>} changesList
+ */
+async function hideInvisibleTaskIds(db, user, changesList) {
+  const ids = new Set();
+  for (const c of changesList) for (const k of ['recurred_to', 'recurred_from']) if (typeof c?.[k]?.to === 'string') ids.add(c[k].to);
+  if (ids.size === 0) return;
+  const list = [...ids];
+  const vis = taskVisible('t', 'p', user);
+  const { rows } = await db.query(
+    `SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id IN (${list.map(() => '?').join(', ')}) AND ${vis.sql}`,
+    [...list, ...vis.params]);
+  const visible = new Set(rows.map((r) => r.id));
+  for (const c of changesList) for (const k of ['recurred_to', 'recurred_from']) if (typeof c?.[k]?.to === 'string' && !visible.has(c[k].to)) c[k].to = null;
 }
 
 /**
@@ -128,6 +148,7 @@ export async function list(db, user, f) {
   const last = page.at(-1);
   const parsed = page.map((r) => JSON.parse(r.changes));
   await hideInvisibleProjectIds(db, user, parsed);
+  await hideInvisibleTaskIds(db, user, parsed);
   return {
     items: page.map((r, i) => ({
       id: r.id,

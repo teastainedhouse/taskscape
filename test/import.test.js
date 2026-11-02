@@ -18,7 +18,7 @@ async function seeded(t) {
   const p = (await a.post('/api/projects', { name: 'Site | refresh', description: 'Line one\n\n  indented two', status: 'Active', tag_ids: [web.id] })).body;
   const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'Fix | GIFs', priority: 'Medium', due_date: '2026-11-05', notes: 'Notes **bold**\n\nsecond paragraph', tag_ids: [web.id] })).body;
   // distinct due dates: the export orders by due date, and undated tasks would tie
-  await a.post('/api/tasks', { project_id: p.id, title: 'Bob does this', owner_id: 'bob', status: 'Doing', due_date: '2026-11-06' });
+  await a.post('/api/tasks', { project_id: p.id, title: 'Bob does this', owner_id: 'bob', status: 'Doing', recurrence: 'weekly', due_date: '2026-11-06' });
   await a.post('/api/tasks', { project_id: p.id, title: 'Carol does that', owner_id: 'carol', status: 'Done', due_date: '2026-11-07' });
   let v = t1.version;
   v = (await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/spec?a=1&b=2#top', label: 'Spec [v2] \\ (draft) *x* <b>' })).body.version;
@@ -60,6 +60,8 @@ test('round trip: export, import, export again; same text apart from ids, dates 
   assert.ok(first.includes('Checklist:\n\n- [x] Find the \\[old\\] GIF \\*now\\*\n- [ ] - \\[x\\] looks done but is text\n'), first);
   assert.ok(first.includes('Links:\n\n- [Spec \\[v2\\] \\\\ \\(draft\\) \\*x\\* \\<b\\>](<https://example.test/spec?a=1&b=2#top>)\n- <https://example.test/plain>\n'), first);
   assert.equal(byTitle['Bob does this'].priority, null);
+  assert.equal(byTitle['Bob does this'].recurrence, 'weekly');
+  assert.equal(byTitle['Bob does this'].recurred_from, null, 'an import starts a new series');
   assert.equal(copies.length, 3);
   assert.equal((await a.get('/api/tags')).body.items.length, 1, 'no second "web" tag');
   // one activity entry per created item, by the importer

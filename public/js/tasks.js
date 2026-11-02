@@ -13,7 +13,7 @@ import { get, post, patch, del, projectPath, taskPath, ApiError } from './api.js
 import { el, btn, option, clear, setChildren, padlock, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, redraw } from './inline-edit.js';
 import { refreshOverdue, isOverdue } from './overdue.js';
-import { taskColumns, columnsFor, taskCell } from './task-columns.js';
+import { taskColumns, columnsFor, taskCell, copyNote } from './task-columns.js';
 import { tagEditor } from './tags.js';
 import { createPager } from './pager.js';
 import { guestbook, commentWords } from './guestbook.js';
@@ -222,7 +222,8 @@ const columnContext = {
   config, me, mayEdit, people: () => state.people, project: () => state.project, onUpdated: replaceTask,
   save: async (t, fields) => {
     const rec = await patchTask(t, fields);
-    return rec && { note: matchesFilters(rec) ? null : 'It no longer matches the filters and will leave the list on reload.' };
+    const notes = [matchesFilters(rec ?? t) ? null : 'It no longer matches the filters and will leave the list on reload.', copyNote(t, rec)].filter(Boolean);
+    return rec && { note: notes.join(' ') || null };
   },
 };
 const columns = columnsFor(taskColumns(columnContext), (config.task_fields ?? ['title', 'status', 'owner', 'due_date', 'tags', 'private'])

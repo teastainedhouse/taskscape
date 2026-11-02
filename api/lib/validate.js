@@ -2,13 +2,14 @@ import { validationFailed } from './errors.js';
 import * as tagsRepo from './repo/tags.js';
 import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
+import { RECURRENCES } from './recurrence.js';
 
-const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist'];
+const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist', 'recurred_from', 'recurred_to'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
 /** @param {string} s */
-function validDate(s) {
+export function validDate(s) {
   if (!DATE_RE.test(s)) return false;
   const d = new Date(s + 'T00:00:00Z');
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
@@ -72,6 +73,10 @@ export function validateItem(body, config, kind, { partial }) {
       if (body.priority === null) out.priority = null;
       else if (!config.priorities.includes(body.priority)) errors.priority = 'must be one of the configured priorities or null';
       else out.priority = body.priority;
+    }
+    if ('recurrence' in body) {
+      if (body.recurrence === null || RECURRENCES.includes(body.recurrence)) out.recurrence = body.recurrence;
+      else errors.recurrence = `must be ${RECURRENCES.join(', ')}, or null`;
     }
     if ('due_date' in body) {
       if (body.due_date === null) out.due_date = null;

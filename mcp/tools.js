@@ -32,6 +32,9 @@ const OWNER_NAME_TEXT =
 
 const PRIORITY_TEXT = 'One of the configured priorities (see the me tool: priorities, highest first), or null for none.';
 
+const RECURRENCE_TEXT = 'daily, weekly, monthly or yearly, or null for none. Closing a repeating task (moving it into a closed status) creates its next copy, ' +
+  'due one period after the old due date (or after today), with the checklist unticked; the closed task\'s recurred_to names it. It happens once per task.';
+
 const PROJECT_FIELDS = {
   name: { type: 'string' },
   description: { type: 'string' },
@@ -52,6 +55,7 @@ const TASK_FIELDS = {
   private: { type: 'boolean' },
   due_date: { type: ['string', 'null'], description: 'YYYY-MM-DD or null.' },
   notes: { type: 'string' },
+  recurrence: { type: ['string', 'null'], enum: ['daily', 'weekly', 'monthly', 'yearly', null], description: RECURRENCE_TEXT },
   tags: { ...STRING_LIST, description: 'Tag NAMES. Missing tags are created.' },
 };
 
@@ -128,7 +132,7 @@ export const TOOLS = [
     name: 'create',
     description:
       'Create a project or a task. Project fields: name (required), description, status, owner_id, owner_name, private, tags. ' +
-      'Task fields: title (required), project_id (omit for the catch-all project), status, priority, owner_id, owner_name, private, due_date, notes, tags. ' +
+      'Task fields: title (required), project_id (omit for the catch-all project), status, priority, owner_id, owner_name, private, due_date, notes, recurrence, tags. ' +
       '"tags" are tag NAMES; missing tags are created first, and tag names and colours are visible to everyone, even on private items. Returns the new record. ' + DATA_NOTICE,
     inputSchema: {
       type: 'object',
@@ -136,7 +140,7 @@ export const TOOLS = [
         type: TYPE_SCHEMA,
         fields: {
           type: 'object',
-          description: 'The new record. Project: {name, description?, status?, owner_id?, owner_name?, private?, tags?}. Task: {project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, tags?}.',
+          description: 'The new record. Project: {name, description?, status?, owner_id?, owner_name?, private?, tags?}. Task: {project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, recurrence?, tags?}.',
           properties: { ...PROJECT_FIELDS, ...TASK_FIELDS },
           additionalProperties: false,
         },
@@ -150,7 +154,8 @@ export const TOOLS = [
     description:
       'Change fields on a project or task. "version" is required: use the version from the latest get or list result for this record. ' +
       'If someone changed the record since, the call fails with a conflict that includes the current record; re-read it (or use the embedded copy) and retry with its version. ' +
-      'Project fields: name, description, status, owner_id, owner_name, private. Task fields: title, status, priority, owner_id, owner_name, private, due_date, notes, project_id. ' +
+      'Project fields: name, description, status, owner_id, owner_name, private. Task fields: title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, project_id. ' +
+      'Closing a task that repeats creates its next copy (see recurrence). ' +
       'To change tags use the tag tool. Moving a task out of a private project into a public one, or making an item public, shows it and its whole history to everyone; ' +
       'handing a private item to someone else hides it from its previous owner. Confirm those with the user first. ' + DATA_NOTICE,
     inputSchema: {
@@ -173,6 +178,7 @@ export const TOOLS = [
             private: { type: 'boolean' },
             due_date: { type: ['string', 'null'] },
             notes: { type: 'string' },
+            recurrence: { type: ['string', 'null'], enum: ['daily', 'weekly', 'monthly', 'yearly', null], description: RECURRENCE_TEXT },
             project_id: { type: ['string', 'null'] },
           },
           additionalProperties: false,

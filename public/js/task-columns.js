@@ -19,6 +19,24 @@ import { isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
 import { checklistProgress } from './task-checklist.js';
 
+/** How the rules read. */
+export const RECURRENCE_WORDS = { daily: 'every day', weekly: 'every week', monthly: 'every month', yearly: 'every year' };
+
+/**
+ * The small "repeats" marker after a title: a glyph for the eye, words for a screen reader, a tooltip for the pointer.
+ * @param {any} t
+ */
+export function recurrenceMark(t) {
+  if (!t.recurrence) return null;
+  const words = RECURRENCE_WORDS[t.recurrence] ?? t.recurrence;
+  return el('span', { class: 'recur-mark', title: `Repeats ${words}` }, el('span', { 'aria-hidden': 'true' }, ' ↻'), el('span', { class: 'visually-hidden' }, ` (repeats ${words})`));
+}
+
+/** What to add to the announcement when a save closed a repeating task and the API made its next copy. @param {any} before @param {any} rec */
+export function copyNote(before, rec) {
+  return rec?.recurred_to && !before.recurred_to ? 'It repeats, so the next one was created; it shows when the list reloads.' : null;
+}
+
 /** Columns My tasks always shows, in order. */
 export const MINE_FIELDS = ['due_date', 'title', 'project', 'status', 'tags'];
 /** Summary columns My tasks also shows when config.task_fields lists them, after status. */
@@ -44,7 +62,7 @@ export function taskColumns(ctx) {
   const owns = (t) => t.owner_id === me.id;
   const personName = (id, t) => ctx.people().find((p) => p.id === id)?.name ?? (t && id === t.owner_id ? t.owner_name : id);
   return {
-    title: { label: 'Title', sort: 'title', view: (t) => [t.private ? padlock() : null, taskLink(t.id, t.title)] },
+    title: { label: 'Title', sort: 'title', view: (t) => [t.private ? padlock() : null, taskLink(t.id, t.title), recurrenceMark(t)] },
     status: { label: 'Status', sort: 'status', value: (t) => t.status,
       control: (t, v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
       fields: (t, v) => ({ status: v }) },

@@ -16,7 +16,7 @@
 
 /** @typedef {{url: string, label: string|null, line: number}} ParsedLink */
 /** @typedef {{text: string, done: boolean, line: number}} ParsedCheckItem */
-/** @typedef {{title: string, status: string|null, priority: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, links: ParsedLink[], checklist: ParsedCheckItem[], line: number}} ParsedTask */
+/** @typedef {{title: string, status: string|null, priority: string|null, recurrence: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, links: ParsedLink[], checklist: ParsedCheckItem[], line: number}} ParsedTask */
 /**
  * @typedef {Object} ParsedExport
  * @property {{name: string, description: string, status: string|null, owner_name: string|null, private: boolean|null, tags: string[]}} project
@@ -164,7 +164,7 @@ export function parseProjectExport(text) {
       const title = cell('title');
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
       tasks.push({
-        title, status: orNull(cell('status')), priority: orNull(cell('priority')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
+        title, status: orNull(cell('status')), priority: orNull(cell('priority')), recurrence: orNull(cell('repeats').toLowerCase()), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
         tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', links: [], checklist: [], line: at(),
       });
       i++;

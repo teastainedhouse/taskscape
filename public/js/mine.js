@@ -14,7 +14,7 @@ import { patch, taskPath } from './api.js';
 import { el, clear, setChildren, todayLocal } from './dom.js';
 import { redraw } from './inline-edit.js';
 import { isOverdue, fetchOverdue } from './overdue.js';
-import { taskColumns, columnsFor, taskCell, MINE_FIELDS, OPTIONAL_SUMMARY_FIELDS } from './task-columns.js';
+import { taskColumns, columnsFor, taskCell, copyNote, MINE_FIELDS, OPTIONAL_SUMMARY_FIELDS } from './task-columns.js';
 import { createPager } from './pager.js';
 
 const { config, me } = await boot({ title: 'My tasks' });
@@ -96,7 +96,7 @@ async function patchTask(t, fields) {
   replaceTask(rec);
   countOverdue();
   const closedNow = !showClosed.checked && closed.includes(rec.status) && !closed.includes(t.status);
-  return { note: closedNow ? 'Closed tasks are hidden here, so it leaves the list on reload.' : null };
+  return { note: [closedNow ? 'Closed tasks are hidden here, so it leaves the list on reload.' : null, copyNote(t, rec)].filter(Boolean).join(' ') || null };
 }
 
 /** @param {any} rec */

@@ -133,6 +133,7 @@ tr.filtered-out td { opacity: 0.6; }
 .checklist li { margin: 0 0 6px; overflow-wrap: anywhere; }
 .checklist__item--done .editable__value, .checklist__item--done .editable__text { text-decoration: line-through; }
 .checklist-progress { margin: 0 0 6px; }
+.recur-mark { white-space: nowrap; }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
 .tag-chip button { margin-left: 3px; padding: 0 3px; line-height: 1; }

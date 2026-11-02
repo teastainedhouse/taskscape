@@ -8,7 +8,8 @@ import { boot, say, sayError, attempt } from './page.js';
 import { api, get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
 import { linksList, linkForm } from './task-links.js';
 import { checklistList, checklistForm } from './task-checklist.js';
-import { el, btn, setChildren, padlock, projectLink, timeEl, oneLine } from './dom.js';
+import { RECURRENCE_WORDS, recurrenceMark } from './task-columns.js';
+import { el, btn, setChildren, padlock, projectLink, taskLink, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, focusEditable, redraw } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
@@ -132,7 +133,10 @@ function render() {
 
   row('Status', inlineEdit({ key: 'task-status', label: 'Status', allowed: canEdit, value: t.status,
     control: (v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
-    save: (v) => patchTask({ status: v }, t.version) }));
+    save: async (v) => {
+      const rec = await patchTask({ status: v }, t.version);
+      return rec && (rec.recurred_to && !t.recurred_to ? { note: 'It repeats, so the next one was created: see "Next one" below.' } : rec);
+    } }));
 
   if ((config.priorities ?? []).length || t.priority) {
     row('Priority', inlineEdit({ key: 'task-priority', label: 'Priority', allowed: canEdit, value: t.priority, empty: 'none',
@@ -155,6 +159,14 @@ function render() {
     control: (v) => el('input', { type: 'date', value: v ?? '' }),
     save: (v) => patchTask({ due_date: v || null }, t.version) });
   row('Due', due, isOverdue(t, config) ? el('b', { class: 'overdue-mark' }, ' (overdue)') : null);
+
+  row('Repeats', inlineEdit({ key: 'task-recurrence', label: 'Repeats', allowed: canEdit, value: t.recurrence, empty: 'does not repeat',
+    format: (v) => (v ? RECURRENCE_WORDS[v] ?? v : el('span', { class: 'muted' }, 'does not repeat')),
+    control: (v) => selectFor([{ value: '', label: 'Does not repeat' }, ...Object.entries(RECURRENCE_WORDS).map(([value, label]) => ({ value, label: `Every ${label.slice(6)}` }))], v),
+    save: (v) => patchTask({ recurrence: v || null }, t.version) }),
+    t.recurrence && !t.recurred_to && !config.closed_statuses.task.includes(t.status) && !state.project?.deleted_at ? el('span', { class: 'muted' }, ' (closing it creates the next one, once)') : null);
+  if (t.recurred_to) row('Next one', taskLink(t.recurred_to, 'Open the next one'));
+  if (t.recurred_from) row('Came from', taskLink(t.recurred_from, 'Open the one before'));
 
   const inPrivateProject = !!state.projects?.find((p) => p.id === t.project_id)?.private;
   const privacy = [t.private ? [padlock(), 'Private: only you can see this task'] : inPrivateProject ? 'Public, but inside your private project, so only you can see it' : 'Public'];

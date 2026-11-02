@@ -63,7 +63,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 ```json
 { "id": "9a2e…", "project_id": "6f1c…", "project_name": "Website refresh",
   "title": "Fix broken GIFs", "status": "To do", "priority": "High", "owner_id": "alice", "owner_name": "Alice Lin",
-  "private": false, "due_date": "2026-10-30", "notes": "", "version": 1,
+  "private": false, "due_date": "2026-10-30", "notes": "", "recurrence": "monthly", "recurred_from": null, "recurred_to": null, "version": 1,
   "created_at": "…", "updated_at": "…", "deleted_at": null,
   "tags": [ { "id": "t3", "name": "bug", "color": "#ff0000" } ],
   "links": [ { "id": "l1", "url": "https://example.test/spec", "label": "The spec", "position": 0 } ],
@@ -72,7 +72,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 `priority` is one of `/api/config` `priorities` or `null` (none); a name later removed from the config still reads, and sorts after the configured ones and before none, in either direction.
 
-`links` are the task's live web links in order (section 6, "Links"); `url` is `http:` or `https:` as the URL parser writes it, `label` is a line of text or `null`. `checklist` is the task's live checklist items in order (section 6, "Checklists").
+`links` are the task's live web links in order (section 6, "Links"); `url` is `http:` or `https:` as the URL parser writes it, `label` is a line of text or `null`. `checklist` is the task's live checklist items in order (section 6, "Checklists"). `recurrence` is `daily`, `weekly`, `monthly`, `yearly`, or `null`; `recurred_from` and `recurred_to` are read-only task ids (section 6, "Recurring tasks").
 
 **Tag** `{ "id", "name", "color", "created_at" }` (no usage counts).
 
@@ -145,9 +145,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/projects/:id/export.md` | any | — | `200 text/markdown; charset=utf-8`, `Content-Disposition: attachment; filename="<ascii-slug>.md"`; tasks ordered by due date, undated last | 404 |
 | POST | `/api/projects/:id/hit` | human | — | `200 {"project_id":"…","hit_count":1338}` | 400 invalid_state (trashed), 403 (token), 404 |
 | GET | `/api/tasks` | any | query section 5 | `200 {items:[Task]}` | 400 |
-| POST | `/api/tasks` | any | `{project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent or `null` = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
+| POST | `/api/tasks` | any | `{project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, recurrence?, tag_ids?}` (`project_id` absent or `null` = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
 | GET | `/api/tasks/:id` | any | — | `200 Task` (trashed ones too) | 404 |
-| PATCH | `/api/tasks/:id` | any | `{version, title?, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, project_id?}` | `200 Task` | 400, 403, 404, 409 |
+| PATCH | `/api/tasks/:id` | any | `{version, title?, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, recurrence?, project_id?}` | `200 Task` (moving a repeating task into a closed status also creates its next copy, named by `recurred_to`) | 400, 403, 404, 409 |
 | DELETE | `/api/tasks/:id` | any | `{version}` | `200 Task` | 400, 404, 409 |
 | POST | `/api/tasks/:id/restore` | any | `{version}` | `200 Task` | 400 invalid_state, 404, 409 |
 | PUT | `/api/tasks/:id/tags/:tagId` | any | `{version}` | `200 Task` | 404, 409 |
@@ -190,6 +190,8 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 **Links** on a task belong to the task: they are listed only on a task the caller can see, and a hidden task's link routes are the generic 404. Each write is a compare-and-set on the task's `version` and returns the task with its new version; it writes an `update` entry on the task with `changes.link` `{from, to}` (each `{url, label}`, `null` for an added or removed link) or `changes.link_moved` `{from, to, link}` (positions). A task's `create` entry lists its links as `changes.links` `{to: [{url, label}]}` and its checklist as `changes.checklist` `{to: [{text, done}]}` when it was created with some (an import). A change that changes nothing is not a write (section 1). Removing a link trashes it; there is no restore route. The server never fetches a link. `q` in `GET /api/tasks` and `GET /api/search` also matches a live link's URL and label.
 
 **Checklists** follow the same rules as links: listed only on a task the caller can see, each write a compare-and-set on the task's `version` returning the task, with an `update` entry carrying `changes.checklist_item` `{from, to}` (each `{text, done}`, `null` for an added or removed item) or `changes.checklist_moved` `{from, to, item}`; a change that changes nothing is not a write; removing trashes; no restore route. Ticking every item does not change the task's status. `q` also matches live item text.
+
+**Recurring tasks.** When a `PATCH` moves a task with a `recurrence` from an open status into a closed one, and the task has no `recurred_to` yet, the same transaction creates its next copy: the same title, project, owner, priority, privacy, tags, notes, links and recurrence; the checklist with every item unticked; the default status; and a due date one period after the old one (`monthly` keeps the day of the month, landing on the last day of a shorter month and returning to the day the series means afterwards, so the 31st goes 31 Jan, 28 Feb, 31 Mar, 30 Apr; `yearly` does the same for 29 February). Without a due date the next one counts from today in the owner's time zone (their preference, else `preference_defaults.time_zone`). The closed task's `recurred_to` and the copy's `recurred_from` name each other; the close's activity entry carries `changes.recurred_to` and the copy's `create` entry `changes.recurred_from`, both by the caller; either id is `null` in a read or an entry when the reader cannot see that task. A task makes at most one copy: reopening it and closing it again, or closing it after its copy went to the trash, creates nothing (restore the copy instead). The copy keeps the owner even when someone else closed the task. A `PATCH` that clears `recurrence` and closes in one write makes no copy; neither does closing a task whose project is in the trash, or a `PATCH` that hands a private task to someone else and closes it (its copy could only be private to them); those leave `recurred_to` empty, so a later close still makes one. A next due date past 9999-12-31 is `400 invalid_state`, and nothing is written. The copy's owner name is the directory's when there is one, else the stored one.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
 
@@ -250,9 +252,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 ## Tasks
 
-| Title | Status | Priority | Owner | Due | Tags | Private |
-| --- | --- | --- | --- | --- | --- | --- |
-| Fix broken GIFs | To do | High | Alice Lin | 2026-10-30 | bug | no |
+| Title | Status | Priority | Owner | Due | Repeats | Tags | Private |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Fix broken GIFs | To do | High | Alice Lin | 2026-10-30 | monthly | bug | no |
 
 ### Fix broken GIFs
 
@@ -315,3 +317,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-02 (priority): tasks gain `priority`, one of the new `/api/config` `priorities` (default `["High","Medium","Low"]`) or `null`; `POST`/`PATCH /api/tasks` take it; `GET /api/tasks` filters on `priority` (comma = any of) and sorts by it in config order with none last. Migration `006_task_priority.sql`. The export's task table gains a Priority column after Status, and the import reads it (an unknown name is a 400 naming the field and the line). MCP: `create` and `update` take `priority`, `list_tasks` filters on it, and `me` also returns the site's `statuses`, `closed_statuses` and `priorities`, so Claude can see the allowed names before writing. Config: status and priority names may not contain a comma or start or end with a space (the list filters split on commas); startup refuses such a config.
 - 2026-11-02 (links): tasks gain `links` (live, in order) and the routes `POST /api/tasks/:id/links`, `PATCH`/`DELETE /api/tasks/:id/links/:linkId`, each a compare-and-set on the task's version with an activity entry; removing a link trashes it. Only `http:`/`https:` URLs. `q` matches link URLs and labels. Migration `007_task_links.sql`. The export writes a `Links:` block at the top of a task's section and the import reads it. MCP: a new `link` tool (one add, update or remove per call); `get` and the list tools return `links` with each task. `task_fields` may list `links` for a count column.
 - 2026-11-02 (checklists): tasks gain `checklist` (live items in order) and the routes `POST /api/tasks/:id/checklist`, `PATCH`/`DELETE /api/tasks/:id/checklist/:itemId`, each a compare-and-set on the task's version with an activity entry; removing an item trashes it. `q` matches item text. Migration `008_task_checklist.sql`. The export writes a `Checklist:` block of `- [ ]`/`- [x]` lines after `Links:`, and the import reads it. MCP: a new `checklist` tool; tasks carry `checklist` everywhere. `task_fields` lists `checklist` by default for a "3/5" column, which My tasks shows too.
+- 2026-11-02 (recurring tasks): tasks gain `recurrence` (`daily`, `weekly`, `monthly`, `yearly`, or `null`) and the read-only `recurred_from` and `recurred_to`. Closing a repeating task creates its next copy in the same transaction, once per task. Migration `009_task_recurrence.sql`. The export's task table gains a Repeats column and the import reads it (an import starts a new series: `recurred_from` is not exported). MCP: `create` and `update` take `recurrence`, and their descriptions say what a close does.
