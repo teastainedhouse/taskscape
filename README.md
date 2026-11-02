@@ -193,7 +193,7 @@ People sign in on `login.html`; the API answers with a session cookie (`__Host-t
 
 ## Backup and restore
 
-The database is the only store. **Markdown export is not a backup**: "Save as markdown" omits other people's private items, ids, versions, tokens, and the activity log, and nothing can import it.
+The database is the only store. **Markdown export is not a backup**: "Save as markdown" omits other people's private items, ids, versions, tokens, comments' authorship and the activity log. "Import from Markdown" on the project list reads such a file back into a new project (tasks, notes and tags; never comments), which is for moving a project between copies of Taskscape, not for restoring one.
 
 ### SQLite
 

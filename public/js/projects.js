@@ -3,7 +3,7 @@
 // project happens on its own page.
 
 import { boot, say, sayError } from './page.js';
-import { get, post } from './api.js';
+import { get, post, api } from './api.js';
 import { el, btn, option, clear, setChildren, padlock, projectLink, taskLink, tagChip, timeEl } from './dom.js';
 import { refreshOverdue } from './overdue.js';
 import { allTags } from './tags.js';
@@ -54,6 +54,7 @@ const projectPager = createPager({
 buildFilters();
 buildHeader();
 setupNewProject();
+setupImport();
 setupSearch();
 await loadProjects();
 loadOverdue();
@@ -143,6 +144,70 @@ function setupNewProject() {
       document.getElementById(`project-${p.id}`)?.querySelector('a')?.focus();
     } catch (err) { sayError(err, 'Could not create the project'); }
   });
+}
+
+/**
+ * Import from Markdown: a dry run first (nothing written), then one confirm
+ * that creates the project and its tasks in one request, and opens the project.
+ */
+function setupImport() {
+  const form = document.getElementById('import-form');
+  const file = document.getElementById('import-file');
+  const text = document.getElementById('import-text');
+  const makePrivate = document.getElementById('import-private');
+  const preview = document.getElementById('import-preview');
+  const submit = form.querySelector('button[type="submit"]');
+
+  /** Files over the API's body limit are refused here rather than uploaded and refused there. */
+  const MAX_FILE_BYTES = Number(config.limits?.body_bytes) || 262144;
+  /** The Markdown to send: the chosen file (which wins over pasted text, and says so), else the pasted text. */
+  const markdown = async () => {
+    const f = file.files?.[0];
+    if (!f) return text.value;
+    if (f.size > MAX_FILE_BYTES) throw new Error(`That file is too large to import; the limit is ${Math.floor(MAX_FILE_BYTES / 1024)} KB.`);
+    if (text.value.trim()) say('Using the chosen file; the pasted text is ignored.');
+    return f.text();
+  };
+  const send = (dryRun, md, priv) => api('POST', '/api/projects/import', { text: md, contentType: 'text/markdown; charset=utf-8',
+    query: { dry_run: dryRun ? 'true' : undefined, private: priv ? 'true' : undefined } });
+  // a preview describes one file and one setting: changing either throws it away
+  for (const input of [file, text, makePrivate]) input.addEventListener('input', () => setChildren(preview, []));
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    submit.disabled = true;
+    try {
+      const md = await markdown();
+      if (!md.trim()) { say('Choose a file or paste some Markdown first.', { error: true }); text.focus(); return; }
+      const priv = makePrivate.checked;
+      const plan = await send(true, md, priv);
+      showPlan(plan, md, priv);
+    } catch (err) { setChildren(preview, []); sayError(err, 'Could not read that Markdown'); } finally { submit.disabled = false; }
+  });
+
+  /** @param {any} plan  the dry-run answer @param {string} md @param {boolean} priv  the setting the plan was made with */
+  function showPlan(plan, md, priv) {
+    const n = plan.tasks.length;
+    const confirmBtn = btn(`Import "${plan.project.name}" and ${n} task${n === 1 ? '' : 's'}`, async () => {
+      confirmBtn.disabled = true;
+      try {
+        const made = await send(false, md, priv);
+        say(`Imported "${made.project.name}" with ${made.tasks.length} task${made.tasks.length === 1 ? '' : 's'}. Opening it.`);
+        location.href = `project.html?id=${encodeURIComponent(made.project.id)}`;
+      } catch (err) { sayError(err, 'Could not import'); confirmBtn.disabled = false; }
+    });
+    const rows = plan.tasks.map((t) => el('li', null, t.private ? padlock() : null, t.title, ` — ${t.status}, ${t.owner_name}`, t.due_date ? `, due ${t.due_date}` : null,
+      t.tags.length ? `, tags: ${t.tags.join(', ')}` : null, t.notes ? `, notes (${t.notes.length} characters)` : null, t.private ? ', private to you' : null));
+    setChildren(preview, [
+      el('h3', { tabindex: '-1', id: 'import-plan-h' }, 'What would be created'),
+      el('p', null, plan.project.private ? padlock() : null, el('b', null, plan.project.name), ` — ${plan.project.status}, ${plan.project.owner_name}, ${plan.project.private ? 'private to you' : 'public'}`,
+        plan.project.tags.length ? `, tags: ${plan.project.tags.join(', ')}` : null, plan.project.description ? `, description (${plan.project.description.length} characters)` : null),
+      n ? el('ol', { class: 'import-tasks' }, rows) : el('p', { class: 'muted' }, 'No tasks.'),
+      plan.notes.length ? el('ul', { class: 'import-notes' }, plan.notes.map((x) => el('li', null, x))) : null,
+      el('p', null, confirmBtn, ' ', btn('Cancel', () => { setChildren(preview, []); text.focus(); })),
+    ]);
+    document.getElementById('import-plan-h').focus();
+  }
 }
 
 /** Search box over /api/search (2+ characters). */

@@ -1,4 +1,4 @@
-import { ApiError, payloadTooLarge, validationFailed } from './errors.js';
+import { ApiError, payloadTooLarge, validationFailed, unsupportedMediaType } from './errors.js';
 
 /** Headers every API response carries. */
 export const BASE_HEADERS = Object.freeze({
@@ -36,16 +36,16 @@ export function errorResponse(err) {
 }
 
 /**
- * Read and parse a JSON object body, enforcing a byte limit.
+ * Read a body as bytes, enforcing a byte limit. Streams and counts, so an
+ * undeclared or chunked body is cut off at the limit instead of buffered whole.
  * @param {Request} request
  * @param {number} maxBytes
- * @returns {Promise<Record<string, unknown>>}
+ * @returns {Promise<Buffer>}
  */
-export async function readJson(request, maxBytes) {
+async function readBytes(request, maxBytes) {
   const declared = Number(request.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) throw payloadTooLarge();
-  if (!request.body) return {};
-  // Stream and count, so an undeclared or chunked body is cut off at the limit instead of buffered whole.
+  if (!request.body) return Buffer.alloc(0);
   const reader = request.body.getReader();
   const parts = [];
   let total = 0;
@@ -59,10 +59,34 @@ export async function readJson(request, maxBytes) {
     }
     parts.push(value);
   }
-  if (total === 0) return {};
+  return Buffer.concat(parts.map((p) => Buffer.from(p.buffer, p.byteOffset, p.byteLength)));
+}
+
+/**
+ * Read a text body (UTF-8; a leading byte-order mark is dropped), enforcing a byte limit.
+ * @param {Request} request
+ * @param {number} maxBytes
+ * @returns {Promise<string>}
+ */
+export async function readText(request, maxBytes) {
+  const charset = /;\s*charset=([^;\s]+)/i.exec(request.headers.get('content-type') ?? '')?.[1]?.replace(/^"|"$/g, '').toLowerCase();
+  if (charset && charset !== 'utf-8' && charset !== 'utf8') throw unsupportedMediaType(); // only UTF-8 is decoded; anything else would be garbled
+  const bytes = await readBytes(request, maxBytes);
+  return new TextDecoder('utf-8', { ignoreBOM: false }).decode(bytes);
+}
+
+/**
+ * Read and parse a JSON object body, enforcing a byte limit.
+ * @param {Request} request
+ * @param {number} maxBytes
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function readJson(request, maxBytes) {
+  const bytes = await readBytes(request, maxBytes);
+  if (bytes.byteLength === 0) return {};
   let parsed;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(Buffer.concat(parts.map((p) => Buffer.from(p.buffer, p.byteOffset, p.byteLength)))));
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     throw validationFailed({ body: 'must be valid JSON' });
   }

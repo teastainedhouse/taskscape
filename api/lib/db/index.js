@@ -1,6 +1,7 @@
 /**
  * @typedef {Object} Db
  * @property {'sqlite'|'postgres'} dialect
+ * @property {boolean} [inTransaction]  true on the handle a transaction passes to its function
  * @property {(sql: string, params?: unknown[]) => Promise<{rows: Record<string, unknown>[], changes: number}>} query
  *   One statement, `?` placeholders. Returns rows for reads, `changes` for writes.
  * @property {(sql: string) => Promise<void>} exec  A multi-statement script with no parameters (migrations).

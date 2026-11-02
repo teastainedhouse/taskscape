@@ -16,27 +16,34 @@ import { canEdit } from './config.js';
  *   lockouts: {signIn: import('./auth/lockout.js').Lockout, passwordChange: import('./auth/lockout.js').Lockout},
  * }} Ctx
  * @typedef {(req: Request, ctx: Ctx) => Promise<Response>} Handler
- * @typedef {{ method: string, path: string, auth?: AuthKind, edit?: boolean, sameOrigin?: boolean, handler: Handler }} Route
+ * @typedef {{ method: string, path: string, auth?: AuthKind, edit?: boolean, sameOrigin?: boolean, accepts?: string[], handler: Handler }} Route
  *   `edit: false` exempts a write route from the editor gate (only for self-scoped routes such as revoking your own token).
  *   `sameOrigin: true` applies the cross-site checks even without a browser principal (sign-in and sign-out).
+ *   `accepts` lists body types besides application/json a browser principal may send (the import takes text/markdown; an
+ *   HTML form cannot send that type, and a cross-origin fetch of it needs a preflight this API never answers).
  */
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+/** Body types an HTML form can send without a preflight: no route may ever accept them from a browser principal. */
+const FORM_TYPES = new Set(['text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data']);
 
 /**
  * Second line of defence for browser sessions (after SameSite=Strict on the
  * password provider's cookie): refuse a
  * write the browser says came from another site, and any body that is not JSON
  * (an HTML form cannot send application/json, and a cross-origin fetch that does
- * needs a preflight this API never answers).
+ * needs a preflight this API never answers), or one of the route's other
+ * accepted types, which must be ones a form cannot send either.
  * @param {Request} request
+ * @param {string[]} [accepts]
  */
-function assertSameOrigin(request) {
+function assertSameOrigin(request, accepts = []) {
   const site = request.headers.get('sec-fetch-site');
   if (site !== null && site !== 'same-origin' && site !== 'none') throw forbidden('Cross-site requests are not allowed.');
   const type = request.headers.get('content-type');
   if (type !== null) {
-    if (type.split(';')[0].trim().toLowerCase() !== 'application/json') throw unsupportedMediaType();
+    const bare = type.split(';')[0].trim().toLowerCase();
+    if (bare !== 'application/json' && !accepts.includes(bare)) throw unsupportedMediaType();
   } else {
     const length = request.headers.get('content-length');
     if ((length !== null && length.trim() !== '0') || request.headers.has('transfer-encoding')) throw unsupportedMediaType();
@@ -67,7 +74,12 @@ export class Router {
 
   /** @param {Route[]} routes */
   add(routes) {
-    for (const r of routes) this.#routes.push({ auth: 'any', ...r, ...compile(r.path) });
+    for (const r of routes) {
+      for (const type of r.accepts ?? []) {
+        if (FORM_TYPES.has(type)) throw new Error(`route ${r.method} ${r.path} must not accept ${type}: an HTML form can send it cross-site`);
+      }
+      this.#routes.push({ auth: 'any', ...r, ...compile(r.path) });
+    }
     return this;
   }
 
@@ -113,7 +125,7 @@ export class Router {
     const isWrite = !SAFE_METHODS.includes(request.method);
     const user = route.auth === 'none' ? null : await getUser(request, env);
     // Every browser principal: a cookie session, a dev cookie, or SSO headers a host adds to any request the browser sends.
-    if (isWrite && (route.sameOrigin || user?.via === 'ui')) assertSameOrigin(request);
+    if (isWrite && (route.sameOrigin || user?.via === 'ui')) assertSameOrigin(request, route.accepts);
     if (route.auth !== 'none') {
       if (!user) throw unauthorized();
       if (route.auth === 'human' && user.via === 'mcp') throw forbidden('This action is only available in the browser.');

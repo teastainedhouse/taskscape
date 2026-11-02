@@ -36,8 +36,19 @@ export async function getByName(db, name) {
  * @returns {Promise<{tag: object, created: boolean}>}
  */
 export async function create(db, user, input, config, now) {
+  return db.transaction((tx) => createIn(tx, user, input, config, now));
+}
+
+/**
+ * Must run inside db.transaction(): the activity entry, the row locks and the visible read-back all
+ * assume it (pass the `tx` the transaction hands you, never `db`).
+ * create() inside a transaction the caller holds.
+ * @param {import('../db/index.js').Db} tx
+ */
+export async function createIn(tx, user, input, config, now) {
+  if (!tx.inTransaction) throw new Error('createIn must run inside db.transaction()');
   const name = normalizeTagName(input.name);
-  return db.transaction(async (tx) => {
+  {
     const existing = await getByName(tx, name);
     if (existing) return { tag: existing, created: false };
     let color = input.color;
@@ -50,7 +61,7 @@ export async function create(db, user, input, config, now) {
     await tx.query('INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?)', [id, name, color, now]);
     await record(tx, user, { item_type: 'tag', item_id: id, action: 'create', changes: { name: { to: name }, color: { to: color } } }, now);
     return { tag: { id, name, color, created_at: now }, created: true };
-  });
+  }
 }
 
 /** Resolve a tag id inside a transaction or throw the generic 404. */

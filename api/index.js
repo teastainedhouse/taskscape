@@ -7,6 +7,7 @@ import { routes as config } from './handlers/config.js';
 import { routes as me } from './handlers/me.js';
 import { routes as people } from './handlers/people.js';
 import { routes as projects } from './handlers/projects.js';
+import { routes as importMd } from './handlers/import.js';
 import { routes as exportMd } from './handlers/export.js';
 import { routes as tasks } from './handlers/tasks.js';
 import { routes as tags } from './handlers/tags.js';
@@ -28,7 +29,7 @@ import { routes as preferences } from './handlers/preferences.js';
 export function createApp(env) {
   const router = new Router();
   router.add(health).add(login).add(config).add(me).add(preferences).add(people)
-    .add(projects).add(exportMd).add(tasks).add(comments).add(tags).add(trash).add(activity).add(search).add(tokens);
+    .add(importMd).add(projects).add(exportMd).add(tasks).add(comments).add(tags).add(trash).add(activity).add(search).add(tokens);
   // The lockouts live with the app instance: one per process in production, one per test app.
   // Password changes count separately, so failed sign-ins for a name cannot block its owner's change.
   const lockouts = env.lockouts ?? { signIn: createLockout(), passwordChange: createLockout() };

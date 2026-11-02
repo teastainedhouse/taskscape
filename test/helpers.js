@@ -47,7 +47,8 @@ export async function createTestApp(opts = {}) {
     const send = (method) => async (path, body, extraHeaders = {}) => {
       const init = { method, headers: { ...headers, ...extraHeaders } };
       if (body !== undefined) {
-        init.headers['content-type'] = 'application/json';
+        // JSON unless the test names another type (the Markdown import sends text/markdown)
+        if (!Object.keys(init.headers).some((h) => h.toLowerCase() === 'content-type')) init.headers['content-type'] = 'application/json';
         init.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
       const res = await app.fetch(new Request('http://test' + path, init));

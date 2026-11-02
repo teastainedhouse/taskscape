@@ -17,6 +17,7 @@ export async function openPostgres(url) {
   /** @param {{query: Function}} client @param {boolean} inTx */
   const make = (client, inTx) => ({
     dialect: 'postgres',
+    inTransaction: inTx,
     async query(sql, params = []) {
       const r = await client.query(toPositional(sql), coerceParams(params));
       return { rows: r.rows, changes: r.rowCount ?? 0 };

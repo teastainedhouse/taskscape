@@ -117,7 +117,7 @@ export function publicConfig(c) {
     privacy: c.privacy,
     permissions: { edit: c.permissions.edit },
     webring: c.webring,
-    limits: { page_size: c.limits.page_size, max_page_size: c.limits.max_page_size },
+    limits: { page_size: c.limits.page_size, max_page_size: c.limits.max_page_size, body_bytes: c.limits.body_bytes },
     catch_all_project_id: c.catch_all_project.id,
     theme: c.theme,
     themes: c.themes,

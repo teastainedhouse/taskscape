@@ -46,6 +46,7 @@ api/
     activity.js            /api/activity with keyset cursor
     search.js              /api/search
     export.js              /api/projects/:id/export.md
+    import.js              POST /api/projects/import (text/markdown; dry_run, private); registered before the project routes
     people.js              /api/people (owners the caller may pick)
     me.js                  /api/me; meBody() is the Me shape (preferences included)
     preferences.js         GET/PATCH /api/me/preferences; preferencesFor() = site defaults overlaid with the person's row
@@ -54,15 +55,18 @@ api/
     config.js              /api/config (public subset)
     health.js              /api/health (unauthenticated)
   lib/
-    router.js              method + path matching, auth middleware, cross-site checks (every `via: 'ui'` write, login/logout), editor check,
-                           MCP session rule, error envelope, base headers
-    http.js                json(), text(), readJson() with byte limit, parseCookies(), BASE_HEADERS
+    router.js              method + path matching, auth middleware, cross-site checks (every `via: 'ui'` write, login/logout; a route's `accepts`
+                           allows another body type a form cannot send), editor check, MCP session rule, error envelope, base headers
+    http.js                json(), text(), readJson() and readText() with the byte limit, parseCookies(), BASE_HEADERS
     errors.js              ApiError and the constructors: notFound, unauthorized, wrongCredentials, forbidden, invalidState, validationFailed,
                            conflict, unsupportedMediaType, tooManyRequests, …
     config.js              loadConfig(), prepareConfig() (env overrides + validation, incl. that every theme has its CSS file), publicConfig(), canEdit()
     validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
                            validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), parseListQuery(), parseActivityQuery()
     markdown.js            renderProjectExport(), mdCell(), mdInline(), slug()
+    markdown-import.js     parseProjectExport(): the export format back into a project and tasks, pure; ImportParseError names field and line
+    import.js              planImport() (owners by exact unique name, statuses and fields checked with the line, notes) and runImport()
+                           (tags, project, tasks in one transaction through the repo's createIn functions); reusable for "duplicate project"
     node-bridge.js         toWebRequest(IncomingMessage) and writeResponse(ServerResponse, Response) for Node-callback hosts
     ids.js  time.js        newId() (UUID); nowIso(), isoDate(), daysFromNow()
     auth/
@@ -85,9 +89,9 @@ api/
     repo/
       visibility.js        THE privacy and trash predicates: projectVisible, taskVisible, commentVisible, commentShown, activityVisible, live, trashState, likeContains
       common.js            rowToProject(), rowToTask(), rowToTag(), tagsFor(), statusOrder(), diff()
-      projects.js          ensureCatchAll(), get/mustGet/list/create/update/trash/restore/setTag/recordHit; moveForeignTasks on flip-private
-      tasks.js             get/mustGet/list/create/update/trash/restore/setTag; the "private project holds only its owner's tasks" invariant
-      tags.js              normalizeTagName(), list, create (idempotent), mustExist()
+      projects.js          ensureCatchAll(), get/mustGet/list/create (createIn for a held transaction)/update/trash/restore/setTag/recordHit; moveForeignTasks on flip-private
+      tasks.js             get/mustGet/list/create (createIn)/update/trash/restore/setTag; the "private project holds only its owner's tasks" invariant
+      tags.js              normalizeTagName(), list, create (idempotent; createIn), mustExist()
       comments.js          comments: listFor, liveFor (export), get/mustGet, create (on a visible, live parent), trash/restore (author only)
       activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility, and for=me
       people.js            distinct owners of visible items + caller + the directory for editors in the browser (dev users, enabled users rows); directoryName()
@@ -115,7 +119,7 @@ scripts/
 
 public/                    served as-is; no build step
   favicon.svg
-  index.html               project list (filters, search, new project, marquee of overdue tasks)
+  index.html               project list (filters, search, new project, import from Markdown with a preview, marquee of overdue tasks)
   project.html             one project: click-to-edit header, privacy toggle, tags, hit counter, export, trash, task table (click-to-edit cells)
   task.html                one task: every field click-to-edit, notes, tags, project, comments, activity, trash and restore
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default; status, due date, tags editable
@@ -155,7 +159,8 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, markdown, http, db, mcp (fake fetch), comments, login (password provider), preferences, ui-escaping (greps public/),
+                           hits, search, export, import (round trip, dry run, owners, lines), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
+                           login (password provider), preferences, ui-escaping (greps public/),
                            ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 
 docs/

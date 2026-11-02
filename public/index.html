@@ -67,6 +67,18 @@
         </form>
       </section>
 
+      <section aria-labelledby="import-h" data-needs-edit>
+        <h2 id="import-h">Import from Markdown</h2>
+        <p class="muted">Paste or choose a file in the format "Save as markdown" produces. You see what would be created before anything is.</p>
+        <form id="import-form">
+          <div class="field"><label for="import-file">File</label><input type="file" id="import-file" name="file" accept=".md,text/markdown,text/plain"></div>
+          <div class="field"><label for="import-text">Or paste the Markdown</label><textarea id="import-text" name="text" rows="6" spellcheck="false"></textarea></div>
+          <div class="field"><label><input type="checkbox" id="import-private" name="private"> Make everything private to me</label></div>
+          <button type="submit">Preview</button>
+        </form>
+        <div id="import-preview" aria-live="polite"></div>
+      </section>
+
       <section aria-labelledby="wn-h">
         <h2 id="wn-h"><a href="whats-new.html">What's New?</a></h2>
         <ul id="activity-preview"></ul>

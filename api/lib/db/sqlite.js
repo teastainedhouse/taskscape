@@ -46,6 +46,7 @@ export function openSqlite(url) {
   /** @type {import('./index.js').Db} */
   const inTx = {
     dialect: 'sqlite',
+    inTransaction: true,
     async query(sql, params) { return queryNow(sql, params); },
     async exec(sql) { raw.exec(sql); },
     async transaction() { throw new Error('Nested transactions are not supported'); },

@@ -93,6 +93,17 @@ async function targetProject(tx, user, projectId) {
  * @param {{project_id?: string, title: string, status?: string, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[]}} input
  */
 export async function create(db, user, input, config, now) {
+  return db.transaction((tx) => createIn(tx, user, input, config, now));
+}
+
+/**
+ * Must run inside db.transaction(): the activity entry, the row locks and the visible read-back all
+ * assume it (pass the `tx` the transaction hands you, never `db`).
+ * create() inside a transaction the caller holds (the import makes a project and its tasks in one).
+ * @param {import('../db/index.js').Db} tx
+ */
+export async function createIn(tx, user, input, config, now) {
+  if (!tx.inTransaction) throw new Error('createIn must run inside db.transaction()');
   const id = input.id ?? newId();
   const ownerId = input.owner_id ?? user.id;
   const ownerName = ownerId === user.id ? user.name : input.owner_name;
@@ -103,7 +114,7 @@ export async function create(db, user, input, config, now) {
     due_date: input.due_date ?? null, notes: input.notes ?? '',
   };
   if (row.private && row.owner_id !== user.id) throw invalidState('Only the owner can make an item private. Create it as yourself or public.');
-  return db.transaction(async (tx) => {
+  {
     const project = await targetProject(tx, user, projectId);
     checkInvariant(project, ownerId);
     await tx.query(
@@ -120,7 +131,7 @@ export async function create(db, user, input, config, now) {
     if (tagNames.length) changes.tags = { to: tagNames.sort() };
     await record(tx, user, { item_type: 'task', item_id: id, action: 'create', changes }, now);
     return mustGet(tx, user, id);
-  });
+  }
 }
 
 /** Compare-and-set, like projects.js; with `setSql` null it checks the version and bumps nothing. */

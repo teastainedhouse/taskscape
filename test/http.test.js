@@ -49,7 +49,7 @@ test('me reports identity and edit rights; config is the public subset only', as
   assert.deepEqual(cfg.body.auth.dev_users.map((u) => u.id), ['alice', 'bob', 'carol']);
   assert.equal(JSON.stringify(cfg.body).includes('x-forwarded'), false);
   assert.equal(cfg.body.auth.headers, undefined);
-  assert.deepEqual(cfg.body.limits, { page_size: 500, max_page_size: 1000 }, 'page sizes, not body_bytes');
+  assert.deepEqual(cfg.body.limits, { page_size: 500, max_page_size: 1000, body_bytes: 262144 });
   assert.equal(cfg.body.theme, 'toolbar');
   assert.deepEqual(cfg.body.themes, ['toolbar', 'netscape']);
   assert.deepEqual(cfg.body.preference_defaults, { comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' });
