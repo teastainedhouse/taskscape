@@ -228,6 +228,11 @@ table.meta tr:hover td { background: none; }
 tr.current-session td { font-weight: bold; }
 details summary { cursor: pointer; font-weight: bold; }
 
+/* Shortcuts help */
+dialog.shortcuts-help { background: var(--panel); color: var(--ink); border: 2px outset var(--panel-hi); }
+dialog.shortcuts-help th, dialog.shortcuts-help td, dialog.shortcuts-help tr:hover td { border: 0; background: none; }
+kbd { background: var(--paper); color: var(--ink); border-color: var(--panel-lo); }
+
 /* Token plaintext box */
 .token-box { background: var(--notice); color: var(--ink); border: 2px inset var(--notice-edge); padding: 8px 12px; margin: 10px 0; }
 .token-box #token-warning b { color: var(--danger); }

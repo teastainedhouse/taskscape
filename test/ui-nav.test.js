@@ -81,6 +81,17 @@ test('every toolbar page has the avatar link to the profile page, and no page sa
   assert.match(page, /mountAvatar\(document\.getElementById\('avatar'\), me\)/);
 });
 
+test('keyboard shortcuts ride on boot(), are gated by the preference, and can never trash or restore', () => {
+  const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
+  assert.match(page, /mountShortcuts\(!!prefs\.shortcuts\)/, 'the preference switches them');
+  const shortcuts = readFileSync(path.join(PUBLIC, 'js', 'shortcuts.js'), 'utf8');
+  assert.doesNotMatch(shortcuts, /from '\.\/api\.js'/, 'the shortcuts module never calls the API');
+  assert.doesNotMatch(shortcuts, /\b(fetch|del|post|patch|put)\(|\.click\(|requestSubmit|\.submit\(/, 'no shortcut writes, clicks, or submits anything, so none can trash or restore');
+  assert.match(shortcuts, /ev\.ctrlKey \|\| ev\.altKey \|\| ev\.metaKey/, 'modifier combinations are left alone');
+  assert.match(shortcuts, /input, textarea, select, \[contenteditable\]/, 'typing never triggers a shortcut');
+  assert.match(shortcuts, /aria-keyshortcuts/);
+});
+
 test('the What\'s New toolbar entry carries the For you badge from every page', () => {
   const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
   assert.match(page, /refreshBadge\(me\)\.catch\(/, 'boot() refreshes the badge and never fails over it');

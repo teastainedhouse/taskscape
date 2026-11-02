@@ -410,6 +410,11 @@ table.meta tr:hover td { background: none; }
 tr.current-session td { font-weight: 600; }
 details summary { cursor: pointer; font-weight: 600; }
 
+/* Shortcuts help: a small window. */
+dialog.shortcuts-help { background: var(--view); color: var(--ink); border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 6px 6px 0 rgb(0 0 0 / 0.3); }
+dialog.shortcuts-help th, dialog.shortcuts-help td, dialog.shortcuts-help tr:hover td { border: 0; background: none; }
+kbd { background: var(--chrome); color: var(--ink); border-color: var(--lo); }
+
 /* A new MCP token. */
 .token-box { margin: 12px 0; padding: 10px 14px; background: var(--notice); border: 1px solid var(--notice-edge); }
 .token-box #token-warning b { color: var(--danger); }

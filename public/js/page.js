@@ -11,6 +11,7 @@ import { mountDevBanner } from './dev-user.js';
 import { mountAvatar } from './avatar.js';
 import { refreshBadge } from './for-you.js';
 import { applyTheme, applyRememberedTheme, forgetTheme } from './theme.js';
+import { mountShortcuts } from './shortcuts.js';
 
 /**
  * @typedef {{theme: string, comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string}} Preferences
@@ -175,6 +176,7 @@ export async function boot(opts) {
 export function applyPreferences(config, prefs) {
   applyTheme(prefs.theme, config.themes ?? [config.theme], { fallback: config.theme });
   setTimeZone(prefs.time_zone);
+  mountShortcuts(!!prefs.shortcuts);
 }
 
 /**

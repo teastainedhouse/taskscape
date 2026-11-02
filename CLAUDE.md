@@ -123,11 +123,12 @@ public/                    served as-is; no build step
   trash.html               trashed projects and tasks, restore
   profile.html             your profile: name and initial, preferences, change password and active sign-ins (password sessions), MCP tokens, your recent activity
   login.html               sign-in dialog for the password provider; reads GET /api/login, goes to a same-site ?next= page
-  css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
+  css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch, the shortcuts dialog and kbd
   css/theme-toolbar.css    the default look, linked by every page: old browser chrome (dithered toolbars, pixel icons, starfield avatar, status bar) around a modern page; dark mode
   css/theme-netscape.css   the 1996 look (Times, grey bevels, starfield) as a second theme; same selectors, dark variant
+  js/shortcuts.js          single-key shortcuts (/ n ? g+h/m/w/t/p), mounted by page.js when the shortcuts preference is on; ignored in fields and dialogs; never trash or restore
   js/theme.js              applyTheme() swaps the theme <link> to the person's preference (names checked against config.themes); applyRememberedTheme() does it from localStorage before boot
-  js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, avatar, applyPreferences() (theme + time zone), aria-live say(), attempt() = the 409 handler
+  js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, avatar, applyPreferences() (theme, time zone, shortcuts), aria-live say(), attempt() = the 409 handler
   js/avatar.js             the header's profile link: the person's initial from a 5x7 bitmap font as SVG rects (dom.js svg()), "T" fallback
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
   js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; svg() via createElementNS; oneLine() for confirm text; tagChip() validates #rrggbb;
@@ -155,7 +156,7 @@ test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
                            hits, search, export, markdown, http, db, mcp (fake fetch), comments, login (password provider), preferences, ui-escaping (greps public/),
-                           ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try), pager (offset paging and js/pager.js)
+                           ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 
 docs/
   ONE-PAGER.md             the original pitch, scrubbed of company and vendor names; historical, not kept current
