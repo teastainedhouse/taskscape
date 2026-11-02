@@ -488,3 +488,87 @@ test('password routes are 404 under other providers; GET /api/login works everyw
   assert.deepEqual((await p.anon().get('/api/login')).body, { provider: 'password', site_title: p.config.site_title });
   await p.close();
 });
+
+test('active sign-ins: list marks the current session, never shows the hash; one or all others can be ended', async () => {
+  const t = await passwordApp();
+  const first = t.cookieFrom(await t.login());
+  t.clock.advance(2);
+  const second = t.cookieFrom(await t.login('dana', PASSWORD, { cookie: '' }));
+  t.clock.advance(2);
+  const third = t.cookieFrom(await t.login('dana', PASSWORD, { cookie: '' }));
+  const list = await t.cookie(second).get('/api/me/sessions');
+  assert.equal(list.status, 200);
+  assert.equal(list.body.items.length, 3);
+  for (const s of list.body.items) {
+    assert.deepEqual(Object.keys(s).sort(), ['created_at', 'current', 'expires_at', 'id', 'last_seen_at']);
+    assert.ok(!JSON.stringify(s).includes(second), 'the cookie value never appears');
+  }
+  assert.equal(list.body.items.filter((s) => s.current).length, 1);
+  const other = list.body.items.find((s) => !s.current);
+  // someone else's session: the generic 404, byte for byte, like an unknown id
+  await t.addUser('eve', 'Eve Adams');
+  const eve = t.cookieFrom(await t.login('eve', PASSWORD, { cookie: '' }));
+  const foreign = await t.cookie(eve).delete(`/api/me/sessions/${other.id}`);
+  const unknown = await t.cookie(eve).delete('/api/me/sessions/nope');
+  assert.equal(foreign.status, 404);
+  assert.equal(foreign.text, unknown.text);
+  assert.equal((await t.cookie(second).get('/api/me/sessions')).body.items.length, 3, 'nothing of dana\'s ended');
+  assert.equal((await t.cookie(eve).delete(`/api/me/sessions/${other.id}`, undefined, { 'sec-fetch-site': 'cross-site' })).status, 403);
+  // end one of my own
+  assert.equal((await t.cookie(second).delete(`/api/me/sessions/${other.id}`)).status, 204);
+  assert.equal((await t.cookie(second).get('/api/me/sessions')).body.items.length, 2);
+  // end every other: this one stays
+  const ended = await t.cookie(second).delete('/api/me/sessions');
+  assert.equal(ended.status, 200);
+  assert.deepEqual(ended.body, { ended: 1 });
+  assert.equal((await t.cookie(second).get('/api/me')).status, 200);
+  assert.equal((await t.cookie(first).get('/api/me')).status, 401);
+  assert.equal((await t.cookie(third).get('/api/me')).status, 401);
+  // ending the current one is a sign-out: the cookie is cleared
+  const mine = (await t.cookie(second).get('/api/me/sessions')).body.items[0];
+  assert.equal(mine.current, true);
+  const bye = await t.cookie(second).delete(`/api/me/sessions/${mine.id}`);
+  assert.equal(bye.status, 204);
+  assert.match(bye.headers.get('set-cookie'), /Max-Age=0/);
+  assert.equal((await t.cookie(second).get('/api/me')).status, 401);
+  // an expired session leaves the list and cannot be ended, even before the sign-in sweep runs
+  const fresh = (await t.login('dana', PASSWORD, { cookie: '' }));
+  const freshId = (await t.cookie(t.cookieFrom(fresh)).get('/api/me/sessions')).body.items[0].id;
+  t.clock.advance(31 * 24 * 60);
+  const late = t.cookieFrom(await t.login('dana', PASSWORD, { cookie: '' }));
+  assert.deepEqual((await t.cookie(late).get('/api/me/sessions')).body.items.map((s) => s.current), [true]);
+  assert.equal((await t.cookie(late).delete(`/api/me/sessions/${freshId}`)).status, 404);
+  await t.close();
+});
+
+test('active sign-ins: human-only, password sessions only, cross-site refused', async () => {
+  const t = await passwordApp();
+  const cookie = t.cookieFrom(await t.login());
+  const issued = await t.cookie(cookie).post('/api/tokens', { label: 'cli' });
+  const tok = t.tokenAs(issued.body.plaintext);
+  assert.equal((await tok.get('/api/me/sessions')).status, 403);
+  assert.equal((await tok.delete('/api/me/sessions')).status, 403);
+  assert.equal((await tok.delete('/api/me/sessions/x')).status, 403);
+  assert.equal((await t.cookie(cookie).delete('/api/me/sessions', undefined, { 'sec-fetch-site': 'cross-site' })).status, 403);
+  assert.equal((await t.anon().get('/api/me/sessions')).status, 401);
+  await t.close();
+  const dev = await createTestApp();
+  for (const r of [await dev.as('alice').get('/api/me/sessions'), await dev.as('alice').delete('/api/me/sessions'), await dev.as('alice').delete('/api/me/sessions/x')]) {
+    assert.equal(r.status, 404);
+    assert.deepEqual(r.body, { error: { code: 'not_found', message: 'Not found.' } });
+  }
+  await dev.close();
+  const hdr = await createTestApp({ config: { auth: { provider: 'headers' } } });
+  const h = hdr.withHeaders({ 'x-forwarded-user': 'u1', 'x-forwarded-preferred-username': 'U One' });
+  assert.equal((await h.get('/api/me/sessions')).status, 404);
+  await hdr.close();
+  // a read-only password account still sees and ends its own sign-ins
+  const ro = await passwordApp({ config: { permissions: { edit: 'group', groups: ['editors'] } } });
+  await ro.addUser('vic', 'Vic Viewer');
+  await ro.db.query("UPDATE users SET groups = '[]' WHERE id = 'vic'");
+  const vic = ro.cookieFrom(await ro.login('vic'));
+  assert.equal((await ro.cookie(vic).get('/api/me')).body.can_edit, false);
+  assert.equal((await ro.cookie(vic).get('/api/me/sessions')).status, 200);
+  assert.deepEqual((await ro.cookie(vic).delete('/api/me/sessions')).body, { ended: 0 });
+  await ro.close();
+});

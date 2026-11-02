@@ -31,7 +31,7 @@ export function el(tag, attrs, ...children) {
   if (attrs) {
     for (const [k, v] of Object.entries(attrs)) {
       if (v == null || v === false) continue;
-      if (k.startsWith('on')) throw new Error('event handlers go through addEventListener');
+      if (/^on/i.test(k)) throw new Error('event handlers go through addEventListener');
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = String(v);
       else if (PROPS.has(k)) node[k] = v;
@@ -57,17 +57,23 @@ export function append(parent, children) {
   }
 }
 
+/** The only SVG we draw: shapes. No links, scripts, foreign content, or animation. */
+const SVG_TAGS = new Set(['svg', 'g', 'rect', 'title']);
+const SVG_ATTRS = new Set(['viewBox', 'width', 'height', 'x', 'y', 'fill', 'shape-rendering', 'aria-hidden', 'focusable', 'class', 'role']);
+
 /**
- * An SVG element (createElementNS). Attributes go through setAttribute; event handler attributes are refused.
+ * An SVG element (createElementNS), from a short allowlist of tags and
+ * attributes, so no caller can build a link, a script, or an animation out of it.
  * @param {string} tag
  * @param {Record<string, string>} [attrs]
  * @param {...(Node|null|undefined)} children
  */
 export function svg(tag, attrs, ...children) {
+  if (!SVG_TAGS.has(tag)) throw new Error('SVG tag not allowed');
   const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const [k, v] of Object.entries(attrs ?? {})) {
     if (v == null) continue;
-    if (k.startsWith('on') || k === 'href') throw new Error('not allowed on an SVG element');
+    if (!SVG_ATTRS.has(k)) throw new Error('SVG attribute not allowed');
     node.setAttribute(k, String(v));
   }
   for (const c of children) if (c) node.appendChild(c);

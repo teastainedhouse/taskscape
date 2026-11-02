@@ -50,7 +50,7 @@ const files = walk(PUBLIC).filter((f) => TEXT_EXT.has(path.extname(f)));
 
 test('public/ exists and has the eight pages', () => {
   const names = new Set(files.map((f) => path.relative(PUBLIC, f)));
-  for (const page of ['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'tokens.html', 'login.html']) assert.ok(names.has(page), `missing ${page}`);
+  for (const page of ['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html', 'login.html']) assert.ok(names.has(page), `missing ${page}`);
   assert.ok(names.has(path.join('js', 'dom.js')), 'missing js/dom.js');
 });
 

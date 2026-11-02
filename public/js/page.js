@@ -1,12 +1,14 @@
 // page.js — shared bootstrap for every page: load /api/config and /api/me,
-// fill in the site title, mount the dev banner and nav state, wire the status
-// region and the "session expired" notice, hide edit controls for viewers.
+// fill in the site title, mount the dev banner, the avatar (the header's
+// link to the profile page) and nav state, wire the status region and the
+// "session expired" notice, hide edit controls for viewers.
 // Under the password provider: send signed-out visitors to login.html,
 // link the expiry notice to it, and show the Sign out button.
 
 import { get, post, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
 import { el, setChildren } from './dom.js';
 import { mountDevBanner } from './dev-user.js';
+import { mountAvatar } from './avatar.js';
 import { refreshBadge } from './for-you.js';
 
 /** @typedef {{config: any, me: {id: string, name: string, auth: string, can_edit: boolean}}} PageContext */
@@ -146,8 +148,7 @@ export async function boot(opts) {
   // Edit permission: anything marked data-needs-edit is for editors only.
   if (!me.can_edit) for (const n of document.querySelectorAll('[data-needs-edit]')) n.hidden = true;
 
-  const who = document.getElementById('whoami');
-  if (who) setChildren(who, ['Signed in as ', el('b', null, me.name)]);
+  mountAvatar(document.getElementById('avatar'), me);
   mountSignOut(me);
   refreshBadge(me).catch(() => {}); // the badge is a nicety; What's New itself still works
   return { config, me };

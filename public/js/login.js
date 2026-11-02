@@ -7,7 +7,7 @@ import { applySiteTitle, say, sayError } from './page.js';
 import { api, get, ApiError } from './api.js';
 
 /** The pages `next` may name. login.html itself is not one of them. */
-const PAGES = new Set(['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'tokens.html']);
+const PAGES = new Set(['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
 
 const form = document.getElementById('login-form');
 const username = document.getElementById('login-username');

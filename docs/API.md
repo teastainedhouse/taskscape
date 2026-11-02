@@ -86,6 +86,8 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Token** `{ "id", "label", "token_prefix", "created_at", "last_used_at", "revoked_at" }`.
 
+**Session** (a sign-in under the password provider) `{ "id", "created_at", "last_seen_at", "expires_at", "current": true }`. Never the cookie value or its hash. `last_seen_at` moves at most once a minute. There is no user-agent or address column: the table keeps only what the sign-in needs.
+
 **Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true }`.
 
 ## 5. List query parameters (projects and tasks)
@@ -113,6 +115,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | GET | `/api/login` | none | — | `200 {"provider":"password","site_title":"Taskscape"}` for every provider; nothing else | |
 | POST | `/api/login` | none | `{username, password}` | `200 Me` + `Set-Cookie` (below) | 400 (field names only; control characters in `username` are refused), 401 `"Wrong username or password."`, 403 cross-site, 404 provider is not `password`, 415, 429, 503 |
 | POST | `/api/logout` | none | — | `204` + clearing `Set-Cookie`; ends the session the cookie names, if any | 403 cross-site, 404 provider is not `password`, 415 |
+| GET | `/api/me/sessions` | human | — | `200 {"items":[Session]}`: the caller's live sign-ins, most recently seen first, `current: true` on the one making the request | 403 (token), 404 provider is not `password` or caller is not a password session |
+| DELETE | `/api/me/sessions` | human, no editor check | — | `200 {"ended": n}`: ends every other live session of the caller, keeps this one | 403 (token or cross-site), 404 as above, 415 |
+| DELETE | `/api/me/sessions/:id` | human, no editor check | — | `204`; ending the current session also clears the cookie | 403 (token or cross-site), 404 provider is not `password`, caller is not a password session, unknown, expired, or someone else's session (one body for all), 415 |
 | POST | `/api/me/password` | human, no editor check | `{current_password, new_password, revoke_tokens?}` (`revoke_tokens` boolean, default `false`) | `204`; ends the caller's other sessions, keeps this one; with `revoke_tokens: true` also revokes every MCP token the caller holds | 400 (`new_password` 10–200 characters; `current_password: "is incorrect"`; `revoke_tokens` not a boolean), 403 (token), 404 provider is not `password` or caller is not a password session, 429, 503 |
 | GET | `/api/me` | any | — | `200 Me` | 401 |
 | GET | `/api/config` | any | — | `200` public config (section 7) | 401 |
@@ -261,3 +266,5 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-01 (review fixes): guestbook comments. New Comment shape and routes `GET`/`POST /api/projects/:id/comments`, `GET`/`POST /api/tasks/:id/comments`, `DELETE /api/comments/:id`, and `POST /api/comments/:id/restore`; visibility follows the parent; only the author trashes or restores; no edit and no hard delete. Activity gains `item_type: "comment"` (entries name the parent in `changes.on`, never the text), which `item_type`, `project`, and `for=me` filter on. The export lists live comments. Migrations `003_comments.sql` and `004_activity_comment_type` (one file per dialect) add the table and widen the activity `item_type` check. MCP: `get` returns a `comments` array, a new `comment` tool signs a guestbook, and `delete` and `restore` take `type: "comment"` for one's own comment, one id per call.
 - 2026-11-01 (security review): the export treats a bare `\r` as a line break in table cells and headings (a title containing one could start a new line), and escapes Markdown punctuation in the footer's user name. Comment bodies are stored with `\n` line breaks.
 - 2026-11-01 (branch review): reassigning a private project makes the moved tasks private (they were hidden by the project; the move entry records it); a `PATCH` that makes an item private while handing it to someone else is `400 invalid_state`, as create already was; `GET /api/people` gives the directory only to editors in the browser; a guestbook holds at most 500 live comments; `DELETE /api/comments/:id` needs no edit rights; the export escapes `<` and `&` in comments. MCP `get` returns at most the newest 50 comments, with `comments_omitted`.
+- 2026-11-02 (profile page): active sign-ins. New Session shape and routes `GET /api/me/sessions`, `DELETE /api/me/sessions` (end every other session), `DELETE /api/me/sessions/:id`; all human-only and only for a password session, 404 otherwise like `/api/me/password`; someone else's session id is the generic 404; the cookie value and its hash are never returned. No MCP tool: a token is not a session and must never be able to end one, the same reason tokens cannot mint tokens.
+- 2026-11-02 (task page, no API change): the UI's task links point at `task.html?id=`; the old `project.html#task-<id>` anchors are gone.

@@ -151,5 +151,5 @@ pre { overflow-x: auto; }
 .password-form { max-width: 30em; }
 .password-form input[type="password"] { width: 100%; }
 
-/* The Sign out button beside "Signed in as". */
+/* The Sign out button in the header. */
 .sign-out { white-space: nowrap; }

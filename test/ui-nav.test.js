@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const NAV = ['index.html', 'mine.html', 'whats-new.html', 'trash.html', 'tokens.html'];
+const NAV = ['index.html', 'mine.html', 'whats-new.html', 'trash.html', 'profile.html'];
 
 /** The hrefs inside <nav aria-label="Main">, or null when the page has none. */
 function navLinks(html) {
@@ -67,6 +67,18 @@ test('browser storage is only ever touched inside try, so blocked storage costs 
       assert.match(line, /\btry\s*\{/, `${file}:${i + 1} reaches storage outside a one-line try`);
     });
   }
+});
+
+test('every toolbar page has the avatar link to the profile page, and no page says who is signed in in the header', () => {
+  for (const page of readdirSync(PUBLIC).filter((f) => f.endsWith('.html'))) {
+    const html = readFileSync(path.join(PUBLIC, page), 'utf8');
+    if (page === 'login.html') { assert.match(html, /class="avatar" aria-hidden="true"/, 'the sign-in page shows the mark as decoration'); continue; }
+    assert.match(html, /<a href="profile.html" class="avatar" id="avatar" aria-label="Your profile"><\/a>/, `${page} lacks the avatar link`);
+    assert.match(html, /id="sign-out"/, `${page} lacks the Sign out button`);
+    assert.doesNotMatch(html, /whoami/, `${page} still has the "Signed in as" span`);
+  }
+  const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
+  assert.match(page, /mountAvatar\(document\.getElementById\('avatar'\), me\)/);
 });
 
 test('the What\'s New toolbar entry carries the For you badge from every page', () => {

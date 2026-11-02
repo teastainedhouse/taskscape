@@ -138,7 +138,7 @@ try {
       console.log(`added ${result.user.id}`);
       if (claim) {
         console.log(`claimed ${describe(result.claimed)}`);
-        if (result.claimed.live_tokens) console.log('those MCP tokens work again for this account; revoke them on the tokens page or with `passwd` if unsure');
+        if (result.claimed.live_tokens) console.log('those MCP tokens work again for this account; revoke them on the profile page or with `passwd` if unsure');
       }
       break;
     }

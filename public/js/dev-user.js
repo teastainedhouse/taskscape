@@ -23,6 +23,6 @@ export function mountDevBanner(host, me, config) {
   });
   host.appendChild(el('div', { class: 'dev-banner', role: 'region', 'aria-label': 'Development mode' },
     'DEV MODE — local identity only. ',
-    el('label', { for: 'dev-user-select' }, 'Signed in as'),
+    el('label', { for: 'dev-user-select' }, 'Dev user'),
     select));
 }

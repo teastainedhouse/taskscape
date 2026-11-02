@@ -84,6 +84,20 @@ test('filters: actor, via, item_type', async () => {
   await t.close();
 });
 
+test('actor= never bypasses visibility: my own entry about an item that went private to someone else is gone', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const b = t.as('bob');
+  const p = (await a.post('/api/projects', { name: 'P' })).body;
+  const task = (await a.post('/api/tasks', { title: 'T', project_id: p.id })).body;
+  await b.patch(`/api/tasks/${task.id}`, { version: task.version, status: 'Doing' });
+  assert.equal((await b.get('/api/activity?actor=bob')).body.items.length, 1);
+  await a.patch(`/api/projects/${p.id}`, { version: p.version, private: true });
+  assert.equal((await b.get('/api/activity?actor=bob')).body.items.length, 0);
+  assert.equal((await a.get('/api/activity?actor=bob')).body.items.length, 1, 'the owner still sees it');
+  await t.close();
+});
+
 test('for=me: entries by others about the projects and tasks I own now', async () => {
   const t = await createTestApp({ now: tickingClock() });
   const a = t.as('alice');

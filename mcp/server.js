@@ -34,7 +34,7 @@ function die(line) {
 const baseUrl = (process.env.TASKSCAPE_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.TASKSCAPE_TOKEN ?? '').trim();
 if (!baseUrl) die('taskscape-mcp: TASKSCAPE_URL is not set (the API origin, e.g. http://localhost:3000).');
-if (!token) die('taskscape-mcp: TASKSCAPE_TOKEN is not set (a personal token from the "My MCP tokens" page).');
+if (!token) die('taskscape-mcp: TASKSCAPE_TOKEN is not set (a personal token from the profile page).');
 if (!/^https?:\/\//i.test(baseUrl)) die('taskscape-mcp: TASKSCAPE_URL must start with http:// or https://.');
 
 const sessionId = randomUUID();

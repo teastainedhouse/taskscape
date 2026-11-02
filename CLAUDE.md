@@ -47,7 +47,7 @@ api/
     export.js              /api/projects/:id/export.md
     people.js              /api/people (owners the caller may pick)
     me.js                  /api/me; meBody() is the Me shape
-    login.js               GET/POST /api/login, POST /api/logout, POST /api/me/password (password provider; GET /api/login for all)
+    login.js               GET/POST /api/login, POST /api/logout, POST /api/me/password, GET/DELETE /api/me/sessions[/:id] (password provider; GET /api/login for all)
     tokens.js              /api/tokens (human-only: token principals get 403)
     config.js              /api/config (public subset)
     health.js              /api/health (unauthenticated)
@@ -93,7 +93,7 @@ api/
                            revoke(), revokeAllForUser()
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
                            create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
-      sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, removeByToken/ForUser/Expired; no version, no activity
+      sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, listForUser (never the hash), removeOwn, removeByToken/ForUser/Expired; no version, no activity
 
 migrations/
   001_init.sql             projects, tasks, tags, project_tags, task_tags, activity, mcp_tokens, schema_migrations
@@ -117,14 +117,15 @@ public/                    served as-is; no build step
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default; status, due date, tags editable
   whats-new.html           activity feed with "Load more"; Show: Everything / For you (?for=me)
   trash.html               trashed projects and tasks, restore
-  tokens.html              "My MCP tokens": issue (plaintext shown once), revoke; a change-password section for password sessions
+  profile.html             your profile: name and initial, preferences, change password and active sign-ins (password sessions), MCP tokens, your recent activity
   login.html               sign-in dialog for the password provider; reads GET /api/login, goes to a same-site ?next= page
   css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch
   css/theme-toolbar.css    the look, linked by every page: old browser chrome (dithered toolbars, pixel icons, starfield throbber, status bar) around a modern page; dark mode
-  js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, aria-live say(), attempt() = the 409 handler
+  js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, avatar, aria-live say(), attempt() = the 409 handler
+  js/avatar.js             the header's profile link: the person's initial from a 5x7 bitmap font as SVG rects (dom.js svg()), "T" fallback
   js/api.js                fetch wrapper: JSON, error envelope -> ApiError(.code/.details/.current), 401 -> session-expired event
-  js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; tagChip() validates #rrggbb
-  js/dev-user.js           red DEV MODE banner + user dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
+  js/dom.js                el()/append()/setChildren() with textContent only; refuses on* attributes; safeUrl() for href/src; svg() via createElementNS; oneLine() for confirm text; tagChip() validates #rrggbb
+  js/dev-user.js           red DEV MODE banner + "Dev user" dropdown (cookie taskscape_dev_user), only when me.auth === "dev"
   js/odometer.js           visitor counter: six digits, role=img + aria-label, webring bar revealed by three clicks in two seconds
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
@@ -135,7 +136,7 @@ public/                    served as-is; no build step
   js/activity-words.js     activity entry -> words + link
   js/for-you.js            For you: unread badge on the toolbar's What's New entry; last seen per user in localStorage (try/catch)
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
-  js/projects.js tasks.js task.js mine.js whats-new.js trash.js tokens.js   one module per page; tasks.js (project page) has the data-driven TASK_COLUMNS map
+  js/projects.js tasks.js task.js mine.js whats-new.js trash.js profile.js   one module per page; tasks.js (project page) has the data-driven TASK_COLUMNS map
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
 mcp/                       the MCP server (local stdio script)
@@ -147,7 +148,7 @@ test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
                            hits, search, export, markdown, http, db, mcp (fake fetch), comments, login (password provider), ui-escaping (greps public/),
-                           ui-nav (every page has the same toolbar entries, each with an icon; storage only inside try), pager (offset paging and js/pager.js)
+                           ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try), pager (offset paging and js/pager.js)
 
 docs/
   ONE-PAGER.md             the original pitch, scrubbed of company and vendor names; historical, not kept current
@@ -250,7 +251,7 @@ TASKSCAPE_TEST_POSTGRES_URL='postgres://user:password@localhost:5432/taskscape_t
 
 Writing a test: `createTestApp()` from `test/helpers.js` returns `{ app, db, config, catchAllId, as(userId), tokenAs(plaintext, sessionId), withHeaders(h), anon(), close() }`. Each client has `get/post/patch/put/delete(path, body?, headers?)` returning `{ status, headers, body }`. Requests go straight to `app.fetch`, so tests need no port and run in parallel.
 
-MCP server: `npm install` once, then `TASKSCAPE_URL=http://localhost:3000 TASKSCAPE_TOKEN=tsk_… npm run mcp`. Mint the token on the tokens page or with `POST /api/tokens` as a signed-in user. See the README for the client config.
+MCP server: `npm install` once, then `TASKSCAPE_URL=http://localhost:3000 TASKSCAPE_TOKEN=tsk_… npm run mcp`. Mint the token on the profile page or with `POST /api/tokens` as a signed-in user. See the README for the client config.
 
 ## Review agents
 
