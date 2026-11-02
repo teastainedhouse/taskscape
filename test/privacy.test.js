@@ -305,7 +305,8 @@ test('people under the password provider: directory rows, never owners known onl
   assert.deepEqual(seen.map((p) => p.id).sort(), ['dana', 'eli']);
   assert.equal(seen.some((p) => p.name === 'Ghost Writer'), false);
   assert.equal(seen.some((p) => p.id === 'system'), false);
-  // a token has no owner picker, so it is not handed the directory (usernames are not secret: see people.js)
+  // a token has no owner picker, so it is not handed the directory; nor can a refused write probe it, since the
+  // owner check comes last (usernames are not secret, though: see people.js)
   assert.deepEqual((await eli.get('/api/people')).body.items.map((p) => p.id), ['eli']);
   await t.close();
 });
@@ -341,6 +342,45 @@ test('owner fields on a write: a private id and a missing id answer byte for byt
       assert.equal(hidden.text, missing.text, JSON.stringify(body));
     }
   }
+  await t.close();
+});
+
+test('owner check comes last: a refused write never tells a known sign-in username from an unknown one', async () => {
+  const t = await createTestApp({ config: { auth: { provider: 'password' } } });
+  const now = '2026-11-01T09:00:00.000Z';
+  for (const [id, name] of [['dana', 'Dana Fox'], ['eli', 'Eli Moss'], ['frank', 'Frank Hale']]) await users.create(t.db, { id, name, groups: [] }, 'scrypt$x', now);
+  const dana = t.tokenAs((await tokens.issue(t.db, { id: 'dana', name: 'Dana Fox', groups: [] }, 'd', now)).plaintext);
+  const eli = t.tokenAs((await tokens.issue(t.db, { id: 'eli', name: 'Eli Moss', groups: [] }, 'e', now)).plaintext);
+  const S = (await dana.post('/api/projects', { name: 'Secret', private: true })).body;
+  const ST = (await dana.post('/api/tasks', { title: 'Secret', project_id: S.id })).body;
+  const P = (await eli.post('/api/projects', { name: 'Mine' })).body;
+  const T = (await eli.post('/api/tasks', { title: 'Mine', project_id: P.id })).body;
+  /** @type {Array<[string, string, string, object]>} label, method, path, body without owner_id */
+  const refused = [
+    ['missing project', 'patch', '/api/projects/no-such-id', { version: 1 }],
+    ['missing task', 'patch', '/api/tasks/no-such-id', { version: 1 }],
+    ['hidden project', 'patch', `/api/projects/${S.id}`, { version: 1 }],
+    ['hidden task', 'patch', `/api/tasks/${ST.id}`, { version: 1 }],
+    ['stale project', 'patch', `/api/projects/${P.id}`, { version: 9 }],
+    ['stale task', 'patch', `/api/tasks/${T.id}`, { version: 9 }],
+    ['task moved to a missing project', 'patch', `/api/tasks/${T.id}`, { version: 1, project_id: 'no-such-id' }],
+    ['task created in a hidden project', 'post', '/api/tasks', { title: 'X', project_id: S.id }],
+    ['project created with a missing tag', 'post', '/api/projects', { name: 'X', tag_ids: ['no-such-id'] }],
+    ['task created with a missing tag', 'post', '/api/tasks', { title: 'X', project_id: P.id, tag_ids: ['no-such-id'] }],
+  ];
+  for (const [label, method, path, body] of refused) {
+    const known = await eli[method](path, { ...body, owner_id: 'frank' });
+    const unknown = await eli[method](path, { ...body, owner_id: 'nobody' });
+    assert.ok(known.status >= 400, label);
+    assert.equal(known.status, unknown.status, label);
+    assert.equal(known.text, unknown.text, label);
+  }
+  assert.deepEqual((await eli.patch('/api/projects/no-such-id', { version: 1, owner_id: 'nobody' })).body, NOT_FOUND_BODY);
+  // only a write that would otherwise go through tells them apart (usernames are not secret: see people.js)
+  assert.equal((await eli.patch(`/api/tasks/${T.id}`, { version: 1, owner_id: 'nobody' })).status, 400);
+  const handed = await eli.patch(`/api/tasks/${T.id}`, { version: 1, owner_id: 'frank' });
+  assert.equal(handed.status, 200);
+  assert.equal(handed.body.owner_name, 'Frank Hale');
   await t.close();
 });
 

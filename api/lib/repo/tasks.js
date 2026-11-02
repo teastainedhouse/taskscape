@@ -5,6 +5,7 @@ import { rowToTask, tagsFor, statusOrder, diff } from './common.js';
 import { record } from './activity.js';
 import * as tags from './tags.js';
 import * as projects from './projects.js';
+import * as people from './people.js';
 
 const SETTABLE = ['project_id', 'title', 'status', 'owner_id', 'owner_name', 'private', 'due_date', 'notes'];
 const SORTS = { updated_at: 't.updated_at', created_at: 't.created_at', title: 'LOWER(t.title)', status: null, owner_name: 'LOWER(t.owner_name)', due_date: null };
@@ -106,27 +107,25 @@ export async function createIn(tx, user, input, config, now) {
   if (!tx.inTransaction) throw new Error('createIn must run inside db.transaction()');
   const id = input.id ?? newId();
   const ownerId = input.owner_id ?? user.id;
-  const ownerName = ownerId === user.id ? user.name : input.owner_name;
   const projectId = input.project_id ?? config.catch_all_project.id;
   const row = {
     id, project_id: projectId, title: input.title, status: input.status ?? config.default_status.task,
-    owner_id: ownerId, owner_name: ownerName, private: input.private ?? config.privacy.default_private,
+    owner_id: ownerId, owner_name: user.name, private: input.private ?? config.privacy.default_private,
     due_date: input.due_date ?? null, notes: input.notes ?? '',
   };
   if (row.private && row.owner_id !== user.id) throw invalidState('Only the owner can make an item private. Create it as yourself or public.');
   {
     const project = await targetProject(tx, user, projectId);
     checkInvariant(project, ownerId);
+    const tagList = [];
+    for (const tagId of input.tag_ids ?? []) tagList.push(await tags.mustExist(tx, tagId));
+    if (ownerId !== user.id) row.owner_name = await people.ownerNameFor(tx, config, ownerId, input.owner_name); // last check: see people.js
     await tx.query(
       `INSERT INTO tasks (id, project_id, title, status, owner_id, owner_name, private, due_date, notes, version, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       [id, row.project_id, row.title, row.status, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, now, now]);
-    const tagNames = [];
-    for (const tagId of input.tag_ids ?? []) {
-      const tag = await tags.mustExist(tx, tagId);
-      await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tagId]);
-      tagNames.push(tag.name);
-    }
+    for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
+    const tagNames = tagList.map((tag) => tag.name);
     const changes = Object.fromEntries(SETTABLE.map((k) => [k, { to: row[k] }]));
     if (tagNames.length) changes.tags = { to: tagNames.sort() };
     await record(tx, user, { item_type: 'task', item_id: id, action: 'create', changes }, now);
@@ -168,6 +167,15 @@ export async function update(db, user, id, input, config, now) {
       next.owner_name = user.name;
     }
     if (before.version !== input.version) throw conflict(before); // so `before` is the row the locked version check approves
+    const projectChanged = next.project_id !== before.project_id;
+    const ownerChanged = next.owner_id !== before.owner_id;
+    if (projectChanged || ownerChanged) { // either one makes the change non-empty, so this always ran before the write
+      const project = projectChanged ? await targetProject(tx, user, next.project_id) : await lockedProject(tx, user, before.project_id);
+      checkInvariant(project, next.owner_id);
+    }
+    if (input.owner_id !== undefined && input.owner_id !== user.id) { // last check: see people.js
+      next.owner_name = await people.ownerNameFor(tx, config, input.owner_id, input.owner_name);
+    }
     const changes = diff(before, next, SETTABLE);
     if (Object.keys(changes).length === 0) { // no stored value would change, so not a write: check the version only
       await cas(tx, user, id, input.version, null);
@@ -175,12 +183,6 @@ export async function update(db, user, id, input, config, now) {
     }
     // The owner's own name refresh rides along silently, and is logged only when it is the whole change.
     if (changes.owner_name && !changes.owner_id && before.owner_id === user.id && Object.keys(changes).length > 1) delete changes.owner_name;
-    const projectChanged = next.project_id !== before.project_id;
-    const ownerChanged = next.owner_id !== before.owner_id;
-    if (projectChanged || ownerChanged) {
-      const project = projectChanged ? await targetProject(tx, user, next.project_id) : await lockedProject(tx, user, before.project_id);
-      checkInvariant(project, next.owner_id);
-    }
     await cas(tx, user, id, input.version,
       'project_id = ?, title = ?, status = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, updated_at = ?',
       [next.project_id, next.title, next.status, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, now]);

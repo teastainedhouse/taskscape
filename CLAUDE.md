@@ -37,7 +37,7 @@ package.json               scripts: dev, start, migrate, seed, backup, users, mc
 api/
   index.js                 createApp({config, db, now?, log?}) -> { fetch(Request): Promise<Response> }; registers every handler module
   handlers/                one module per resource; each exports `routes: [{method, path, auth?, handler}]`; no SQL
-    _shared.js             body(req, ctx) with the size limit; resolveOwnerName() (directory name, else the client's, else 400)
+    _shared.js             body(req, ctx) with the size limit
     projects.js            /api/projects CRUD, restore, tags, hit
     tasks.js               /api/tasks CRUD, restore, tags
     tags.js                /api/tags list and create
@@ -94,7 +94,8 @@ api/
       tags.js              normalizeTagName(), list, create (idempotent; createIn), mustExist()
       comments.js          comments: listFor, liveFor (export), get/mustGet, create (on a visible, live parent), trash/restore (author only)
       activity.js          record() (called inside every write transaction), list() with cursor, read-time visibility, and for=me
-      people.js            distinct owners of visible items + caller + the directory for editors in the browser (dev users, enabled users rows); directoryName()
+      people.js            distinct owners of visible items + caller + the directory for editors in the browser (dev users, enabled users rows); directoryName();
+                           ownerNameFor() (directory name, else the client's, else 400), the last check in project and task writes
       tokens.js            lookup() (under password: needs a live users row), touchLastUsed(), listForUser(), issue() (plaintext once),
                            revoke(), revokeAllForUser()
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
