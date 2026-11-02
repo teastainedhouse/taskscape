@@ -106,7 +106,7 @@ await tasks.create(db, alice, { id: 'monthly-report', project_id: P.web.id, titl
 const banner = await tasks.create(db, alice, { id: 'order-the-banner', project_id: P.party.id, title: 'Order the party banner', due_date: daysFromNow(-1) }, config, tick());
 await tasks.update(db, alice, banner.id, { version: banner.version, status: 'Done' }, config, new Date(Date.now() - 86_400_000).toISOString());
 
-// a task due next month, so the calendar has something past this month; and a feed link for alice (printed below)
+// a task due next month, so the calendar has something past this month; and a feed link for alice (calendar and Atom, printed below)
 await tasks.create(db, alice, { id: 'plan-the-spring-sale', project_id: P.web.id, title: 'Plan the spring sale page', due_date: daysFromNow(35) }, config, tick());
 const { issue: issueFeed } = await import('../api/lib/repo/feeds.js');
 const aliceFeed = await issueFeed(db, alice, { label: 'Seeded calendar', scope: 'mine' }, tick());
@@ -128,5 +128,6 @@ console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_
 console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  alice's calendar feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/calendar.ics`);
+console.log(`  alice's For you Atom feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/activity.atom`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

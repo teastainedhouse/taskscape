@@ -54,8 +54,8 @@ api/
     preferences.js         GET/PATCH /api/me/preferences; preferencesFor() = site defaults overlaid with the person's row
     login.js               GET/POST /api/login, POST /api/logout, POST /api/me/password, GET/DELETE /api/me/sessions[/:id] (password provider; GET /api/login for all)
     tokens.js              /api/tokens (human-only: token principals get 403)
-    feeds.js               /api/feeds (human-only: list, make, revoke feed links); GET /api/feeds/:token/calendar.ics (no session: the token in
-                           the path); publicBase(), feedResponse() (private, no-store; no referrer)
+    feeds.js               /api/feeds (human-only: list, make, revoke feed links); GET /api/feeds/:token/calendar.ics and activity.atom (no
+                           session: the token in the path); publicBase(), feedResponse() (private, no-store; no referrer)
     config.js              /api/config (public subset)
     health.js              /api/health (unauthenticated)
   lib/
@@ -68,6 +68,7 @@ api/
     validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
                            validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), validateLink() + cleanLinkUrl() (http/https only), validateChecklistItem(), parseListQuery(), parseActivityQuery()
     ical.js                renderCalendar(), icalText() (RFC 5545 escaping), fold() (75 octets, CRLF); pure
+    atom.js                renderAtom(), xmlText() (the one XML escape, for text and attributes), describeEntry() (What's New words), entryLink(); pure
     recurrence.js          RECURRENCES, nextDue() (month ends, leap years), addDays/addMonths, dateInZone(); pure date arithmetic
     markdown.js            renderProjectExport(), mdCell(), mdInline(), mdText(), slug()
     markdown-import.js     parseProjectExport(): the export format back into a project and tasks, pure; ImportParseError names field and line
@@ -112,7 +113,7 @@ api/
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
                            create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
       feeds.js             feed_tokens: issue (plaintext once), listForUser, revoke, revokeAllForUser, lookup() (unrevoked; under password, an enabled
-                           account) -> a read-only feed principal; no version, no activity
+                           account) -> the link's id, scope and a read-only feed principal; no version, no activity
       sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, listForUser (never the hash), removeOwn, removeByToken/ForUser/Expired; no version, no activity
       preferences.js       get (the row or null), effective (defaults overlaid, with `chosen`), set (one ON CONFLICT upsert), todayFor() (THE today:
                            the person's zone, else the site's); no version, no activity
@@ -186,7 +187,7 @@ mcp/                       the MCP server (local stdio script)
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), today (due filters, closed_at), feeds (links, iCal, hostile titles), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
+                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), today (due filters, closed_at), feeds (links, iCal, Atom, hostile text, scopes and visibility), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
                            login (password provider), preferences, ui-escaping (greps public/),
                            ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 

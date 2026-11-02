@@ -78,7 +78,8 @@ export async function revokeAllForUser(db, userId, now) {
  * @param {import('../config.js').Config} config
  * @param {string} plaintext
  * @param {string} now
- * @returns {Promise<{user: {id: string, name: string, groups: string[], via: 'feed', auth: 'feed'}, scope: 'mine'|'all'}|null>}
+ * @returns {Promise<{id: string, user: {id: string, name: string, groups: string[], via: 'feed', auth: 'feed'}, scope: 'mine'|'all'}|null>}
+ *   `id` the feed link's id (not secret; names the Atom feed)
  */
 export async function lookup(db, config, plaintext, now) {
   if (!isFeedToken(plaintext)) return null;
@@ -92,5 +93,5 @@ export async function lookup(db, config, plaintext, now) {
   if (!r.last_used_at || Date.parse(now) - Date.parse(r.last_used_at) > TOUCH_INTERVAL_MS) {
     await db.query('UPDATE feed_tokens SET last_used_at = ? WHERE id = ?', [now, r.id]);
   }
-  return { user: { id: r.user_id, name: r.user_name, groups: [], via: 'feed', auth: 'feed' }, scope: r.scope };
+  return { id: r.id, user: { id: r.user_id, name: r.user_name, groups: [], via: 'feed', auth: 'feed' }, scope: r.scope };
 }

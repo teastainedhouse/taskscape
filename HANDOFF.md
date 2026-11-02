@@ -1,6 +1,6 @@
 # Handoff: Phases 7–10
 
-This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–6 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
+This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–7 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
 
 ## Where things stand
 
@@ -12,20 +12,20 @@ This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–6 of the feature b
 | 4 Recurring tasks | `recurring tasks: closing one creates its next copy, once` | done |
 | 5 Time zones, Today page | `today: one server rule for "today", …` | done |
 | 6 Calendar and iCal feed | `feeds: calendar feed links, and a calendar page` | done |
-| 7 Atom feed | — | **to do**; a draft builder is in `api/lib/atom.js` (unwired, unreviewed) |
-| 8 Duplicate project | — | to do |
+| 7 Atom feed | `atom: What's New as an Atom feed, through the same feed links` | done |
+| 8 Duplicate project | — | **to do** |
 | 9 @mentions | — | to do |
 | 10 Final checks, whole-repo review, draft PR | — | to do |
 
-No PR has been opened yet. `npm test` passes on SQLite (299) and on PostgreSQL 16.
+No PR has been opened yet. `npm test` passes on SQLite (304). Phases 1–6 passed on PostgreSQL 16 in the cloud container; Phase 7 was built on a laptop without a PostgreSQL server, so it has not been run there (it adds no SQL: the feed reads through `activity.list()`).
 
 ## How the earlier phases were built (reuse these)
 
 - **Child records of a task** (links, checklist): `tasks.childWrite()` in `api/lib/repo/tasks.js` (task row lock and version check first, then the change, then the bump and the activity entry). Readers apply `taskVisible` themselves (`linksFor(db, user, ids)`). Recipe: "Add a child record to tasks" in CLAUDE.md.
 - **One "today"**: `todayFor()` in `api/lib/repo/preferences.js`; `Me.today`; `due=overdue|today|week` on `GET /api/tasks`.
-- **Feed tokens**: `api/lib/repo/feeds.js` (`lookup()` returns a read-only principal and the scope), `api/handlers/feeds.js` (`feedPrincipal()`, `feedResponse()` with `Cache-Control: private, no-store` and `Referrer-Policy: no-referrer`, `publicBase()`). Phase 7 adds `GET /api/feeds/:token/activity.atom` next to `calendar.ics`, puts `atom_url` back in the `POST /api/feeds` answer, the profile page's reveal box (`public/js/profile-feeds.js`), README and API.md.
+- **Feed tokens**: `api/lib/repo/feeds.js` (`lookup()` returns the link's id, a read-only principal and the scope), `api/handlers/feeds.js` (`feedPrincipal()`, `feedResponse()` with `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer` and a sandboxing CSP, `publicBase()`), `calendar.ics` and `activity.atom` (`api/lib/atom.js`: `xmlText()` is the one XML escape).
 - **Export/import** (Phase 8 builds on it): `renderProjectExport()` writes priority, Repeats, `Links:` and `Checklist:` blocks; `parseProjectExport()` reads them; `planImport()`/`runImport()` create through `createIn()` (which takes `links` and `checklist` from internal callers only).
-- **Task ids between tasks** (`recurred_from`/`recurred_to`) are returned only when visible (`visibleTaskRef()` in `visibility.js`), and activity nulls hidden task and project ids at read time (`hideInvisibleTaskIds()` in `repo/activity.js`). Mentions (Phase 9) need the same care.
+- **Task ids between tasks** (`recurred_from`/`recurred_to`) are returned only when visible (`visibleTaskRef()` in `visibility.js`), and activity nulls hidden task and project ids at read time (`hideInvisibleTaskIds()` in `repo/activity.js`). Mentions (Phase 9) need the same care, and For you is now also the Atom feed's `mine` scope, so a mention added to `for_me` in `activity.list()` reaches the feed too (test both).
 - **The MCP server refuses `.` and `..` as ids** (URL dot segments); keep that for any new id argument.
 
 ## Environment notes (cloud container)
@@ -59,6 +59,8 @@ Standing rules from the brief: every Agent call sets `model` ("opus" for reviewe
 9. **Calendar feed**: closed tasks are left out (not marked done); a 90-day lookback, nearest first, capped at `limits.max_page_size`; production refuses to start without an https `public_url`; read-only accounts may make feed links; `revoke_tokens` on a password change also revokes feed links. No MCP tool manages feed links.
 10. The MCP `me` tool now also returns statuses, closed statuses and priorities, and the server's `today`.
 11. Pre-existing: the `netscape` theme name vs house rule 9 (a browser brand); a reviewer flagged it, nothing was changed.
+12. **Atom feed**: the newest 50 entries, no paging (a reader keeps what it has seen); `mine` is For you (others' changes to what you own), not your own task changes, unlike the calendar's `mine`; the profile's scope option now reads "Mine (my tasks, For you)". Entries are plain text. The feed says less than the page in two places: an unlabelled link is named by its host (task links are often shared-document URLs with a key), and moves say "another project". It always says "comment", not the owner's Guestbook preference. Both feeds now send `Content-Security-Policy: default-src 'none'; sandbox`.
+13. What's New (page and feed) no longer says "it repeats, so the next one was created" when the reader cannot see the copy.
 
 ## Review findings so far
 
@@ -154,9 +156,27 @@ Fixed:
 - tests: DTEND across month, year and leap-day ends; a task in a trashed project stays out of the feed.
 Not changed (decision to check): under the `headers` and `dev` providers there is no account to check, so a feed link keeps working after its owner leaves the identity provider until it is revoked on the profile page; MCP tokens behave the same.
 
+## Phase 7 (Atom feed)
+Fixed:
+- security: a browser opening a feed renders it on the site's origin; both feeds now send `Content-Security-Policy: default-src 'none'; sandbox` (test).
+- security: an unlabelled task link was named by its full URL (often a shared-document URL with a key); the feed names it by host (test). README says the feed carries checklist text, link labels and tag names.
+- security: bidi embedding/override/isolate controls let a title reorder the words around it; `xmlText()` drops them (test). The regex is now written with `\u` escapes (it had been saved with literal characters).
+- security: the self-link comment said the token was never echoed from the request; reworded (it is the path's token, accepted only in the `tsf_` form).
+- privacy (low, pre-existing): "it repeats, so the next one was created" showed when the reader could not see the copy; now only when `recurred_to` is visible, in the feed and on the page (test).
+- general: an empty feed had no `<author>`; the feed now has the site as author (test). A test's lone surrogate never reached the escape (storage makes it U+FFFD); replaced with an override character, the helper test covers surrogates. CLAUDE.md test list and `lookup()` line; API.md's `POST /api/feeds` scope wording; "control characters" in the docs (DEL is dropped too).
+- privacy/general test gaps added: byte-identical 404 for revoked, unknown and malformed atom links against a missing id elsewhere; a dev-user header or cookie cannot change whose feed it is; `mine` leaves out the owner's own changes through Claude; tag entries link to What's New; a project comment links to the project; hostile link labels, checklist text and tag names; an empty feed through the route.
+Dismissed:
+- security: typographic quotes around titles (a title can contain any quote; the UI uses straight quotes too).
+- security: `entryLink` throws on a lone surrogate in an id: ids come only from `randomUUID()` (`id` is read-only in bodies).
+- security: HEAD is 405 and there is no ETag/Last-Modified: readers fall back to a full GET. Follow-up.
+- security/privacy (pre-existing, decision to check from Phase 6): under `headers`/`dev` a feed link outlives the person; README now says how to revoke one in the database.
+- general: no test tying `describeEntry()` to `activity-words.js` (the UI has no DOM tests by design; the reviewer compared 33 entry shapes by hand and they agree, except the two deliberate differences above). The feed title uses the name saved with the link (same as the calendar). `updated` can move back when the newest entry becomes invisible (fine for a polled feed).
+- upstream-check: none.
+
 ## Not verified yet
 
 - A browser sweep of Phase 6 was done (calendar, profile, both themes, 375px, keyboard), but no screen reader was used anywhere; the checks were scripted (names, focus styles, overflow) plus screenshots.
 - No real calendar app was pointed at the `.ics` feed; it was checked against RFC 5545 by tests only.
 - Follow-up test gap the Phase 6 general reviewer listed: `last_used_at` throttling (DTEND, the trashed project, and `passwd` on feeds are now covered).
 - The second-review fixes were not run on PostgreSQL (the `NOT IN` clause is the one `due=overdue` already uses there).
+- Phase 7 was not run on PostgreSQL (no PostgreSQL server on the laptop) and no real feed reader was pointed at `activity.atom`; it was parsed by the browser's XML parser (seeded data) and, by the security reviewer, by a strict expat parser over 302 generated documents. The profile page was checked at desktop and 375px widths, light mode only.

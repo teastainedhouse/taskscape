@@ -72,7 +72,7 @@ export function describeActivity(a, ctx = {}) {
             : from.text !== to.text ? `renamed the checklist item "${show(from.text)}" to "${show(to.text)}"${from.done !== to.done ? (to.done ? ' and ticked it' : ' and unticked it') : ''}`
               : `${to.done ? 'ticked' : 'unticked'} "${show(to.text)}"`); break;
           case 'checklist_moved': phrases.push(`moved the checklist item "${show(d?.item?.text)}" ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
-          case 'recurred_to': phrases.push('it repeats, so the next one was created'); break;
+          case 'recurred_to': if (to) phrases.push('it repeats, so the next one was created'); break; // a hidden copy's id comes back null
           case 'link_moved': phrases.push(`moved the link ${linkName(d?.link)} ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           default: phrases.push(`${FIELD_LABELS[field] ?? field}: ${show(from)} → ${show(to)}`);
         }
