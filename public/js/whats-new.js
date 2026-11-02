@@ -6,9 +6,11 @@ import { boot, sayError } from './page.js';
 import { get } from './api.js';
 import { el, clear, timeEl, text } from './dom.js';
 import { describeActivity, viaBadge } from './activity-words.js';
+import { commentWords } from './guestbook.js';
 import { readSeen, markSeen } from './for-you.js';
 
 const { me } = await boot({ title: "What's New?" });
+const words = commentWords(me.preferences.comments_label);
 
 const tbody = document.querySelector('#feed tbody');
 const more = document.getElementById('load-more');
@@ -71,7 +73,7 @@ async function load() {
 
 /** @param {any} a */
 function row(a) {
-  const d = describeActivity(a, { projectNames: state.projectNames });
+  const d = describeActivity(a, { projectNames: state.projectNames, words });
   const fresh = state.forMe && a.created_at > state.seenBefore;
   return el('tr', { class: fresh ? 'activity-new' : null },
     el('td', null, timeEl(a.created_at), fresh ? [' ', el('b', { class: 'new-mark' }, 'New')] : null),

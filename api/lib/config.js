@@ -1,5 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { COMMENTS_LABELS, validTimeZone } from './validate.js';
+
+/** Where the themes live: public/css/theme-<name>.css, relative to this repo. */
+const PUBLIC_CSS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', 'css');
 
 /**
  * @typedef {Object} Config
@@ -16,6 +21,9 @@ import path from 'node:path';
  * @property {{page_size: number, max_page_size: number, body_bytes: number}} limits
  * @property {{id: string, name: string, description?: string}} catch_all_project
  * @property {{provider: 'dev'|'headers'|'password', headers: object, dev: {default_user: string, users: Array<{id:string,name:string,email?:string,groups?:string[]}>}, password: {session_days: number, cookie_name: string}}} auth
+ * @property {string} theme  the site's default theme; each theme is public/css/theme-<name>.css
+ * @property {string[]} themes  the themes people may pick from
+ * @property {{comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string}} preference_defaults
  * @property {string} env  'development' | 'production' | 'test'
  */
 
@@ -70,6 +78,23 @@ function validate(c) {
     if (new Set(users.map((u) => u.id)).size !== users.length) fail('auth.dev.users ids must be unique');
     if (!users.some((u) => u.id === c.auth.dev.default_user)) fail('auth.dev.default_user must be one of auth.dev.users');
   }
+  if (c.themes !== undefined && (!Array.isArray(c.themes) || c.themes.length === 0)) fail('themes must be a non-empty array of theme names');
+  c.theme = c.theme ?? (Array.isArray(c.themes) ? c.themes[0] : 'toolbar');
+  c.themes = Array.isArray(c.themes) ? c.themes : [c.theme];
+  // The file check runs where public/ is present (dev, tests, a single-process host); a function bundled
+  // without public/css skips it rather than refusing to start, since the static host serves the files.
+  const checkFiles = existsSync(PUBLIC_CSS);
+  for (const name of c.themes) {
+    if (typeof name !== 'string' || !/^[a-z0-9-]{1,40}$/.test(name)) fail('themes must be short lowercase names (a-z, 0-9, -)');
+    if (checkFiles && !existsSync(path.join(PUBLIC_CSS, `theme-${name}.css`))) fail(`theme "${name}" needs public/css/theme-${name}.css`);
+  }
+  if (new Set(c.themes).size !== c.themes.length) fail('themes has duplicates');
+  if (!c.themes.includes(c.theme)) fail('theme must be one of themes');
+  c.preference_defaults = { comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', ...(c.preference_defaults ?? {}) };
+  const pd = c.preference_defaults;
+  if (!COMMENTS_LABELS.includes(pd.comments_label)) fail(`preference_defaults.comments_label must be ${COMMENTS_LABELS.join(' or ')}`);
+  if (typeof pd.shortcuts !== 'boolean') fail('preference_defaults.shortcuts must be true or false');
+  if (!validTimeZone(pd.time_zone)) fail('preference_defaults.time_zone must be an IANA time zone name');
   c.limits = { page_size: 500, max_page_size: 1000, body_bytes: 262144, ...(c.limits ?? {}) };
   c.privacy = { default_private: false, ...(c.privacy ?? {}) };
   c.permissions = { groups: [], ...c.permissions };
@@ -94,6 +119,9 @@ export function publicConfig(c) {
     webring: c.webring,
     limits: { page_size: c.limits.page_size, max_page_size: c.limits.max_page_size },
     catch_all_project_id: c.catch_all_project.id,
+    theme: c.theme,
+    themes: c.themes,
+    preference_defaults: { comments_label: c.preference_defaults.comments_label, shortcuts: c.preference_defaults.shortcuts, time_zone: c.preference_defaults.time_zone },
     auth: { provider: c.auth.provider },
   };
   if (c.auth.provider === 'dev') out.auth.dev_users = c.auth.dev.users.map((u) => ({ id: u.id, name: u.name }));

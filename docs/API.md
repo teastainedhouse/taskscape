@@ -88,7 +88,9 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 
 **Session** (a sign-in under the password provider) `{ "id", "created_at", "last_seen_at", "expires_at", "current": true }`. Never the cookie value or its hash. `last_seen_at` moves at most once a minute. There is no user-agent or address column: the table keeps only what the sign-in needs.
 
-**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true }`.
+**Me** `{ "id", "name", "email", "auth": "headers" | "dev" | "password" | "token", "can_edit": true, "preferences": Preferences }`.
+
+**Preferences** (personal, under any provider) `{ "theme": "toolbar", "comments_label": "Comments" | "Guestbook", "shortcuts": true, "time_zone": "UTC" }`: the site defaults from the config overlaid with what the person chose. `theme` is one of `/api/config` `themes`; `time_zone` is an IANA name; `shortcuts` says whether single-key keyboard shortcuts are on. Like the auth tables, preferences have no `version` and write no activity: last write wins.
 
 ## 5. List query parameters (projects and tasks)
 
@@ -112,14 +114,16 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | Method | Path | Auth | Body | Success | Errors |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/health` | none | — | `200 {"ok":true}` | |
-| GET | `/api/login` | none | — | `200 {"provider":"password","site_title":"Taskscape"}` for every provider; nothing else | |
+| GET | `/api/login` | none | — | `200 {"provider":"password","site_title":"Taskscape","theme":"toolbar"}` for every provider; nothing else | |
 | POST | `/api/login` | none | `{username, password}` | `200 Me` + `Set-Cookie` (below) | 400 (field names only; control characters in `username` are refused), 401 `"Wrong username or password."`, 403 cross-site, 404 provider is not `password`, 415, 429, 503 |
 | POST | `/api/logout` | none | — | `204` + clearing `Set-Cookie`; ends the session the cookie names, if any | 403 cross-site, 404 provider is not `password`, 415 |
 | GET | `/api/me/sessions` | human | — | `200 {"items":[Session]}`: the caller's live sign-ins, most recently seen first, `current: true` on the one making the request | 403 (token), 404 provider is not `password` or caller is not a password session |
 | DELETE | `/api/me/sessions` | human, no editor check | — | `200 {"ended": n}`: ends every other live session of the caller, keeps this one | 403 (token or cross-site), 404 as above, 415 |
 | DELETE | `/api/me/sessions/:id` | human, no editor check | — | `204`; ending the current session also clears the cookie | 403 (token or cross-site), 404 provider is not `password`, caller is not a password session, unknown, expired, or someone else's session (one body for all), 415 |
 | POST | `/api/me/password` | human, no editor check | `{current_password, new_password, revoke_tokens?}` (`revoke_tokens` boolean, default `false`) | `204`; ends the caller's other sessions, keeps this one; with `revoke_tokens: true` also revokes every MCP token the caller holds | 400 (`new_password` 10–200 characters; `current_password: "is incorrect"`; `revoke_tokens` not a boolean), 403 (token), 404 provider is not `password` or caller is not a password session, 429, 503 |
-| GET | `/api/me` | any | — | `200 Me` | 401 |
+| GET | `/api/me` | any | — | `200 Me` (preferences included) | 401 |
+| GET | `/api/me/preferences` | any | — | `200 Preferences` | 401 |
+| PATCH | `/api/me/preferences` | human, no editor check | `{theme?, comments_label?, shortcuts?, time_zone?}`; each optional; `null` means back to the site default | `200 Preferences` | 400 (field names only: `theme` must be a configured theme, `comments_label` `Comments` or `Guestbook`, `shortcuts` a boolean, `time_zone` an IANA name Intl knows; an unknown key is reported as `body`), 403 (token or cross-site) |
 | GET | `/api/config` | any | — | `200` public config (section 7) | 401 |
 | GET | `/api/people` | any | — | `200 {"items":[{"id","name"}]}` by name: owners of items visible to the caller, the caller, and, for an editor in the browser (not a token or a read-only account), the server's directory (every configured dev user under `dev`; every enabled `users` row under `password`, whose ids are sign-in usernames; nothing under `headers`). A directory name wins over an item's `owner_name` snapshot; `system` is never listed | 401 |
 | GET | `/api/projects` | any | query section 5 | `200 {items:[Project]}` | 400 |
@@ -171,7 +175,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **Activity for me:** `for=me` keeps only entries written by someone other than the caller about a project or task the caller owns now, or about a comment on one (`owner_id` at read time, not when the entry was written; tag entries never match). Visibility is the same read-time rule as the rest of the feed, so an item that goes private to someone else drops out along with its history. It combines with the other filters and the cursor. Any other value of `for` is 400.
 
-**Guestbook comments.** A comment has no privacy of its own: it is visible exactly when its parent is, through every route, so a non-owner reaching a comment on a private item, or a comment's guestbook route on one, gets the same 404 as a missing id. A project that goes private takes its guestbook with it, including from the people who wrote in it, who then get 404 trashing their own comments too; a task moved to the catch-all by that flip keeps its comments. Reassigning a private item hands its guestbook to the new owner, the previous owner's comments included. Anyone who may edit can sign a visible, live parent, up to 500 live comments per parent (then `400 invalid_state` "This guestbook is full.", for restores too); signing is not an edit of the parent (its `version` and `updated_at` stay). Only the author can trash or restore a comment, each a compare-and-set on the comment's `version` with an activity entry; trashing needs no edit rights (an author who lost them can still take their words back), restoring does; nobody edits one and nothing hard-deletes one. A trashed comment shows only to its author, in the parent's guestbook, until restored; `GET /api/trash` does not list comments. Trashing the parent does not trash its comments, but closes the guestbook: no new comments, and no restores until the parent is back (the 400 message names what is in the trash, the task or its project). A trashed comment's activity entries remain. `GET /api/search` does not look in comments. The export lists live comments under their task and in a `## Guestbook` section (section 8).
+**Comments.** A comment has no privacy of its own: it is visible exactly when its parent is, through every route, so a non-owner reaching a comment on a private item, or a comment's guestbook route on one, gets the same 404 as a missing id. A project that goes private takes its guestbook with it, including from the people who wrote in it, who then get 404 trashing their own comments too; a task moved to the catch-all by that flip keeps its comments. Reassigning a private item hands its guestbook to the new owner, the previous owner's comments included. Anyone who may edit can sign a visible, live parent, up to 500 live comments per parent (then `400 invalid_state` "This item has as many comments as it can hold.", for restores too); signing is not an edit of the parent (its `version` and `updated_at` stay). Only the author can trash or restore a comment, each a compare-and-set on the comment's `version` with an activity entry; trashing needs no edit rights (an author who lost them can still take their words back), restoring does; nobody edits one and nothing hard-deletes one. A trashed comment shows only to its author, in the parent's guestbook, until restored; `GET /api/trash` does not list comments. Trashing the parent does not trash its comments, but closes the guestbook: no new comments, and no restores until the parent is back (the 400 message names what is in the trash, the task or its project). A trashed comment's activity entries remain. `GET /api/search` does not look in comments. The export lists live comments under their task and in a `## Comments` section (section 8).
 
 **Comment activity entries** have `item_type: "comment"`, `item_id` the comment id, `action` `create`, `trash`, or `restore`, and `changes: {"on": {"type": "project"|"task", "id": "…"}}` naming the parent. `item_title` is the parent's title and `project_id` the parent's project (the project itself for a project comment). An entry never carries the comment's text. The `project` filter includes comments on the project and on its tasks.
 
@@ -196,8 +200,13 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "webring": [],
   "limits": { "page_size": 500, "max_page_size": 1000 },
   "catch_all_project_id": "general",
+  "theme": "toolbar",
+  "themes": ["toolbar", "netscape"],
+  "preference_defaults": { "comments_label": "Comments", "shortcuts": true, "time_zone": "UTC" },
   "auth": { "provider": "dev", "dev_users": [ { "id": "alice", "name": "Alice Lin" } ] } }
 ```
+
+`theme` is the site's default look and `themes` the ones a person may pick on their profile page; each is `public/css/theme-<name>.css`, checked at startup. `preference_defaults` are what `Preferences` fall back to.
 
 `auth.provider` is `"dev"`, `"headers"`, or `"password"`. `auth.dev_users` appears only with the dev provider. Header names, anything under `auth.headers`, and `auth.password` settings are never exposed. A signed-out page cannot read `/api/config`; it uses `GET /api/login` for the provider and site title.
 
@@ -228,13 +237,13 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 <notes, raw block>
 
-Guestbook:
+Comments:
 
 **Bob Ortiz**, 2026-10-31:
 
 > Love the GIFs!
 
-## Guestbook
+## Comments
 
 **Carol Nkemelu**, 2026-10-31:
 
@@ -245,7 +254,7 @@ Guestbook:
 Exported from Taskscape on 2026-10-31 by Alice Lin.
 ```
 
-Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. A bare `\r` counts as a line break everywhere, as in CommonMark. Comments are quote blocks (every line prefixed `> `, so none can start a heading; every `[` escaped, so none can define a link; and every `<` and `&` escaped, so raw HTML and autolinks show as text), with the author's name, like the footer's, escaped as Markdown text; oldest first, live ones only, even for their author; a task gets a `###` section when it has notes or comments, and `## Guestbook` appears only when the project has comments. Only tasks visible to the caller are included; the footer does not mention omissions.
+Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. A bare `\r` counts as a line break everywhere, as in CommonMark. Comments are quote blocks (every line prefixed `> `, so none can start a heading; every `[` escaped, so none can define a link; and every `<` and `&` escaped, so raw HTML and autolinks show as text), with the author's name, like the footer's, escaped as Markdown text; oldest first, live ones only, even for their author; a task gets a `###` section when it has notes or comments, and `## Comments` appears only when the project has comments. Only tasks visible to the caller are included; the footer does not mention omissions.
 
 ## 9. Changes
 
@@ -268,3 +277,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-01 (branch review): reassigning a private project makes the moved tasks private (they were hidden by the project; the move entry records it); a `PATCH` that makes an item private while handing it to someone else is `400 invalid_state`, as create already was; `GET /api/people` gives the directory only to editors in the browser; a guestbook holds at most 500 live comments; `DELETE /api/comments/:id` needs no edit rights; the export escapes `<` and `&` in comments. MCP `get` returns at most the newest 50 comments, with `comments_omitted`.
 - 2026-11-02 (profile page): active sign-ins. New Session shape and routes `GET /api/me/sessions`, `DELETE /api/me/sessions` (end every other session), `DELETE /api/me/sessions/:id`; all human-only and only for a password session, 404 otherwise like `/api/me/password`; someone else's session id is the generic 404; the cookie value and its hash are never returned. No MCP tool: a token is not a session and must never be able to end one, the same reason tokens cannot mint tokens.
 - 2026-11-02 (task page, no API change): the UI's task links point at `task.html?id=`; the old `project.html#task-<id>` anchors are gone.
+- 2026-11-02 (preferences and themes): new Preferences shape, carried in `Me`, with routes `GET /api/me/preferences` (any principal) and `PATCH /api/me/preferences` (human-only, no editor check; `null` resets a field to the site default). Migration `005_preferences.sql` adds the `preferences` table, keyed by principal id under every provider, outside the versioning rule like the auth tables. `GET /api/config` gains `theme`, `themes`, and `preference_defaults`; `GET /api/login` gains `theme` (the site default, for the sign-in page). The export says `Comments:` and `## Comments` where it said `Guestbook:` and `## Guestbook`, and the full-thread message reads "This item has as many comments as it can hold."; the shapes and routes for comments are unchanged. MCP: a new `me` tool returns the token's user with their `time_zone` and `today` in it (the tool, rather than a note in every result, so date context costs one small call and never pads a list); the server instructions and tool descriptions say "comments", not "guestbook". No MCP tool writes preferences: they are personal settings for the browser, and a token setting someone's theme has no use.

@@ -15,7 +15,7 @@ import { inlineEdit, selectFor, redraw } from './inline-edit.js';
 import { refreshOverdue, isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
 import { createPager } from './pager.js';
-import { guestbook } from './guestbook.js';
+import { guestbook, commentWords } from './guestbook.js';
 
 const { config, me } = await boot({ title: 'Project' });
 // The counter and webring are decoration, loaded on their own: if a content
@@ -67,7 +67,7 @@ async function start() {
   buildTaskHeader();
   setupNewTask();
   await loadTasks();
-  projectBook = guestbook({ type: 'project', id: state.project.id, label: 'this project', heading: 'h2', me, canSign: mayEdit });
+  projectBook = guestbook({ type: 'project', id: state.project.id, label: 'this project', heading: 'h2', me, canSign: mayEdit, words: commentWords(me.preferences.comments_label) });
   document.getElementById('project-guestbook').appendChild(projectBook);
   loadOverdue();
   recordHit();

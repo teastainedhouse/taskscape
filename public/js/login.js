@@ -5,6 +5,7 @@
 
 import { applySiteTitle, say, sayError } from './page.js';
 import { api, get, ApiError } from './api.js';
+import { applyTheme } from './theme.js';
 
 /** The pages `next` may name. login.html itself is not one of them. */
 const PAGES = new Set(['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
@@ -52,6 +53,7 @@ async function start() {
     return;
   }
   applySiteTitle(info?.site_title, 'Sign in');
+  if (info?.theme) applyTheme(info.theme, [info.theme], { remember: false }); // the site default; a person's own theme comes back once they sign in
 
   if (info?.provider !== 'password') {
     form.hidden = true;

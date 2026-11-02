@@ -2,6 +2,7 @@
 // /api/me says auth: "dev". Switching sets the dev cookie and reloads.
 
 import { el, option } from './dom.js';
+import { forgetTheme } from './theme.js';
 
 const COOKIE = 'taskscape_dev_user'; // matches api/lib/auth/providers/dev.js
 
@@ -19,6 +20,7 @@ export function mountDevBanner(host, me, config) {
   select.addEventListener('change', () => {
     const id = select.value;
     document.cookie = `${COOKIE}=${encodeURIComponent(id)}; path=/; SameSite=Lax`;
+    forgetTheme(); // the next person's own theme comes from /api/me
     location.reload();
   });
   host.appendChild(el('div', { class: 'dev-banner', role: 'region', 'aria-label': 'Development mode' },

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '../mcp/client.js';
-import { TOOLS, DATA_NOTICE, NOT_FOUND_TEXT, GET_COMMENTS_MAX, callTool, validateArgs } from '../mcp/tools.js';
+import { TOOLS, DATA_NOTICE, NOT_FOUND_TEXT, GET_COMMENTS_MAX, callTool, validateArgs, dateIn } from '../mcp/tools.js';
 
 const TOKEN = 'tsk_test_token_value';
 const SESSION = '11111111-2222-4333-8444-555555555555';
@@ -53,8 +53,8 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the nine tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'tag']);
+test('tool definitions: exactly the ten tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'tag']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
@@ -437,4 +437,34 @@ test('get returns only the newest comments of a long guestbook, and says how man
   assert.equal(out.comments.length, GET_COMMENTS_MAX);
   assert.equal(out.comments[0].id, 'c7', 'oldest dropped, order kept');
   assert.equal(out.comments_omitted, 7);
+});
+
+test('me: who the token acts as, with the time zone and today in it', async () => {
+  const { client, calls } = makeClient(({ path }) => (path === '/api/me'
+    ? json(200, { id: 'alice', name: 'Alice Lin', email: null, auth: 'token', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'Pacific/Kiritimati' } })
+    : null));
+  const out = parsed(await callTool('me', {}, client));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/me');
+  assert.deepEqual(Object.keys(out), ['id', 'name', 'can_edit', 'time_zone', 'today', 'now']);
+  assert.equal(out.time_zone, 'Pacific/Kiritimati');
+  assert.equal(out.today, dateIn(new Date(out.now), 'Pacific/Kiritimati'));
+  assert.match(out.today, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(!('email' in out) && !('preferences' in out));
+  // the calendar day follows the zone, not the server
+  assert.equal(dateIn(new Date('2026-11-02T23:30:00Z'), 'Pacific/Kiritimati'), '2026-11-03');
+  assert.equal(dateIn(new Date('2026-11-02T23:30:00Z'), 'America/Los_Angeles'), '2026-11-02');
+  assert.equal(dateIn(new Date('2026-11-02T02:30:00Z'), 'America/Los_Angeles'), '2026-11-01');
+  // a bad answer from the API is an error result, never a throw
+  const broken = makeClient(() => json(500, { error: { code: 'internal', message: 'x' } }));
+  assert.equal((await callTool('me', {}, broken.client)).isError, true);
+  assert.equal((await callTool('me', { extra: 1 }, client)).isError, true, 'takes no arguments');
+});
+
+test('the MCP server never says "guestbook": comments are comments', async () => {
+  const { readFileSync } = await import('node:fs');
+  for (const t of TOOLS) assert.equal(/guestbook/i.test(t.description), false, t.name);
+  assert.equal(/guestbook/i.test(DATA_NOTICE), false);
+  const server = readFileSync(new URL('../mcp/server.js', import.meta.url), 'utf8');
+  assert.equal(/guestbook/i.test(server), false, 'server instructions');
 });

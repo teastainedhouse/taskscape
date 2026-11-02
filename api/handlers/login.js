@@ -49,7 +49,7 @@ const empty = (status, headers = {}) => new Response(null, { status, headers });
 export const routes = [
   // The one unauthenticated way for a signed-out page to learn the title and whether to show a sign-in form.
   { method: 'GET', path: '/api/login', auth: 'none', handler: async (_req, ctx) =>
-    json({ provider: ctx.config.auth.provider, site_title: ctx.config.site_title }) },
+    json({ provider: ctx.config.auth.provider, site_title: ctx.config.site_title, theme: ctx.config.theme }) },
 
   { method: 'POST', path: '/api/login', auth: 'none', sameOrigin: true, handler: async (req, ctx) => {
     requirePasswordProvider(ctx);
@@ -68,7 +68,7 @@ export const routes = [
     /** @type {import('../lib/auth/index.js').Principal} */
     const user = { id: cred.user.id, name: cred.user.name, email: cred.user.email ?? undefined, groups: cred.user.groups,
       via: 'ui', auth: 'password', login_session_id: session.id };
-    return json(meBody(ctx.config, user), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
+    return json(await meBody(ctx.db, ctx.config, user), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
   } },
 
   // Unauthenticated so an expired or unknown cookie can still be cleared.

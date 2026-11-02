@@ -127,8 +127,8 @@ try {
       const claim = flags['claim-existing'] === true;
       if (await users.get(db, u.id)) die('a user with that id already exists');
       const footprint = await users.existingFootprint(db, u.id);
-      const describe = (f) => `${f.projects} project(s), ${f.tasks} task(s), ${f.activity} activity entr(ies), ${f.tokens} MCP token(s) (${f.live_tokens} not revoked)`;
-      const inUse = footprint.projects + footprint.tasks + footprint.activity + footprint.tokens > 0;
+      const describe = (f) => `${f.projects} project(s), ${f.tasks} task(s), ${f.activity} activity entr(ies), ${f.tokens} MCP token(s) (${f.live_tokens} not revoked), ${f.preferences} preference row(s)`;
+      const inUse = footprint.projects + footprint.tasks + footprint.activity + footprint.tokens + footprint.preferences > 0;
       if (inUse && !claim) {
         die(`that id is already in use: ${describe(footprint)}.\nIf this account is that person, run again with --claim-existing.`);
       }

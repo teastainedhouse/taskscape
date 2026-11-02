@@ -302,7 +302,7 @@ button, .button {
 }
 .button:visited { color: var(--ink); }
 button:hover, .button:hover { background: var(--chrome-hover); }
-button:active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); box-shadow: none; transform: translate(1px, 1px); }
+button:not(.editable__value):active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); box-shadow: none; transform: translate(1px, 1px); }
 button:disabled { color: var(--ink-muted); cursor: default; }
 button.danger { color: var(--danger); }
 

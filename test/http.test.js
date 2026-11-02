@@ -41,7 +41,7 @@ test('me reports identity and edit rights; config is the public subset only', as
   const t = await createTestApp();
   const me = await t.as('bob').get('/api/me');
   assert.equal(me.status, 200);
-  assert.deepEqual(me.body, { id: 'bob', name: 'Bob Ortiz', email: 'bob@example.test', auth: 'dev', can_edit: true });
+  assert.deepEqual(me.body, { id: 'bob', name: 'Bob Ortiz', email: 'bob@example.test', auth: 'dev', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' } });
   const cfg = await t.as('bob').get('/api/config');
   assert.equal(cfg.status, 200);
   assert.equal(cfg.body.catch_all_project_id, 'general');
@@ -50,6 +50,9 @@ test('me reports identity and edit rights; config is the public subset only', as
   assert.equal(JSON.stringify(cfg.body).includes('x-forwarded'), false);
   assert.equal(cfg.body.auth.headers, undefined);
   assert.deepEqual(cfg.body.limits, { page_size: 500, max_page_size: 1000 }, 'page sizes, not body_bytes');
+  assert.equal(cfg.body.theme, 'toolbar');
+  assert.deepEqual(cfg.body.themes, ['toolbar', 'netscape']);
+  assert.deepEqual(cfg.body.preference_defaults, { comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' });
   await t.close();
 });
 

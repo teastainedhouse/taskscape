@@ -170,9 +170,9 @@ test('privacy: comments follow their parent through every door', async () => {
   const gone = (await b.post(`/api/projects/${P.id}/comments`, { body: 'Regretted words' })).body;
   await b.delete(`/api/comments/${gone.id}`, { version: 1 });
   const md = (await b.get(`/api/projects/${P.id}/export.md`)).text;
-  assert.match(md, /## Guestbook\n\n\*\*Bob Ortiz\*\*, \d{4}-\d{2}-\d{2}:\n\n> Signed by Bob\n/);
+  assert.match(md, /## Comments\n\n\*\*Bob Ortiz\*\*, \d{4}-\d{2}-\d{2}:\n\n> Signed by Bob\n/);
   for (const words of ['hidden words', 'Private chore', 'Regretted words']) assert.equal(md.includes(words), false, words);
-  assert.match((await a.get(`/api/projects/${P.id}/export.md`)).text, /### Private chore\n\nGuestbook:\n\n\*\*Alice Lin\*\*.*\n\n> note to self: hidden words/);
+  assert.match((await a.get(`/api/projects/${P.id}/export.md`)).text, /### Private chore\n\nComments:\n\n\*\*Alice Lin\*\*.*\n\n> note to self: hidden words/);
   // a project that goes private takes its guestbook with it, even from the comments' authors
   const p = (await a.get(`/api/projects/${P.id}`)).body;
   await a.patch(`/api/projects/${P.id}`, { version: p.version, private: true });
@@ -243,8 +243,8 @@ test('a guestbook holds at most MAX_PER_GUESTBOOK live comments; restore counts 
   assert.equal((await b.post(`/api/projects/${P.id}/comments`, { body: 'last one' })).status, 201);
   const full = await b.post(`/api/projects/${P.id}/comments`, { body: 'one too many' });
   assert.equal(full.status, 400);
-  assert.equal(full.body.error.message, 'This guestbook is full.');
-  assert.equal((await b.post(`/api/comments/${C.id}/restore`, { version: 2 })).body.error.message, 'This guestbook is full.');
+  assert.equal(full.body.error.message, 'This item has as many comments as it can hold.');
+  assert.equal((await b.post(`/api/comments/${C.id}/restore`, { version: 2 })).body.error.message, 'This item has as many comments as it can hold.');
   await t.close();
 });
 

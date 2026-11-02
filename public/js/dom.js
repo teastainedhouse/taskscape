@@ -187,15 +187,27 @@ function luminance(hex) {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
+/** The person's preferred IANA time zone (page.js sets it from /api/me); null means the device's. */
+let zone = null;
+
+/** Use this time zone for every date shown and for "today". @param {string|null|undefined} tz */
+export function setTimeZone(tz) {
+  zone = typeof tz === 'string' && tz ? tz : null;
+}
+
 /**
- * Format an ISO timestamp for humans in the viewer's locale.
+ * Format an ISO timestamp for humans in the viewer's locale, in their preferred time zone.
  * @param {string|null} iso
  */
 export function fmtWhen(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  try {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: zone ?? undefined });
+  } catch {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
 }
 
 /** A <time> element. @param {string|null} iso */
@@ -203,9 +215,16 @@ export function timeEl(iso) {
   return iso ? el('time', { datetime: iso }, fmtWhen(iso)) : text('');
 }
 
-/** Today's date in the viewer's local time zone as YYYY-MM-DD. */
+/** Today's date as YYYY-MM-DD in the preferred time zone (else the device's). */
 export function todayLocal() {
   const d = new Date();
+  if (zone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+      const get = (type) => parts.find((x) => x.type === type)?.value ?? '';
+      return `${get('year')}-${get('month')}-${get('day')}`;
+    } catch { /* an unknown zone: fall back to the device's */ }
+  }
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

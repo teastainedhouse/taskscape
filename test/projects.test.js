@@ -112,8 +112,9 @@ test('patch: changes fields, bumps version, logs only what changed', async () =>
   r = await a.patch(`/api/projects/${p.id}`, { version: 2, tag_ids: [] });
   assert.equal(r.body.error.details.fields.tag_ids, 'use the tag routes to change tags');
   const act = (await a.get(`/api/activity?item_id=${p.id}`)).body.items;
-  assert.deepEqual(act.map((e) => e.action), ['update', 'create']);
-  assert.deepEqual(act[0].changes, { description: { from: '', to: 'd' }, status: { from: 'Planned', to: 'Active' } });
+  // the create and the update can share a millisecond and then sort by id, so compare as sets and find by action
+  assert.deepEqual(act.map((e) => e.action).sort(), ['create', 'update']);
+  assert.deepEqual(act.find((e) => e.action === 'update').changes, { description: { from: '', to: 'd' }, status: { from: 'Planned', to: 'Active' } });
   await t.close();
 });
 

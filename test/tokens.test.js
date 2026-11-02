@@ -29,7 +29,7 @@ test('a token acts as its user via mcp, records the session id, and must send on
   const t = await createTestApp();
   const { plaintext } = (await t.as('alice').post('/api/tokens', { label: 'cli' })).body;
   const me = await t.tokenAs(plaintext, 'sess-42').get('/api/me');
-  assert.deepEqual(me.body, { id: 'alice', name: 'Alice Lin', email: 'alice@example.test', auth: 'token', can_edit: true });
+  assert.deepEqual(me.body, { id: 'alice', name: 'Alice Lin', email: 'alice@example.test', auth: 'token', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' } });
   const created = await t.tokenAs(plaintext, 'sess-42').post('/api/tasks', { title: 'From Claude' });
   assert.equal(created.status, 201);
   const act = (await t.as('alice').get(`/api/activity?item_id=${created.body.id}`)).body.items[0];

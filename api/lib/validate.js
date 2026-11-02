@@ -117,6 +117,58 @@ export function validateTag(body) {
   return out;
 }
 
+/** The two words the UI may call comments by. */
+export const COMMENTS_LABELS = ['Comments', 'Guestbook'];
+
+/**
+ * The canonical IANA name for a time zone Intl knows (so Date formatting with it cannot throw), or null.
+ * A leading letter is required, so an offset such as "+05" (which some browsers refuse) is not one.
+ * @param {unknown} name
+ * @returns {string|null}
+ */
+export function canonicalTimeZone(name) {
+  if (typeof name !== 'string' || !/^[A-Za-z][A-Za-z0-9_+\-/]{0,63}$/.test(name)) return null;
+  try { return new Intl.DateTimeFormat('en', { timeZone: name }).resolvedOptions().timeZone; } catch { return null; }
+}
+
+/** @param {unknown} name */
+export function validTimeZone(name) {
+  return canonicalTimeZone(name) !== null;
+}
+
+/**
+ * PATCH /api/me/preferences: each field optional; null means back to the site default.
+ * Values are checked against the config (themes), a fixed list (comments label), or Intl (time zone).
+ * @param {Record<string, unknown>} body
+ * @param {import('./config.js').Config} config
+ * @returns {Partial<{theme: string|null, comments_label: string|null, shortcuts: boolean|null, time_zone: string|null}>}
+ */
+export function validatePreferences(body, config) {
+  const errors = {};
+  const out = {};
+  const known = ['theme', 'comments_label', 'shortcuts', 'time_zone'];
+  if (Object.keys(body).some((k) => !known.includes(k))) errors.body = 'has a key that is not a preference'; // never echo the caller's key
+  if ('theme' in body) {
+    if (body.theme === null || config.themes.includes(body.theme)) out.theme = body.theme;
+    else errors.theme = 'must be one of the configured themes';
+  }
+  if ('comments_label' in body) {
+    if (body.comments_label === null || COMMENTS_LABELS.includes(body.comments_label)) out.comments_label = body.comments_label;
+    else errors.comments_label = `must be ${COMMENTS_LABELS.join(' or ')}`;
+  }
+  if ('shortcuts' in body) {
+    if (body.shortcuts === null || typeof body.shortcuts === 'boolean') out.shortcuts = body.shortcuts;
+    else errors.shortcuts = 'must be true or false';
+  }
+  if ('time_zone' in body) {
+    const zone = body.time_zone === null ? null : canonicalTimeZone(body.time_zone);
+    if (body.time_zone === null || zone) out.time_zone = zone; // stored canonical ("asia/tokyo" becomes "Asia/Tokyo")
+    else errors.time_zone = 'must be an IANA time zone name';
+  }
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
+}
+
 /** @param {Record<string, unknown>} body @returns {{label: string}} */
 export function validateTokenInput(body) {
   if (typeof body.label !== 'string' || !body.label.trim() || body.label.trim().length > 100) {

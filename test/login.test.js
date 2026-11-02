@@ -64,7 +64,7 @@ test('login sets a hardened session cookie that authenticates /api/me', async ()
   assert.equal((await t.anon().get('/api/me')).status, 401);
   const r = await t.login('  Dana ');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { id: 'dana', name: 'Dana Fox', email: 'dana@example.test', auth: 'password', can_edit: true });
+  assert.deepEqual(r.body, { id: 'dana', name: 'Dana Fox', email: 'dana@example.test', auth: 'password', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' } });
   const set = r.headers.get('set-cookie');
   assert.match(set, /^__Host-taskscape_session=[A-Za-z0-9_-]{43}; /);
   for (const attr of ['Path=/', 'HttpOnly', 'Secure', 'SameSite=Strict', `Max-Age=${30 * 86400}`]) assert.ok(set.split('; ').includes(attr), attr);
@@ -332,8 +332,13 @@ test('new users: system is reserved; an id already in use needs claimExisting', 
   const hash = await hashPassword('claim this account');
   const refused = await users.create(t.db, { id: 'olddana', name: 'Dana' }, hash, now());
   assert.equal(refused.status, 'in_use');
-  assert.deepEqual(refused.claimed, { projects: 1, tasks: 0, activity: 1, tokens: 1, live_tokens: 1 });
+  assert.deepEqual(refused.claimed, { projects: 1, tasks: 0, activity: 1, tokens: 1, live_tokens: 1, preferences: 0 });
   assert.equal(await users.get(t.db, 'olddana'), null);
+  // an id whose only trace is a preferences row counts as in use too (its time zone is personal)
+  await t.db.query("INSERT INTO preferences (user_id, time_zone, updated_at) VALUES ('prefonly', 'Asia/Tokyo', ?)", [now()]);
+  const prefOnly = await users.create(t.db, { id: 'prefonly', name: 'P' }, hash, now());
+  assert.equal(prefOnly.status, 'in_use');
+  assert.equal(prefOnly.claimed.preferences, 1);
   const claimed = await users.create(t.db, { id: 'olddana', name: 'Dana' }, hash, now(), { claimExisting: true });
   assert.equal(claimed.status, 'created');
   assert.equal(claimed.claimed.projects, 1);
@@ -482,10 +487,10 @@ test('password routes are 404 under other providers; GET /api/login works everyw
   assert.equal((await t.as('alice').post('/api/me/password', { current_password: 'x', new_password: 'a new password' })).status, 404);
   const info = await t.anon().get('/api/login', undefined, { 'x-dev-user': 'nobody' });
   assert.equal(info.status, 200);
-  assert.deepEqual(info.body, { provider: 'dev', site_title: t.config.site_title });
+  assert.deepEqual(info.body, { provider: 'dev', site_title: t.config.site_title, theme: 'toolbar' });
   await t.close();
   const p = await passwordApp();
-  assert.deepEqual((await p.anon().get('/api/login')).body, { provider: 'password', site_title: p.config.site_title });
+  assert.deepEqual((await p.anon().get('/api/login')).body, { provider: 'password', site_title: p.config.site_title, theme: 'toolbar' });
   await p.close();
 });
 

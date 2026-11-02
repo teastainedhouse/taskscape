@@ -9,6 +9,7 @@ import { refreshOverdue } from './overdue.js';
 import { allTags } from './tags.js';
 import { createPager } from './pager.js';
 import { describeActivity } from './activity-words.js';
+import { commentWords } from './guestbook.js';
 
 /**
  * Columns of the project table. Add a column here ("add a field" recipe):
@@ -195,7 +196,7 @@ async function loadPreview() {
     if (!items.length) { setChildren(ul, [el('li', null, 'Nothing yet.')]); return; }
     const names = new Map(state.projects.map((p) => [p.id, p.name]));
     setChildren(ul, items.map((a) => {
-      const d = describeActivity(a, { projectNames: names });
+      const d = describeActivity(a, { projectNames: names, words: commentWords(me.preferences.comments_label) });
       return el('li', null, timeEl(a.created_at), ' — ', el('b', null, a.actor_name), ` (${d.via}) `, d.what, d.link ? [' — ', d.link] : null);
     }));
   } catch (err) { setChildren(ul, [el('li', null, 'Could not load activity.')]); }

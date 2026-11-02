@@ -1,0 +1,281 @@
+/* theme-netscape.css — the 1996 look, back as the second theme: Times on grey
+   bevelled panels over a starfield, blue links, outset buttons, inset fields,
+   visible table borders. A novelty, so the chrome is loud; the content area
+   stays readable: solid panels, 16px text, AA contrast, focus rings, and a
+   dark variant for people whose system asks for one. Pick it on the profile
+   page, or make it the site default with "theme": "netscape" in
+   taskscape.config.json. Every selector here also exists in theme-toolbar.css,
+   so the two stay in step. */
+
+:root {
+  color-scheme: light dark;
+  --paper: #ffffff;
+  --panel: #c0c0c0;
+  --panel-hi: #ffffff;
+  --panel-lo: #808080;
+  --ink: #000000;
+  --ink-muted: #474747;
+  --link: #0000ee;
+  --link-visited: #551a8b;
+  --link-active: #ff0000;
+  --field: #ffffff;
+  --rule: #c0c0c0;
+  --zebra: #f4f4f4;
+  --notice: #ffffcc;
+  --notice-edge: #808000;
+  --error: #ffdddd;
+  --error-ink: #600000;
+  --danger: #800000;
+  --overdue: #c00000;
+  --accent: #000080;
+  --focus: #0000c0;
+  --serif: "Times New Roman", Times, serif;
+  --sans: Arial, Helvetica, sans-serif;
+  --mono: "Courier New", Courier, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1c1c1c;
+    --panel: #3c3c3c;
+    --panel-hi: #707070;
+    --panel-lo: #141414;
+    --ink: #f0f0f0;
+    --ink-muted: #b8b8b8;
+    --link: #9bb8ff;
+    --link-visited: #d2b0ff;
+    --link-active: #ff8080;
+    --field: #101010;
+    --rule: #4a4a4a;
+    --zebra: #262626;
+    --notice: #3a3a10;
+    --notice-edge: #b0b040;
+    --error: #4a1a1a;
+    --error-ink: #ffb0b0;
+    --danger: #ff9a94;
+    --overdue: #ff7b72;
+    --accent: #8fa8ff;
+    --focus: #ff80ff;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0 0 24px;
+  font: 16px/1.4 var(--serif);
+  color: var(--ink);
+  background: #000000 url("../img/stars.png") repeat;
+}
+
+/* Text never sits directly on the starfield: every panel is solid. */
+main.panel, .site-header, .site-footer, #marquee:not([hidden]) {
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px outset var(--panel-hi);
+  padding: 8px 12px;
+  margin: 10px 0;
+}
+main.panel { background: var(--paper); padding: 16px 20px; }
+main.panel > :first-child { margin-top: 0; }
+
+.site-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.site-title { font-size: 1.8em; margin: 0; font-weight: bold; }
+.site-title a, .site-title a:visited { color: var(--ink); text-decoration: none; }
+.site-title a::before { content: "\2605  "; color: var(--accent); }
+
+/* Toolbar entries as the text links they were, " | " between them. */
+nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-family: var(--sans); font-size: 0.95em; }
+nav a, nav a:visited { color: var(--link); position: relative; padding: 2px 4px; }
+nav a[aria-current="page"] { font-weight: bold; text-decoration: none; color: var(--ink); }
+.nav-badge { margin-left: 2px; padding: 0 4px; border: 1px solid var(--ink); background: #ff0000; color: #ffffff; font-size: 0.75em; font-weight: bold; vertical-align: super; }
+
+.sign-out { margin-left: auto; }
+.avatar { margin-left: auto; }
+.sign-out:not([hidden]) + .avatar { margin-left: 0; }
+
+/* The avatar: the initial on a starfield square with the old bevel; no drift here, the stars are already everywhere. */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 3px outset var(--panel-hi);
+  background: #000000 url("../img/stars.png") 0 0 / 192px 192px repeat;
+  image-rendering: pixelated;
+}
+.avatar svg { display: block; width: 24px; height: 24px; }
+.avatar:empty::after { content: "\2605"; color: #ffff00; font-size: 20px; line-height: 1; }
+a.avatar:hover { border-style: inset; }
+
+h1, h2, h3 { font-family: var(--serif); margin: 0.6em 0 0.3em; line-height: 1.2; }
+h1 { font-size: 1.8em; }
+h2 { font-size: 1.3em; border-bottom: 1px solid var(--panel-lo); padding-bottom: 2px; }
+h3 { font-size: 1.1em; }
+hr { border: 0; border-top: 1px solid var(--panel-lo); border-bottom: 1px solid var(--panel-hi); }
+p { margin: 10px 0; }
+
+a { color: var(--link); text-decoration: underline; }
+a:visited { color: var(--link-visited); }
+a:active { color: var(--link-active); }
+small, .muted { color: var(--ink-muted); opacity: 1; }
+address { font-style: normal; }
+code, kbd, samp, pre { font-family: var(--mono); font-size: 0.95em; }
+pre { background: var(--zebra); border: 1px inset var(--rule); padding: 6px 8px; }
+
+:focus-visible, a:focus-visible, th button.sort:focus-visible, button.editable__value:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* Gray bevelled buttons */
+button, .button {
+  display: inline-block;
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px outset var(--panel-hi);
+  border-radius: 0;
+  padding: 2px 10px;
+  font: 0.9em var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+.button:visited { color: var(--ink); }
+button:not(.editable__value):active, .button:active { border-style: inset; }
+button:disabled { color: var(--ink-muted); cursor: default; }
+button.danger { color: var(--danger); }
+
+input[type="text"], input[type="search"], input[type="date"], input[type="url"], input[type="password"], select, textarea {
+  background: var(--field);
+  color: var(--ink);
+  border: 2px inset var(--panel-lo);
+  border-radius: 0;
+  padding: 2px 4px;
+  font: 1em var(--serif);
+}
+input[readonly] { background: var(--zebra); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+.field label, .field .field-label { font-family: var(--sans); font-size: 0.85em; font-weight: bold; margin-bottom: 2px; }
+.field { margin: 8px 0; }
+.filters .field { margin: 0; }
+
+/* Visible borders on every list, the border=1 cellpadding=3 feel. */
+table { border: 1px outset var(--panel-lo); background: var(--paper); }
+th, td { border: 1px inset var(--rule); padding: 4px 8px; }
+thead th { background: var(--panel); font-family: var(--sans); font-size: 0.85em; font-weight: bold; white-space: nowrap; }
+th button.sort { color: var(--ink); }
+tbody tr:nth-child(even) td { background: var(--zebra); }
+tbody tr:hover td { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+td input[type="text"] { width: 100%; min-width: 10em; }
+td input[type="date"] { min-width: 9em; }
+.row-actions button { padding: 1px 6px; font-size: 0.8em; }
+tr.overdue td.col-due_date, tr.overdue td.col-due { color: var(--overdue); font-weight: bold; }
+tr.overdue td.col-due_date::after { content: "(overdue)"; display: block; font-weight: normal; }
+tr.trashed td { color: var(--ink-muted); font-style: italic; }
+tr.filtered-out td { font-style: italic; }
+
+/* Click to edit: a dotted underline, as links to nowhere once looked. */
+button.editable__value { color: inherit; background: none; border-radius: 0; border-bottom: 1px dotted var(--ink-muted); }
+button.editable__value:hover { background: var(--notice); border-bottom-color: var(--ink); }
+button.editable__value:hover::after, button.editable__value:focus-visible::after { content: " \270E"; color: var(--ink-muted); font-size: 0.85em; }
+.editable--block button.editable__value { padding: 2px 4px; margin: 0 -4px; }
+.overdue-mark { color: var(--overdue); }
+.activity-list li { font-size: 0.95em; }
+
+/* Overdue: the static line is a ruled notice; the ticker is a black bar with yellow text. */
+.overdue-line { margin: 0 0 12px; padding: 4px 8px; border: 1px solid var(--overdue); background: color-mix(in srgb, var(--overdue) 8%, var(--paper)); font-family: var(--sans); font-size: 0.9em; }
+.overdue-line b { color: var(--overdue); }
+.overdue-line--none { border-color: var(--rule); background: none; }
+.new-mark { padding: 0 4px; border: 1px solid currentColor; color: var(--overdue); font-size: 0.75em; font-family: var(--sans); }
+#marquee:not([hidden]) { display: flex; align-items: center; gap: 8px; padding: 4px 8px; }
+.marquee { flex: 1; min-width: 0; background: #000000; color: #ffff00; border: 2px inset var(--panel-lo); padding: 3px 0; font: bold 0.9em var(--sans); }
+.marquee__label { color: #ff6666; }
+.marquee__stop { flex: none; }
+
+/* Status message */
+.status { font-family: var(--sans); font-size: 0.9em; margin: 8px 0; }
+.status:not(:empty) { background: var(--notice); color: var(--ink); border: 1px solid var(--notice-edge); padding: 4px 8px; }
+.status.error:not(:empty) { background: var(--error); border-color: var(--error-ink); color: var(--error-ink); }
+
+/* Comments ("guestbook" to those who ask): ruled entries. */
+.guestbook-entry { background: var(--paper); border: 1px inset var(--rule); border-left: 4px double var(--accent); }
+.guestbook-entry.trashed { border-left-style: dashed; color: var(--ink-muted); font-style: italic; }
+.guestbook-by { font-family: var(--sans); font-size: 0.85em; color: var(--ink-muted); }
+.guestbook-by b { color: var(--ink); font-style: normal; }
+
+/* The project's and task's key/value header has no frame. */
+table.meta, table.meta th, table.meta td { border: 0; background: none; }
+table.meta th { padding: 3px 16px 3px 0; color: var(--ink-muted); font: bold 0.85em var(--sans); }
+table.meta td { padding: 3px 0; }
+table.meta tr:hover td { background: none; }
+
+/* Hit counter: lime monospace digits on black with a bevelled border, no GIFs. */
+.hit-counter { display: inline-block; background: #000000; border: 3px outset var(--panel-lo); padding: 2px 3px; cursor: pointer; user-select: none; line-height: 1; }
+.hit-counter .digit { display: inline-block; min-width: 0.8em; margin: 0 1px; padding: 2px 3px; font: bold 1.3em var(--mono); color: #00ff00; background: #101010; border: 1px solid #333333; text-align: center; }
+.hit-caption { font-family: var(--sans); font-size: 0.8em; color: var(--ink-muted); }
+
+.under-construction { text-align: center; padding: 16px 0; }
+.under-construction img { max-width: 100%; height: auto; }
+
+/* Tag chips */
+.tag-chip { font-family: var(--sans); font-size: 0.8em; border-color: var(--ink); }
+.tag-chip button { padding: 0 3px; font-size: 0.9em; }
+
+/* Profile: the big initial beside the name. */
+.who { display: flex; align-items: center; gap: 16px; margin: 0 0 8px; }
+.who__initial { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 72px; height: 72px; border: 3px outset var(--panel-hi); background: #000000 url("../img/stars.png") 0 0 / 192px 192px repeat; image-rendering: pixelated; }
+.who__initial svg { width: 48px; height: 48px; }
+.who__text p { margin: 2px 0; }
+.who__name { font-size: 1.2em; }
+tr.current-session td { font-weight: bold; }
+details summary { cursor: pointer; font-weight: bold; }
+
+/* Token plaintext box */
+.token-box { background: var(--notice); color: var(--ink); border: 2px inset var(--notice-edge); padding: 8px 12px; margin: 10px 0; }
+.token-box #token-warning b { color: var(--danger); }
+
+/* Activity feed */
+.via-mcp { color: var(--accent); font-weight: bold; }
+.via-ui { color: var(--link); font-weight: bold; }
+
+/* Dev mode banner */
+.dev-banner { background: #cc0000; color: #ffffff; font: bold 0.85em var(--sans); text-align: center; padding: 4px 16px; }
+.dev-banner select { margin-left: 6px; font-weight: normal; }
+
+/* Footer and webring */
+.site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; text-align: center; font-size: 0.85em; color: var(--ink-muted); }
+.site-footer address { margin: 0; }
+#webring { flex-basis: 100%; }
+#webring:not(:has(.webring:not([hidden]))) { display: none; }
+.webring { background: #000080; color: #ffffff; border: 2px outset var(--panel); padding: 6px 10px; text-align: center; font-family: var(--sans); }
+.webring a { color: #ffff00; }
+.webring a:visited { color: #ffcc66; }
+
+/* Sign-in: the old "Username and Password Required" dialog, drawn in the page. */
+.login-page main.panel { display: flex; align-items: center; justify-content: center; padding: 48px 16px; }
+.login-dialog { width: 100%; max-width: 440px; margin: 0; padding: 3px; background: var(--panel); color: var(--ink); border: 2px outset var(--panel-hi); }
+.login-dialog__titlebar { padding: 3px 6px; background: #000080; color: #ffffff; font: bold 0.85em var(--sans); }
+.login-dialog__body { padding: 14px; }
+.login-dialog__heading { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.login-dialog__prompt { margin: 0 0 14px; font-size: 0.95em; }
+.login-form__row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); align-items: center; gap: 8px; margin: 0 0 8px; }
+.login-form__row label { margin: 0; font: 0.9em var(--sans); }
+.login-form__row input { width: 100%; }
+.login-form__buttons button { min-width: 80px; }
+.login-form__buttons button[type="submit"] { box-shadow: 0 0 0 1px var(--ink); }
+.login-elsewhere p { margin: 0 0 14px; }
+
+.password-form { margin-top: 8px; }
+
+/* Phone width */
+@media (max-width: 700px) {
+  main.panel, .site-header, .site-footer, #marquee:not([hidden]) { margin: 6px 0; }
+  main.panel { padding: 12px; }
+  .site-header { gap: 4px 10px; }
+  .avatar { order: 2; width: 40px; height: 40px; }
+  .sign-out { order: 1; }
+  nav { order: 3; flex-basis: 100%; justify-content: space-between; }
+  h1 { font-size: 1.5em; }
+}
+@media (max-width: 480px) {
+  .login-page main.panel { padding: 16px 8px; }
+  .login-form__row { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+}

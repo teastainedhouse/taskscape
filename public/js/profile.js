@@ -3,11 +3,12 @@
 // sign-ins for password sessions, MCP tokens (issue, plaintext shown once,
 // revoke), and your own recent activity (GET /api/activity?actor=<me>).
 
-import { boot, say, sayError } from './page.js';
-import { get, post, del, ApiError } from './api.js';
-import { el, btn, clear, setChildren, timeEl, oneLine } from './dom.js';
+import { boot, say, sayError, applyPreferences } from './page.js';
+import { get, post, patch, del, ApiError } from './api.js';
+import { el, btn, option, clear, setChildren, timeEl, oneLine } from './dom.js';
 import { initialFor, letterSvg } from './avatar.js';
 import { describeActivity, viaBadge } from './activity-words.js';
+import { commentWords } from './guestbook.js';
 
 const { config, me } = await boot({ title: 'Profile' });
 
@@ -20,6 +21,7 @@ let activityCount = 0;
 let activityBusy = false;
 
 renderWho();
+setupPreferences();
 renderEnv();
 setupIssue();
 if (me.auth === 'password') { setupPassword(); setupSessions(); }
@@ -36,6 +38,61 @@ function renderWho() {
       el('p', { class: 'who__name' }, el('b', null, me.name)),
       el('p', { class: 'muted' }, `User id: ${me.id}`, me.email ? ` · ${me.email}` : null),
       el('p', { class: 'muted' }, `Signed in with ${AUTH[me.auth] ?? me.auth}. `, me.can_edit ? 'You can edit.' : 'Your account is read-only.'))]);
+}
+
+/* ------------------------------------------------------------- preferences */
+
+/** The IANA zones this browser knows, the person's own included; else just theirs and UTC. */
+function timeZones(current) {
+  let zones = [];
+  try { zones = Intl.supportedValuesOf('timeZone'); } catch { zones = []; }
+  const set = new Set(['UTC', ...zones, current].filter(Boolean));
+  return [...set];
+}
+
+/** The device's zone, for the "use this device's" button. */
+function deviceZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
+/** Theme, comments label, shortcuts, time zone: one form, one PATCH, applied to this page at once. */
+function setupPreferences() {
+  const section = document.getElementById('prefs-section');
+  const form = document.getElementById('prefs-form');
+  const prefs = me.preferences;
+  const theme = el('select', { id: 'pref-theme', name: 'theme' }, (config.themes ?? [config.theme]).map((t) => option(t, t === config.theme ? `${t} (site default)` : t, t === prefs.theme)));
+  const label = el('select', { id: 'pref-comments', name: 'comments_label' }, ['Comments', 'Guestbook'].map((l) => option(l, l, l === prefs.comments_label)));
+  const shortcuts = el('input', { type: 'checkbox', id: 'pref-shortcuts', name: 'shortcuts', checked: !!prefs.shortcuts });
+  const zone = el('select', { id: 'pref-zone', name: 'time_zone' }, timeZones(prefs.time_zone).map((z) => option(z, z, z === prefs.time_zone)));
+  const device = deviceZone();
+  const useDevice = device ? btn(`Use this device's (${device})`, () => { if (![...zone.options].some((o) => o.value === device)) zone.appendChild(option(device)); zone.value = device; }) : null;
+  const save = el('button', { type: 'submit' }, 'Save preferences');
+  setChildren(form, [
+    el('div', { class: 'field' }, el('label', { for: theme.id }, 'Look'), theme),
+    el('div', { class: 'field' }, el('label', { for: label.id }, 'Call comments'), label),
+    el('div', { class: 'field' }, el('label', null, shortcuts, ' Single-key keyboard shortcuts (press ? for the list)')),
+    el('div', { class: 'field' }, el('label', { for: zone.id }, 'Time zone'), zone, useDevice ? [' ', useDevice] : null,
+      el('p', { class: 'muted', id: 'pref-zone-hint' }, 'Due dates and "today" follow this zone, in the browser and for Claude.')),
+    el('div', { class: 'field' }, save),
+  ]);
+  zone.setAttribute('aria-describedby', 'pref-zone-hint');
+  section.hidden = false;
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    save.disabled = true;
+    try {
+      // only what changed, so an untouched field keeps following the site default (NULL in the row)
+      const wanted = { theme: theme.value, comments_label: label.value, shortcuts: shortcuts.checked, time_zone: zone.value };
+      const changes = Object.fromEntries(Object.entries(wanted).filter(([k, v]) => v !== me.preferences[k]));
+      if (!Object.keys(changes).length) { say('Nothing changed.'); return; }
+      const fresh = await patch('/api/me/preferences', changes);
+      me.preferences = fresh;
+      applyPreferences(config, fresh);
+      say('Preferences saved. They follow you to every device you sign in on.');
+      // dates and the comments wording follow the new settings
+      await Promise.all([loadActivity(true), loadTokens(), me.auth === 'password' ? loadSessions() : null]);
+    } catch (err) { sayError(err, 'Could not save the preferences'); } finally { save.disabled = false; save.focus(); }
+  });
 }
 
 /* ------------------------------------------------------------------ tokens */
@@ -252,7 +309,7 @@ async function loadActivity(first = false) {
     const res = await get('/api/activity', { actor: me.id, limit: 25, before: cursor ?? undefined });
     const items = res.items ?? [];
     for (const a of items) {
-      const d = describeActivity(a);
+      const d = describeActivity(a, { words: commentWords(me.preferences.comments_label) });
       list.appendChild(el('li', null, timeEl(a.created_at), ' — ', el('b', null, 'You'), ' (', viaBadge(a.via), ') ', d.what, d.link ? [' — ', d.link] : null));
     }
     activityCount += items.length;

@@ -68,10 +68,11 @@ export async function existingFootprint(db, id) {
             (SELECT COUNT(*) FROM tasks WHERE owner_id = ?) AS tasks,
             (SELECT COUNT(*) FROM activity WHERE actor_id = ?) AS activity,
             (SELECT COUNT(*) FROM mcp_tokens WHERE user_id = ?) AS tokens,
-            (SELECT COUNT(*) FROM mcp_tokens WHERE user_id = ? AND revoked_at IS NULL) AS live_tokens`,
-    [id, id, id, id, id]);
+            (SELECT COUNT(*) FROM mcp_tokens WHERE user_id = ? AND revoked_at IS NULL) AS live_tokens,
+            (SELECT COUNT(*) FROM preferences WHERE user_id = ?) AS preferences`,
+    [id, id, id, id, id, id]);
   return { projects: Number(r.projects), tasks: Number(r.tasks), activity: Number(r.activity),
-    tokens: Number(r.tokens), live_tokens: Number(r.live_tokens) };
+    tokens: Number(r.tokens), live_tokens: Number(r.live_tokens), preferences: Number(r.preferences) };
 }
 
 /**
@@ -90,7 +91,7 @@ export async function create(db, u, passwordHash, now, opts = {}) {
   return db.transaction(async (tx) => {
     if ((await tx.query('SELECT id FROM users WHERE id = ?', [u.id])).rows[0]) return { status: 'exists' };
     const claimed = await existingFootprint(tx, u.id);
-    const inUse = claimed.projects + claimed.tasks + claimed.activity + claimed.tokens > 0;
+    const inUse = claimed.projects + claimed.tasks + claimed.activity + claimed.tokens + claimed.preferences > 0;
     if (inUse && !opts.claimExisting) return { status: 'in_use', claimed };
     await tx.query(
       'INSERT INTO users (id, name, email, groups, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',

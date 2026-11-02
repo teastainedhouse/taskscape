@@ -10,10 +10,11 @@ import { el, btn, setChildren, padlock, projectLink, timeEl, oneLine } from './d
 import { inlineEdit, selectFor, focusEditable, redraw } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
-import { guestbook } from './guestbook.js';
+import { guestbook, commentWords } from './guestbook.js';
 import { describeActivity, viaBadge } from './activity-words.js';
 
 const { config, me } = await boot({ title: 'Task' });
+const words = commentWords(me.preferences.comments_label);
 const taskId = new URLSearchParams(location.search).get('id');
 
 const state = {
@@ -67,7 +68,7 @@ async function start() {
   state.projects = projects;
   state.project = project;
   render();
-  book = guestbook({ type: 'task', id: state.task.id, label: 'this task', heading: 'h2', me, canSign: mayEdit });
+  book = guestbook({ type: 'task', id: state.task.id, label: 'this task', heading: 'h2', me, canSign: mayEdit, words });
   document.getElementById('task-guestbook').appendChild(book);
   activitySection.hidden = false;
   activityMore.addEventListener('click', () => loadActivity());
@@ -214,7 +215,7 @@ async function loadActivity(first = false) {
     const items = res.items ?? [];
     const projectNames = new Map((state.projects ?? []).map((p) => [p.id, p.name]));
     for (const a of items) {
-      const d = describeActivity(a, { projectNames });
+      const d = describeActivity(a, { projectNames, words });
       activityList.appendChild(el('li', null, timeEl(a.created_at), ' — ', el('b', null, a.actor_name), ' (', viaBadge(a.via), ') ', d.what));
     }
     state.activityCount += items.length;
