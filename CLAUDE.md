@@ -48,7 +48,7 @@ api/
     activity.js            /api/activity with keyset cursor
     search.js              /api/search
     export.js              /api/projects/:id/export.md
-    import.js              POST /api/projects/import (text/markdown; dry_run, private); registered before the project routes
+    import.js              POST /api/projects/import (text/markdown; dry_run, private), registered before the project routes; POST /api/projects/:id/duplicate
     people.js              /api/people (owners the caller may pick)
     me.js                  /api/me; meBody() is the Me shape (preferences included)
     preferences.js         GET/PATCH /api/me/preferences; preferencesFor() = site defaults overlaid with the person's row
@@ -66,14 +66,16 @@ api/
                            conflict, unsupportedMediaType, tooManyRequests, …
     config.js              loadConfig(), prepareConfig() (env overrides + validation, incl. that every theme has its CSS file), publicConfig(), canEdit()
     validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
-                           validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), validateLink() + cleanLinkUrl() (http/https only), validateChecklistItem(), parseListQuery(), parseActivityQuery()
+                           validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), validateLink() + cleanLinkUrl() (http/https only), validateChecklistItem(), validateDuplicate(), parseListQuery(), parseActivityQuery()
     ical.js                renderCalendar(), icalText() (RFC 5545 escaping), fold() (75 octets, CRLF); pure
     atom.js                renderAtom(), xmlText() (the one XML escape, for text and attributes), describeEntry() (What's New words), entryLink(); pure
     recurrence.js          RECURRENCES, nextDue() (month ends, leap years), addDays/addMonths, dateInZone(); pure date arithmetic
     markdown.js            renderProjectExport(), mdCell(), mdInline(), mdText(), slug()
     markdown-import.js     parseProjectExport(): the export format back into a project and tasks, pure; ImportParseError names field and line
-    import.js              planImport() (owners by exact unique name, statuses and fields checked with the line, notes) and runImport()
-                           (tags, project, tasks in one transaction through the repo's createIn functions); reusable for "duplicate project"
+    import.js              planImport() (the text parsed, then planParsed(): owners by exact unique name, statuses and fields checked with the
+                           line, notes), planDuplicate() (the records the caller sees, shaped like a parse, options applied, then planParsed():
+                           owners by id; a task cap and a size budget) and runImport() (tags, project, tasks in one transaction through the
+                           repo's createIn functions)
     node-bridge.js         toWebRequest(IncomingMessage) and writeResponse(ServerResponse, Response) for Node-callback hosts
     ids.js  time.js        newId() (UUID); nowIso(), isoDate(), daysFromNow()
     auth/
@@ -143,7 +145,7 @@ public/                    served as-is; no build step
   favicon.svg
   today.html               the home page (served at /): overdue, due this week, needs attention, finished this week, changed by Claude; mine or everything
   projects.html            project list (filters, search, new project, import from Markdown with a preview, marquee of overdue tasks)
-  project.html             one project: click-to-edit header, privacy toggle, tags, hit counter, export, trash, task table (click-to-edit cells)
+  project.html             one project: click-to-edit header, privacy toggle, tags, hit counter, export, duplicate, trash, task table (click-to-edit cells)
   task.html                one task: every field click-to-edit, checklist, links, notes, tags, project, comments, activity, trash and restore
   calendar.html            a month of due dates: a table with weekday headers and a button per day with tasks; a list at phone width
   mine.html                My tasks: tasks assigned to me across visible projects, overdue first, closed hidden by default; status, due date, tags editable
@@ -181,13 +183,13 @@ public/                    served as-is; no build step
 
 mcp/                       the MCP server (local stdio script)
   server.js                stdio transport; env TASKSCAPE_URL, TASKSCAPE_TOKEN; one random session id per process
-  tools.js                 the twelve tool definitions (JSON Schema) and handlers, incl. me (time zone and today); transport-free, unit-testable
+  tools.js                 the thirteen tool definitions (JSON Schema) and handlers, incl. me (time zone and today); transport-free, unit-testable
   client.js                fetch wrapper adding Bearer, X-Taskscape-Session, User-Agent
 
 test/
   helpers.js               createTestApp(): in-memory SQLite (or TASKSCAPE_TEST_POSTGRES_URL), migrated, with as(user), tokenAs(), withHeaders(), anon()
   *.test.js                one file per concern: privacy, versions, trash, activity, tokens, identity, projects, tasks, tags,
-                           hits, search, export, import (round trip, dry run, owners, lines), links, checklist, recurrence (fixed clock), today (due filters, closed_at), feeds (links, iCal, Atom, hostile text, scopes and visibility), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
+                           hits, search, export, import (round trip, dry run, owners, lines), duplicate (options, privacy, activity), links, checklist, recurrence (fixed clock), today (due filters, closed_at), feeds (links, iCal, Atom, hostile text, scopes and visibility), markdown, markdown-import (the parser), http, db, mcp (fake fetch), comments,
                            login (password provider), preferences, ui-escaping (greps public/),
                            ui-nav (every page has the same toolbar entries, each with an icon, and the avatar link; storage only inside try; shortcuts never write), pager (offset paging and js/pager.js)
 

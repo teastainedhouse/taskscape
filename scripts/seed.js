@@ -111,6 +111,11 @@ await tasks.create(db, alice, { id: 'plan-the-spring-sale', project_id: P.web.id
 const { issue: issueFeed } = await import('../api/lib/repo/feeds.js');
 const aliceFeed = await issueFeed(db, alice, { label: 'Seeded calendar', scope: 'mine' }, tick());
 
+// a duplicate: next year's party from this one, statuses reset and dates 365 days on
+const { planDuplicate, runImport } = await import('../api/lib/import.js');
+const nextParty = await runImport(db, alice, await planDuplicate(db, alice, P.party.id,
+  { name: 'Holiday party 1998', reset_statuses: true, due_dates: 'shift', days: 365 }, config), config, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -124,7 +129,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 }
 
 console.log(`seeded ${url}`);
-console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 5}, tags: ${Object.keys(tag).length}`);
+console.log(`  projects: ${Object.keys(P).length + 2} (incl. ${config.catch_all_project.name} and a duplicate), tasks: ${Object.keys(T).length + 5 + nextParty.tasks.length}, tags: ${Object.keys(tag).length}`);
 console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  alice's calendar feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/calendar.ics`);

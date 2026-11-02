@@ -138,6 +138,12 @@ tr.filtered-out td { opacity: 0.6; }
 .today-scope { border: 0; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
 .today-scope legend { float: left; font-weight: 600; margin-right: 8px; padding: 0; }
 .today-section { margin-top: 18px; }
+/* Duplicate a project (js/tasks.js): the due-date choice reads as one line, wrapping at phone width. */
+.duplicate-form { margin: 12px 0 18px; }
+.field.dup-dates { border: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.field.dup-dates legend { float: left; font-weight: 600; margin-right: 8px; padding: 0; }
+.field.dup-dates label { display: inline; font-weight: normal; font-size: inherit; margin: 0; }
+.dup-shift { white-space: nowrap; }
 .today-table td.col-title { overflow-wrap: anywhere; min-width: 8em; }
 .empty-line { font-style: italic; }
 /* The calendar (js/calendar.js): a month table on wide screens, a list of days at phone width. */

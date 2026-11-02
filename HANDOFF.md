@@ -1,6 +1,6 @@
 # Handoff: Phases 7–10
 
-This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–7 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
+This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–8 of the feature brief, one commit each, every phase reviewed by `privacy-auditor`, `security-reviewer`, `upstream-check` and one general reviewer before it was committed. **Delete this file before the PR is merged**; its content belongs in the PR description.
 
 ## Where things stand
 
@@ -13,24 +13,25 @@ This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–7 of the feature b
 | 5 Time zones, Today page | `today: one server rule for "today", …` | done |
 | 6 Calendar and iCal feed | `feeds: calendar feed links, and a calendar page` | done |
 | 7 Atom feed | `atom: What's New as an Atom feed, through the same feed links` | done |
-| 8 Duplicate project | — | **to do** |
-| 9 @mentions | — | to do |
+| 8 Duplicate project | `duplicate: copy a project, from its records through the import's rules` | done |
+| 9 @mentions | — | **to do** |
 | 10 Final checks, whole-repo review, draft PR | — | to do |
 
-No PR has been opened yet. `npm test` passes on SQLite (304). Phases 1–6 passed on PostgreSQL 16 in the cloud container; Phase 7 was built on a laptop without a PostgreSQL server, so it has not been run there (it adds no SQL: the feed reads through `activity.list()`).
+No PR has been opened yet. `npm test` passes on SQLite (313). Phases 1–6 passed on PostgreSQL 16 in the cloud container; Phases 7 and 8 were built on a laptop without a PostgreSQL server, so they have not been run there (neither adds SQL: the feed reads through `activity.list()`, the duplicate through the repo's list and createIn functions).
 
 ## How the earlier phases were built (reuse these)
 
 - **Child records of a task** (links, checklist): `tasks.childWrite()` in `api/lib/repo/tasks.js` (task row lock and version check first, then the change, then the bump and the activity entry). Readers apply `taskVisible` themselves (`linksFor(db, user, ids)`). Recipe: "Add a child record to tasks" in CLAUDE.md.
 - **One "today"**: `todayFor()` in `api/lib/repo/preferences.js`; `Me.today`; `due=overdue|today|week` on `GET /api/tasks`.
 - **Feed tokens**: `api/lib/repo/feeds.js` (`lookup()` returns the link's id, a read-only principal and the scope), `api/handlers/feeds.js` (`feedPrincipal()`, `feedResponse()` with `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer` and a sandboxing CSP, `publicBase()`), `calendar.ics` and `activity.atom` (`api/lib/atom.js`: `xmlText()` is the one XML escape).
-- **Export/import** (Phase 8 builds on it): `renderProjectExport()` writes priority, Repeats, `Links:` and `Checklist:` blocks; `parseProjectExport()` reads them; `planImport()`/`runImport()` create through `createIn()` (which takes `links` and `checklist` from internal callers only).
+- **Export/import**: `renderProjectExport()` writes priority, Repeats, `Links:` and `Checklist:` blocks; `parseProjectExport()` reads them; `planImport()`/`runImport()` create through `createIn()` (which takes `links` and `checklist` from internal callers only).
 - **Task ids between tasks** (`recurred_from`/`recurred_to`) are returned only when visible (`visibleTaskRef()` in `visibility.js`), and activity nulls hidden task and project ids at read time (`hideInvisibleTaskIds()` in `repo/activity.js`). Mentions (Phase 9) need the same care, and For you is now also the Atom feed's `mine` scope, so a mention added to `for_me` in `activity.list()` reaches the feed too (test both).
+- **Duplicate** (Phase 8): `planDuplicate()` in `api/lib/import.js` builds the parser's shape from records and hands it to `planParsed()`, the planner the import shares. Never round-trip other people's text through the Markdown export: it matches sections to tasks by title (see the Phase 8 review below).
 - **The MCP server refuses `.` and `..` as ids** (URL dot segments); keep that for any new id argument.
 
 ## Environment notes (cloud container)
 
-- PostgreSQL 16 is installed: `pg_ctlcluster 16 main start`, then `TASKSCAPE_TEST_POSTGRES_URL='postgres://postgres:pw@localhost:5432/taskscape_test'` with `--test-concurrency=1` (an earlier reviewer set the `postgres` password to `pw` and created `taskscape_test`). `npm install` is needed for `pg`.
+- PostgreSQL 16 is installed: `pg_ctlcluster 16 main start`, then `TASKSCAPE_TEST_POSTGRES_URL='postgres://user:password@localhost:5432/taskscape_test'` with `--test-concurrency=1` (an earlier reviewer set the `postgres` password to `pw` and created `taskscape_test`). `npm install` is needed for `pg`.
 - Playwright and Chromium are installed. The sweeps used a small script: for each page, light and dark, 1100px and 375px, screenshot, console errors, page-level horizontal overflow, and a 60-step Tab walk checking each stop has a name and a visible focus style; plus per-feature keyboard scripts. Run the dev server on a scratch SQLite file (`TASKSCAPE_DATABASE_URL=sqlite:/tmp/x.db npm run seed`, then `PORT=3111 node scripts/dev.js`).
 - When killing the dev server with `pkill -f`, use a pattern that cannot match the shell's own command line (`pgrep -f "[n]ode scripts/dev.js"`).
 
@@ -61,6 +62,7 @@ Standing rules from the brief: every Agent call sets `model` ("opus" for reviewe
 11. Pre-existing: the `netscape` theme name vs house rule 9 (a browser brand); a reviewer flagged it, nothing was changed.
 12. **Atom feed**: the newest 50 entries, no paging (a reader keeps what it has seen); `mine` is For you (others' changes to what you own), not your own task changes, unlike the calendar's `mine`; the profile's scope option now reads "Mine (my tasks, For you)". Entries are plain text. The feed says less than the page in two places: an unlabelled link is named by its host (task links are often shared-document URLs with a key), and moves say "another project". It always says "comment", not the owner's Guestbook preference. Both feeds now send `Content-Security-Policy: default-src 'none'; sandbox`.
 13. What's New (page and feed) no longer says "it repeats, so the next one was created" when the reader cannot see the copy.
+14. **Duplicate is not a Markdown round trip** (the brief said "using the Markdown export and import code"): it uses the import's planner and writer and the export's reads, but builds the plan from the records, because the text round trip leaked private notes onto public copies (Phase 8 review). The copy is the caller's; tasks keep their owners by id unless private (then the caller's); `default_private` makes a copy private with every task the caller's, as for an import. API defaults: statuses kept, dates kept; the button's form starts with "Reset statuses" ticked. Refused: a trashed project, more live tasks than `max_page_size`, more text than 4 × `body_bytes`. The response carries every created Task (the MCP tool returns only a count). There is an MCP `duplicate` tool (PLAN.md says why, unlike import).
 
 ## Review findings so far
 
@@ -173,10 +175,27 @@ Dismissed:
 - general: no test tying `describeEntry()` to `activity-words.js` (the UI has no DOM tests by design; the reviewer compared 33 entry shapes by hand and they agree, except the two deliberate differences above). The feed title uses the name saved with the link (same as the calendar). `updated` can move back when the newest entry becomes invisible (fine for a polled feed).
 - upstream-check: none.
 
+## Phase 8 (duplicate)
+Fixed:
+- privacy (high) + security (high) + general (high): the first version rendered the export and re-imported it. Same-title tasks gave a private task's notes, links and checklist to a public copy; a `### <title>` line in notes moved text into another task (or injected links and checklist items into it); an export-footer or comments line in notes silently dropped every later task's notes; a `## Tasks` line in a description or notes made a project impossible to copy; more than 20 tags refused. Now planned from the records through a shared `planParsed()` (tests for each).
+- privacy/security/general: owners were matched by display name (stale names, shared names, a decoy owner_name); now by id.
+- general: tags were regrouped (a and b came back as "a, b"); now exact.
+- security (medium): no byte budget: one duplicate of a project of maxed-out tasks took seconds in one transaction and answered with ~100 MB; now refused above 4 × `body_bytes` of text.
+- general: the default name was shortened by code points but checked in UTF-16 units (400 on an emoji name); the button always sent "<name> (copy)" (400 for a 194+ character name): it now sends no name when unchanged, and the server shortens. Escape closes the form; focus returns to the button after a failed copy; the empty-name check comes first.
+- docs: API.md (owners, privacy default, budget, errors), PLAN.md (why records, not text; why an MCP tool), README ("default status"), CLAUDE.md code map; MCP name description.
+Dismissed:
+- privacy/general: the plan reads before the write transaction (a change landing between them is not in the copy; the same as any read before a write). Documented.
+- security: names and titles accept control characters (pre-existing, `validateItem`); follow-up.
+- security: return only a count instead of every Task: an API contract change for little gain once the budget bounds the answer; the MCP tool already returns a count.
+- general: no `maxLength`/`maximum` in the MCP schema (its validator has no such keywords; the API checks and names the field).
+- upstream-check: none (it suggested a placeholder for the test password above, done).
+Re-audit (privacy-auditor, after the fix): the fix holds on all four points (content stays with its task; owners by id reveal nothing; nothing hidden is read, including by the cap and the budget; the import's 72 differential responses are byte-identical to before). Its stale-wording notes are fixed, and its test gaps added (General, a disabled owner under password, hidden text and the budget).
+
 ## Not verified yet
 
 - A browser sweep of Phase 6 was done (calendar, profile, both themes, 375px, keyboard), but no screen reader was used anywhere; the checks were scripted (names, focus styles, overflow) plus screenshots.
 - No real calendar app was pointed at the `.ics` feed; it was checked against RFC 5545 by tests only.
 - Follow-up test gap the Phase 6 general reviewer listed: `last_used_at` throttling (DTEND, the trashed project, and `passwd` on feeds are now covered).
 - The second-review fixes were not run on PostgreSQL (the `NOT IN` clause is the one `due=overdue` already uses there).
+- Phase 8 was not run on PostgreSQL. The Duplicate form was checked in the browser (desktop, 375px, dark mode, Escape, a 199-character name), not with a screen reader.
 - Phase 7 was not run on PostgreSQL (no PostgreSQL server on the laptop) and no real feed reader was pointed at `activity.atom`; it was parsed by the browser's XML parser (seeded data) and, by the security reviewer, by a strict expat parser over 302 generated documents. The profile page was checked at desktop and 375px widths, light mode only.

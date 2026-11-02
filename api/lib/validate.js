@@ -158,6 +158,40 @@ export function validateLink(body, { partial }) {
   return out;
 }
 
+/** What a duplicate does with due dates. */
+export const DUE_DATE_MODES = ['keep', 'shift', 'clear'];
+/** The furthest a duplicate shifts due dates, in days, either way (about ten years). */
+export const MAX_SHIFT_DAYS = 3650;
+
+/**
+ * The body of POST /api/projects/:id/duplicate. The name is checked again, with every project rule, once it is the copy's.
+ * @param {Record<string, unknown>} body
+ * @returns {{name?: string, reset_statuses: boolean, due_dates: 'keep'|'shift'|'clear', days: number}}
+ */
+export function validateDuplicate(body) {
+  const errors = {};
+  const out = { reset_statuses: false, due_dates: 'keep', days: 0 };
+  if ('name' in body) {
+    if (typeof body.name !== 'string' || !body.name.trim()) errors.name = 'must be a non-empty string';
+    else out.name = body.name.trim();
+  }
+  if ('reset_statuses' in body) {
+    if (typeof body.reset_statuses !== 'boolean') errors.reset_statuses = 'must be true or false';
+    else out.reset_statuses = body.reset_statuses;
+  }
+  if ('due_dates' in body) {
+    if (!DUE_DATE_MODES.includes(/** @type {string} */ (body.due_dates))) errors.due_dates = 'must be keep, shift, or clear';
+    else out.due_dates = /** @type {'keep'|'shift'|'clear'} */ (body.due_dates);
+  }
+  if (out.due_dates === 'shift' && !errors.due_dates) {
+    if (!Number.isInteger(body.days) || body.days === 0 || Math.abs(/** @type {number} */ (body.days)) > MAX_SHIFT_DAYS) errors.days = `must be a whole number of days from -${MAX_SHIFT_DAYS} to ${MAX_SHIFT_DAYS}, not 0`;
+    else out.days = /** @type {number} */ (body.days);
+  } else if ('days' in body) errors.days = 'can only be set with due_dates: shift';
+  for (const k of Object.keys(body)) if (!['name', 'reset_statuses', 'due_dates', 'days'].includes(k)) errors.body = 'has a key that is not a duplicate option'; // never echo the caller's key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
+}
+
 /** Longest checklist item, in characters. */
 export const CHECKLIST_TEXT_MAX = 500;
 

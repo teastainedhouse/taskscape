@@ -1,6 +1,6 @@
 // tasks.js — one project (project.html?id=…): a header whose values are
 // edited by clicking them (js/inline-edit.js), privacy toggle, tags, export,
-// trash, hit counter, and the task table with sort, filter, add, and rows
+// duplicate, trash, hit counter, and the task table with sort, filter, add, and rows
 // whose cells are edited in place the same way (one PATCH of one field).
 // Titles link to the task page, where notes, comments, moving, and trashing
 // live. The project's comments sit under the table (js/guestbook.js).
@@ -137,6 +137,9 @@ function renderHeader() {
 
   const actions = el('p', { class: 'project-actions' },
     el('a', { href: `${projectPath(p.id)}/export.md`, class: 'button', download: '' }, 'Save as markdown'));
+  if (canEditProject) {
+    actions.append(' ', btn('Duplicate', () => duplicate.toggle(), { id: 'duplicate-open', 'aria-expanded': duplicate.isOpen() ? 'true' : 'false', 'aria-controls': 'duplicate-form' }));
+  } else duplicate.close(false);
   if (canEditProject && !isCatchAll) actions.append(' ', btn('Trash this project', trashProject, { class: 'danger' }));
   parts.push(actions);
 
@@ -200,6 +203,80 @@ async function restoreProject() {
   const rec = await attempt(() => post(`${projectPath(p.id)}/restore`, { version: p.version }), (current) => { state.project = current; renderHeader(); });
   if (rec) { say('Project restored.'); location.reload(); }
 }
+
+/* --------------------------------------------------------------- duplicate */
+
+/**
+ * "Duplicate": a form under the header, built once (a header redraw keeps it and what was typed). The copy is made by
+ * POST /api/projects/:id/duplicate, then the page goes to it.
+ */
+const duplicate = (() => {
+  const host = document.getElementById('duplicate-host');
+  const name = el('input', { type: 'text', id: 'dup-name', required: true, maxlength: '200', size: '40' });
+  const reset = el('input', { type: 'checkbox', id: 'dup-reset', checked: true });
+  const radio = (value, checked) => el('input', { type: 'radio', name: 'dup-dates', id: `dup-dates-${value}`, value, checked });
+  const modes = { keep: radio('keep', true), shift: radio('shift', false), clear: radio('clear', false) };
+  const days = el('input', { type: 'number', id: 'dup-days', min: '-3650', max: '3650', step: '1', value: '7', size: '6', disabled: true,
+    'aria-label': 'Days to move them by (a negative number moves them earlier)' });
+  const submit = el('button', { type: 'submit' }, 'Make the copy');
+  const form = el('form', { id: 'duplicate-form', class: 'duplicate-form', hidden: true, 'aria-labelledby': 'dup-h' },
+    el('h2', { id: 'dup-h', tabindex: '-1' }, 'Duplicate this project'),
+    el('p', { class: 'muted' }, 'The copy is yours. It gets the tasks here that you can see, with their tags, links, checklists (unticked), priorities and repeats. Comments are never copied.'),
+    el('div', { class: 'field' }, el('label', { for: 'dup-name' }, 'Name of the copy'), name),
+    el('div', { class: 'field' }, el('label', null, reset,
+      ` Reset statuses to "${config.default_status.project}" for the project and "${config.default_status.task}" for its tasks`)),
+    el('fieldset', { class: 'field dup-dates' }, el('legend', null, 'Due dates'),
+      el('label', { for: 'dup-dates-keep' }, modes.keep, ' Keep them'),
+      el('span', { class: 'dup-shift' }, el('label', { for: 'dup-dates-shift' }, modes.shift, ' Move them by'), ' ', days, ' days'),
+      el('label', { for: 'dup-dates-clear' }, modes.clear, ' Clear them')),
+    el('p', null, submit, ' ', btn('Cancel', () => close(true))));
+  for (const r of Object.values(modes)) r.addEventListener('change', () => { days.disabled = !modes.shift.checked; });
+  host.appendChild(form);
+
+  const isOpen = () => !form.hidden;
+  /** The name the form opened with: sent as no name at all, so the server shortens a long one to fit. */
+  let suggested = '';
+  const sync = () => document.getElementById('duplicate-open')?.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+  function open() {
+    name.value = suggested = `${state.project.name} (copy)`;
+    form.hidden = false;
+    sync();
+    name.focus();
+    name.select();
+  }
+  /** @param {boolean} refocus  give focus back to the Duplicate button */
+  function close(refocus) {
+    if (!isOpen()) return;
+    form.hidden = true;
+    sync();
+    if (refocus) document.getElementById('duplicate-open')?.focus();
+  }
+  form.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); close(true); } });
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const mode = Object.entries(modes).find(([, r]) => r.checked)?.[0] ?? 'keep';
+    const typed = name.value.trim();
+    if (!typed) { say('The copy needs a name.', { error: true }); name.focus(); return; }
+    const body = { reset_statuses: reset.checked, due_dates: mode };
+    if (typed !== suggested.trim()) body.name = typed;
+    if (mode === 'shift') {
+      const n = Number(days.value);
+      if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 3650) { say('Move the dates by a whole number of days from -3650 to 3650, not 0.', { error: true }); days.focus(); return; }
+      body.days = n;
+    }
+    submit.disabled = true; // one copy per press
+    try {
+      const res = await post(`${projectPath(state.project.id)}/duplicate`, body);
+      say(`Copy made with ${res.tasks.length} task${res.tasks.length === 1 ? '' : 's'}. Opening it…`);
+      location.href = `project.html?id=${encodeURIComponent(res.project.id)}`;
+    } catch (err) {
+      sayError(err, 'Could not duplicate the project');
+      submit.disabled = false;
+      submit.focus(); // it lost focus when it was disabled
+    }
+  });
+  return { toggle: () => (isOpen() ? close(true) : open()), close, isOpen };
+})();
 
 /** POST /hit once after the project loaded; on failure keep the record's count. */
 async function recordHit() {

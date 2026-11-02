@@ -53,8 +53,8 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the twelve tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'checklist', 'tag']);
+test('tool definitions: exactly the thirteen tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'checklist', 'tag', 'duplicate']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
@@ -277,6 +277,24 @@ test('delete rejects an array of ids and only ever issues one DELETE', async () 
   assert.match(text(r), /delete\.version: is required/);
   r = await callTool('delete', { type: 'task', id: '', version: 1 }, client);
   assert.match(text(r), /delete\.id: must not be empty/);
+});
+
+test('duplicate posts the options to /duplicate and returns the project, the task count and the notes', async () => {
+  const { client, calls } = makeClient(({ method, path }) => (method === 'POST' && path === '/api/projects/p%201/duplicate'
+    ? json(201, { project: { id: 'p2', name: 'Launch (copy)', version: 1 }, tasks: [task(), task()], notes: ['1 item is private to you.'] }) : undefined));
+  let r = await callTool('duplicate', { id: 'p 1', reset_statuses: true, due_dates: 'shift', days: 7 }, client);
+  assert.equal(r.isError, undefined);
+  assert.deepEqual(calls[0].body, { reset_statuses: true, due_dates: 'shift', days: 7 });
+  assert.deepEqual(parsed(r), { project: { id: 'p2', name: 'Launch (copy)', version: 1 }, tasks_created: 2, notes: ['1 item is private to you.'] });
+  r = await callTool('duplicate', { id: 'gone' }, client);
+  assert.equal(text(r), NOT_FOUND_TEXT);
+  r = await callTool('duplicate', { id: ['a', 'b'] }, client);
+  assert.equal(r.isError, true, 'one id, never a list');
+  r = await callTool('duplicate', { id: '..' }, client);
+  assert.equal(r.isError, true);
+  r = await callTool('duplicate', { id: 'p 1', due_dates: 'later' }, client);
+  assert.match(text(r), /due_dates: must be one of/);
+  assert.equal(calls.length, 2, 'invalid arguments never reach the API');
 });
 
 test('restore posts version to /restore', async () => {

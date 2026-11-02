@@ -258,6 +258,12 @@ Restore:
 
 Test a restore once, before you need it.
 
+## Duplicates and templates
+
+**Duplicate** on a project page makes a new project of yours from it: the tasks in it you can see, with their owners, tags, links, checklists (unticked), priorities and repeats, but never its comments. You can rename the copy, put the project and its tasks back in the default status, and keep the due dates, move them all by some days, or clear them. Claude can do the same with the MCP `duplicate` tool. On a site where new items are private by default, a copy is private too, and every task in it yours.
+
+**A template is just an exported file.** Set up a project the way you like it, press "Save as markdown" on its page, and keep the `.md` file (edit it as text if you like). To start from it, use "Import from Markdown" on the project list: you see what would be created before anything is. One file can seed any number of projects, on this site or another.
+
 ## Calendar and feed links
 
 Your profile page makes **feed links**: secret URLs a calendar app subscribes to (`…/calendar.ics`, your open tasks with a due date as all-day events) and a feed reader follows (`…/activity.atom`, What's New as Atom, the newest 50 changes). Each link shows either your own work (in the calendar, your tasks; in the Atom feed, For you: changes others made to what you own) or everything you can see, and only what you can see now. A feed link can read its feeds and nothing else; it cannot sign in, call another route, or change anything. It is shown once when made; revoke it on the profile page if it leaks. Under the `password` provider a link stops working while the account is disabled, and `npm run users -- passwd` or `disable` revoke all of a user's links. Under `headers` and `dev` there is no account to check: a link keeps reading as its user id after the person leaves the identity provider, and only its owner can revoke it on the profile page, so when someone leaves, revoke theirs in the database (`UPDATE feed_tokens SET revoked_at = <now> WHERE user_id = '<id>'`, and the same on `mcp_tokens`, which behave alike). The Atom feed carries what What's New shows, including checklist text, link labels and tag names, so a hosted feed reader holds a copy of it. Set `public_url` (or `TASKSCAPE_PUBLIC_URL`) so the links inside a feed point at the real site.
@@ -295,7 +301,7 @@ Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which cal
 
    `TASKSCAPE_URL` is the origin of your Taskscape (the deployed site, or the dev server). `${TASKSCAPE_TOKEN}` is expanded from your shell environment by the client; never write the token itself into `.mcp.json`, and never commit one. The repo ships `.mcp.example.json` as a starting point. The server exits with one line on stderr if either variable is missing.
 
-The server exposes twelve tools:
+The server exposes thirteen tools:
 
 | Tool | Does |
 | --- | --- |
@@ -311,6 +317,7 @@ The server exposes twelve tools:
 | `link` | Adds, changes, moves, or removes one web link on a task (http or https only; Taskscape never fetches it) |
 | `checklist` | Adds, renames, ticks, unticks, moves, or removes one checklist item on a task |
 | `tag` | Adds and removes tags by name on one item |
+| `duplicate` | Copies one project into a new one of yours (tasks you can see, tags, links, unticked checklists, priorities, repeats; never comments), with the same options as the Duplicate button |
 
 Every write records the session id (a random id per server process, sent as `X-Taskscape-Session`) and `via: "mcp"`, so "What's New?" shows which Claude session did what. Reading a project through MCP does not bump its hit counter.
 
