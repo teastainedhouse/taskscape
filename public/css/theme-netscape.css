@@ -83,11 +83,12 @@ main.panel > :first-child { margin-top: 0; }
 .site-title a, .site-title a:visited { color: var(--ink); text-decoration: none; }
 .site-title a::before { content: "\2605  "; color: var(--accent); }
 
-/* Toolbar entries as the text links they were, " | " between them. */
-nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; font-family: var(--sans); font-size: 0.95em; }
+/* Toolbar entries as the text links they were, with the markup's " | " (aria-hidden) between them. */
+nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 2px; font-family: var(--sans); font-size: 0.95rem; }
 nav a, nav a:visited { color: var(--link); position: relative; padding: 2px 4px; }
+nav span { color: var(--ink); padding: 0 2px; }
 nav a[aria-current="page"] { font-weight: bold; text-decoration: none; color: var(--ink); }
-.nav-badge { margin-left: 2px; padding: 0 4px; border: 1px solid var(--ink); background: #ff0000; color: #ffffff; font-size: 0.75em; font-weight: bold; vertical-align: super; }
+.nav-badge { margin-left: 2px; padding: 0 4px; border: 1px solid var(--ink); background: #b00020; color: #ffffff; font-size: 0.75em; font-weight: bold; vertical-align: super; } /* white on #b00020: 7.3:1 */
 
 .sign-out { margin-left: auto; }
 .avatar { margin-left: auto; }
@@ -277,7 +278,7 @@ kbd { background: var(--paper); color: var(--ink); border-color: var(--panel-lo)
   .site-header { gap: 4px 10px; }
   .avatar { order: 2; width: 40px; height: 40px; }
   .sign-out { order: 1; }
-  nav { order: 3; flex-basis: 100%; justify-content: space-between; }
+  nav { order: 3; flex-basis: 100%; }
   h1 { font-size: 1.5em; }
 }
 @media (max-width: 480px) {

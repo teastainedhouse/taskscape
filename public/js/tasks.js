@@ -336,6 +336,9 @@ function showEmpty() {
   table.parentElement.hidden = none;
   document.getElementById('tasks-empty').hidden = !(none && filtered);
   document.getElementById('under-construction').hidden = !(none && !filtered);
+  document.getElementById('under-construction-text').textContent = mayEdit()
+    ? 'This project has no tasks yet. Add the first one below, or ask Claude to.'
+    : state.project?.deleted_at ? 'This project is in the trash and has no tasks of its own.' : 'This project has no tasks yet.';
 }
 
 /** @param {any} t */

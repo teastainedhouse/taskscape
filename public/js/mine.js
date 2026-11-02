@@ -42,6 +42,8 @@ const pager = createPager({
     const rows = [...items.filter((t) => isOverdue(t, config, today)), ...items.filter((t) => !isOverdue(t, config, today))].map(row);
     for (const r of rows) tbody.appendChild(r);
     empty.hidden = tasks.length > 0;
+    if (!tasks.length && showClosed.checked) empty.querySelector('p').textContent = 'Nothing on your plate, open or closed. Tasks assigned to you in any project you can see show up here.';
+    else if (!tasks.length) empty.querySelector('p').textContent = 'Nothing on your plate. Tasks assigned to you in any project you can see show up here, overdue first; tick "Show closed tasks" to see finished ones.';
     return (rows[0] ?? tbody.lastElementChild)?.querySelector('a') ?? null;
   },
   onError: (err) => sayError(err, 'Could not load your tasks'),

@@ -14,10 +14,10 @@
     <header class="site-header">
       <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> |
-        <a href="mine.html">My tasks</a> |
-        <a href="whats-new.html">What's New?</a> |
-        <a href="trash.html">Trash</a> |
+        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
         <a href="profile.html">Profile</a>
       </nav>
       <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
@@ -41,7 +41,10 @@
           <tbody></tbody>
         </table>
       </div>
-      <p id="mine-empty" hidden>Nothing assigned to you.</p>
+      <div id="mine-empty" class="empty" hidden>
+        <p>Nothing on your plate. Tasks assigned to you in any project you can see show up here, overdue first.</p>
+        <p data-needs-edit><a href="index.html" class="button">Open a project to add one</a></p>
+      </div>
       <p><button type="button" id="mine-more" hidden>Load more</button></p>
     </main>
 

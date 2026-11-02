@@ -14,10 +14,10 @@
     <header class="site-header">
       <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> |
-        <a href="mine.html">My tasks</a> |
-        <a href="whats-new.html">What's New?</a> |
-        <a href="trash.html">Trash</a> |
+        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
         <a href="profile.html">Profile</a>
       </nav>
       <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
@@ -28,7 +28,7 @@
 
     <main class="panel">
       <h1>Trash</h1>
-      <p class="muted">Nothing is ever deleted for good in Taskscape; restore anything from here. Tasks of a trashed project come back with it.</p>
+      <p class="muted">Nothing is ever deleted for good in Taskscape. Trashed projects and tasks wait here until someone restores them; tasks of a trashed project come back with it. Items are trashed from their own page.</p>
 
       <section aria-labelledby="tp-h">
         <h2 id="tp-h">Projects</h2>
@@ -39,7 +39,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <p id="trash-projects-empty" hidden>No trashed projects.</p>
+        <p id="trash-projects-empty" class="empty" hidden>No projects in the trash.</p>
       </section>
 
       <section aria-labelledby="tt-h">
@@ -51,7 +51,7 @@
             <tbody></tbody>
           </table>
         </div>
-        <p id="trash-tasks-empty" hidden>No trashed tasks.</p>
+        <p id="trash-tasks-empty" class="empty" hidden>No tasks in the trash.</p>
       </section>
     </main>
 

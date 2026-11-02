@@ -14,10 +14,10 @@
     <header class="site-header">
       <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> |
-        <a href="mine.html">My tasks</a> |
-        <a href="whats-new.html">What's New?</a> |
-        <a href="trash.html">Trash</a> |
+        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
         <a href="profile.html">Profile</a>
       </nav>
       <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
@@ -44,11 +44,11 @@
             <tbody></tbody>
           </table>
         </div>
-        <p id="tasks-empty" hidden>No tasks match these filters.</p>
+        <p id="tasks-empty" class="empty" hidden>No tasks match these filters. Clear them to see every task in this project.</p>
         <p><button type="button" id="tasks-more" hidden>Load more</button></p>
-        <div id="under-construction" class="under-construction" hidden>
-          <p>This project has no tasks yet.</p>
+        <div id="under-construction" class="under-construction empty" hidden>
           <img src="img/under-construction.svg" alt="" width="320" height="120">
+          <p id="under-construction-text">This project has no tasks yet. Add the first one below.</p>
         </div>
 
         <form id="new-task" data-needs-edit>

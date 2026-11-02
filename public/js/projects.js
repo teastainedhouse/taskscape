@@ -51,6 +51,7 @@ const projectPager = createPager({
   onError: (err) => sayError(err, 'Could not load projects'),
 });
 
+document.getElementById('first-run-general')?.setAttribute('href', `project.html?id=${encodeURIComponent(config.catch_all_project_id)}`);
 buildFilters();
 buildHeader();
 setupNewProject();
@@ -110,7 +111,13 @@ async function loadProjects() {
 function renderRows() {
   clear(tbody);
   for (const p of state.projects) tbody.appendChild(row(p));
-  document.getElementById('projects-empty').hidden = state.projects.length > 0;
+  const filtered = !!(state.status || state.owner || state.tag);
+  document.getElementById('projects-empty').hidden = !(state.projects.length === 0 && filtered);
+  // first run: nothing but the catch-all project (or nothing at all) and no filter hiding the rest; a viewer who
+  // cannot edit gets the statement without the call to action (page.js hides the data-needs-edit span)
+  const onlyGeneral = state.projects.length === 0 || (state.projects.length === 1 && state.projects[0].id === config.catch_all_project_id);
+  document.getElementById('first-run').hidden = !(onlyGeneral && !filtered);
+  if (state.projects.length === 1) document.getElementById('first-run-general').textContent = state.projects[0].name; // the catch-all's name is configurable
 }
 
 /** One table row. @param {any} p */
@@ -230,7 +237,10 @@ function setupSearch() {
 
   function renderSearch(res, q) {
     const projects = res.projects ?? [], tasks = res.tasks ?? [];
-    if (!projects.length && !tasks.length) { setChildren(results, [el('p', null, `Nothing found for "${q}".`)]); return; }
+    if (!projects.length && !tasks.length) {
+      setChildren(results, [el('p', { class: 'empty' }, `Nothing found for "${q}". Search looks at names, titles, descriptions and notes, not comments; trashed items are in the `, el('a', { href: 'trash.html' }, 'Trash'), '.')]);
+      return;
+    }
     const out = [];
     if (projects.length) {
       out.push(el('h3', null, `Projects (${projects.length})`));
@@ -258,7 +268,7 @@ async function loadPreview() {
   try {
     const res = await get('/api/activity', { limit: 5 });
     const items = res.items ?? [];
-    if (!items.length) { setChildren(ul, [el('li', null, 'Nothing yet.')]); return; }
+    if (!items.length) { setChildren(ul, [el('li', null, 'Nothing has happened yet. Every change shows up here, newest first.')]); return; }
     const names = new Map(state.projects.map((p) => [p.id, p.name]));
     setChildren(ul, items.map((a) => {
       const d = describeActivity(a, { projectNames: names, words: commentWords(me.preferences.comments_label) });
