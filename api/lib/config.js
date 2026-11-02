@@ -26,6 +26,7 @@ const PUBLIC_CSS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
  * @property {string} theme  the site's default theme; each theme is public/css/theme-<name>.css
  * @property {string[]} themes  the themes people may pick from
  * @property {{comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string}} preference_defaults
+ * @property {string|null} public_url  the site's address for links in feeds (else the request's origin)
  * @property {string} env  'development' | 'production' | 'test'
  */
 
@@ -50,6 +51,7 @@ export function loadConfig(file, env = process.env) {
 export function prepareConfig(raw, env = process.env) {
   const config = structuredClone(raw);
   config.env = env.TASKSCAPE_ENV || 'development';
+  if (env.TASKSCAPE_PUBLIC_URL) config.public_url = env.TASKSCAPE_PUBLIC_URL;
   if (env.TASKSCAPE_AUTH_PROVIDER) config.auth = { ...config.auth, provider: env.TASKSCAPE_AUTH_PROVIDER };
   validate(config);
   return config;
@@ -105,6 +107,14 @@ function validate(c) {
   if (!COMMENTS_LABELS.includes(pd.comments_label)) fail(`preference_defaults.comments_label must be ${COMMENTS_LABELS.join(' or ')}`);
   if (typeof pd.shortcuts !== 'boolean') fail('preference_defaults.shortcuts must be true or false');
   if (!validTimeZone(pd.time_zone)) fail('preference_defaults.time_zone must be an IANA time zone name');
+  if (c.public_url !== undefined && c.public_url !== null) {
+    let u = null;
+    try { u = new URL(c.public_url); } catch { /* refused below */ }
+    if (!u || !['http:', 'https:'].includes(u.protocol) || u.username || u.password || u.search || u.hash) fail('public_url must be an http or https URL with no query, fragment or credentials');
+    c.public_url = u.href.replace(/\/+$/, '');
+  } else c.public_url = null;
+  // feed links carry their secret in the path: in production they must be built for https, never from a request's own origin
+  if (c.env === 'production' && !(c.public_url ?? '').startsWith('https://')) fail('public_url (or TASKSCAPE_PUBLIC_URL) must be an https URL when TASKSCAPE_ENV=production, so feed links are never sent in the clear');
   c.limits = { page_size: 500, max_page_size: 1000, body_bytes: 262144, ...(c.limits ?? {}) };
   c.privacy = { default_private: false, ...(c.privacy ?? {}) };
   c.permissions = { groups: [], ...c.permissions };

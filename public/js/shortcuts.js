@@ -5,7 +5,7 @@
 //   /            focus the search box (on another page: go to the project list and focus it there)
 //   n            new item: a project on the project list, a task on a project page
 //   ?            this list, in a native <dialog>
-//   g then h/l/m/w/t/p   go to Home (Today), the project list, My tasks, What's New, Trash, Profile
+//   g then h/l/m/c/w/t/p   go to Home (Today), the project list, My tasks, Calendar, What's New, Trash, Profile
 //
 // Keys are ignored while focus is in an input, textarea, select, or
 // contenteditable element, inside an open dialog, and when Ctrl, Alt or Meta
@@ -15,7 +15,7 @@ import { el, btn } from './dom.js';
 import { say } from './page.js';
 
 /** Where `g` goes. */
-const GO = { h: ['today.html', 'Home (Today)'], l: ['projects.html', 'The project list'], m: ['mine.html', 'My tasks'], w: ['whats-new.html', "What's New"], t: ['trash.html', 'Trash'], p: ['profile.html', 'Profile'] };
+const GO = { h: ['today.html', 'Home (Today)'], l: ['projects.html', 'The project list'], m: ['mine.html', 'My tasks'], c: ['calendar.html', 'Calendar'], w: ['whats-new.html', "What's New"], t: ['trash.html', 'Trash'], p: ['profile.html', 'Profile'] };
 /** How long the second key of a sequence may take, in ms. */
 const SEQUENCE_MS = 1500;
 

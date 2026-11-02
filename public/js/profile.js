@@ -3,6 +3,7 @@
 // sign-ins for password sessions, MCP tokens (issue, plaintext shown once,
 // revoke), and your own recent activity (GET /api/activity?actor=<me>).
 
+import { mountFeeds } from './profile-feeds.js';
 import { boot, say, sayError, applyPreferences } from './page.js';
 import { get, post, patch, del, ApiError } from './api.js';
 import { el, btn, option, clear, setChildren, timeEl, oneLine } from './dom.js';
@@ -222,7 +223,7 @@ function setupPassword() {
       // A wrong current password is a 400 naming current_password; a 401 means the session ended and takes the usual path.
       await post('/api/me/password', { current_password: current.value, new_password: fresh.value, revoke_tokens: revoking });
       form.reset();
-      say(revoking ? 'Password changed. Your other sessions were signed out and your MCP tokens revoked.'
+      say(revoking ? 'Password changed. Your other sessions were signed out and your MCP tokens and feed links revoked.'
         : 'Password changed. Your other sessions were signed out.');
       await Promise.all([revoking ? loadTokens() : null, loadSessions()]);
     } catch (err) {
@@ -323,3 +324,6 @@ async function loadActivity(first = false) {
     document.getElementById('my-activity-empty').hidden = activityCount > 0;
   } catch (err) { sayError(err, 'Could not load your activity'); } finally { more.removeAttribute('aria-disabled'); activityBusy = false; }
 }
+
+// feed links (calendar and What's New), human-only like the tokens
+mountFeeds(document.getElementById('feeds-host'));

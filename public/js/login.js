@@ -8,7 +8,7 @@ import { api, get, ApiError } from './api.js';
 import { applyTheme } from './theme.js';
 
 /** The pages `next` may name. login.html itself is not one of them. */
-const PAGES = new Set(['today.html', 'projects.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
+const PAGES = new Set(['today.html', 'projects.html', 'calendar.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
 
 const form = document.getElementById('login-form');
 const username = document.getElementById('login-username');

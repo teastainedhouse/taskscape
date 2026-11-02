@@ -50,6 +50,7 @@ Environment variables:
 | `TASKSCAPE_CONFIG` | `./taskscape.config.json` | path to the config file |
 | `PORT` | `3000` | dev server port |
 | `HOST` | `127.0.0.1` | dev server bind address; behind a reverse proxy keep it on loopback so the proxy is the only way in |
+| `TASKSCAPE_PUBLIC_URL` | — | The site's public address for feed links (required, https, in production); overrides `public_url` in the config. Without either, feed links use the address each request came in on, which is wrong behind a proxy that rewrites the host |
 | `TASKSCAPE_URL`, `TASKSCAPE_TOKEN` | — | MCP server only; see [MCP setup](#mcp-setup) |
 
 ## The config file
@@ -70,6 +71,7 @@ Environment variables:
 | `privacy` | `default_private`: whether new items start private (shipped: `false`) |
 | `permissions` | `edit`: `everyone`, or `group` with `groups` listing the SSO groups that may write |
 | `webring` | `[{ "name", "url" }]` of other teams' Taskscape copies; hidden until someone clicks the hit counter three times |
+| `public_url` | The site's public address (`https://…`), for feed links and the links inside feeds; `TASKSCAPE_PUBLIC_URL` overrides it. Required, and https, when `TASKSCAPE_ENV=production` |
 | `limits` | `page_size` (default list size, 500), `max_page_size` (1000), `body_bytes` (256 KB) |
 | `catch_all_project` | `id`, `name`, `description` of the project that receives tasks with no project (shipped id: `general`) |
 | `theme`, `themes` | The default look and the looks people may pick on their profile page; each name is `public/css/theme-<name>.css` (shipped: `toolbar` and `netscape`). A fork adds a theme by dropping in a CSS file and a name here; startup refuses a name without a file |
@@ -255,6 +257,10 @@ Restore:
 4. Bring the API back and check `GET /api/projects` as a signed-in user.
 
 Test a restore once, before you need it.
+
+## Calendar and feed links
+
+Your profile page makes **feed links**: secret URLs a calendar app subscribes to (`…/calendar.ics`, your open tasks with a due date as all-day events). Each link shows either your own tasks or everything you can see, and only what you can see now. A feed link can read its feeds and nothing else; it cannot sign in, call another route, or change anything. It is shown once when made; revoke it on the profile page if it leaks. Under the `password` provider a link stops working while the account is disabled, and `npm run users -- passwd` or `disable` revoke all of a user's links. Set `public_url` (or `TASKSCAPE_PUBLIC_URL`) so the links inside a feed point at the real site.
 
 ## MCP setup
 

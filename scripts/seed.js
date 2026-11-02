@@ -38,7 +38,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['task_checklist_items', 'task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
+    for (const table of ['feed_tokens', 'task_checklist_items', 'task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -106,6 +106,11 @@ await tasks.create(db, alice, { id: 'monthly-report', project_id: P.web.id, titl
 const banner = await tasks.create(db, alice, { id: 'order-the-banner', project_id: P.party.id, title: 'Order the party banner', due_date: daysFromNow(-1) }, config, tick());
 await tasks.update(db, alice, banner.id, { version: banner.version, status: 'Done' }, config, new Date(Date.now() - 86_400_000).toISOString());
 
+// a task due next month, so the calendar has something past this month; and a feed link for alice (printed below)
+await tasks.create(db, alice, { id: 'plan-the-spring-sale', project_id: P.web.id, title: 'Plan the spring sale page', due_date: daysFromNow(35) }, config, tick());
+const { issue: issueFeed } = await import('../api/lib/repo/feeds.js');
+const aliceFeed = await issueFeed(db, alice, { label: 'Seeded calendar', scope: 'mine' }, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -119,8 +124,9 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 }
 
 console.log(`seeded ${url}`);
-console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 4}, tags: ${Object.keys(tag).length}`);
+console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length + 5}, tags: ${Object.keys(tag).length}`);
 console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
+console.log(`  alice's calendar feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/calendar.ics`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

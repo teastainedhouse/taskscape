@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calendar - Taskscape</title>
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/theme-toolbar.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+  <div id="dev-banner"></div>
+  <div class="wrap">
+    <header class="site-header">
+      <p class="site-title"><a href="today.html" data-site-title>Taskscape</a></p>
+      <nav aria-label="Main">
+        <a href="today.html">Today</a> <span aria-hidden="true">|</span>
+        <a href="projects.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="calendar.html">Calendar</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
+        <a href="profile.html">Profile</a>
+      </nav>
+      <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
+      <a href="profile.html" class="avatar" id="avatar" aria-label="Your profile"></a>
+    </header>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <main class="panel">
+      <h1>Calendar: <span id="cal-title"></span></h1>
+      <div class="filters cal-controls" role="group" aria-label="Month">
+        <button type="button" id="cal-prev">&laquo; Previous month</button>
+        <button type="button" id="cal-today">Today</button>
+        <button type="button" id="cal-next">Next month &raquo;</button>
+        <label><input type="checkbox" id="cal-mine"> Only my tasks</label>
+      </div>
+      <p id="cal-summary" aria-live="polite"></p>
+      <div class="table-wrap cal-wrap"><table id="cal-grid" class="cal-grid"></table></div>
+      <ol id="cal-list" class="cal-list" aria-label="Days with tasks this month"></ol>
+      <section id="cal-day" class="cal-day-panel" hidden></section>
+      <p class="muted">Want these in your own calendar app? <a href="profile.html#feeds-h">Make a calendar feed link on your profile page</a>.</p>
+    </main>
+
+    <footer class="site-footer">
+      <address data-served-by>Taskscape</address>
+    </footer>
+  </div>
+  <script type="module" src="js/calendar.js"></script>
+</body>
+</html>

@@ -46,7 +46,7 @@ test('config: password provider accepted, block defaulted and validated, never p
   const raw = { statuses: { project: ['A'], task: ['B'] }, closed_statuses: { project: [], task: [] },
     default_status: { project: 'A', task: 'B' }, tag_palette: ['#000000'], catch_all_project: { id: 'g', name: 'G' },
     permissions: { edit: 'everyone' }, auth: { provider: 'headers', headers: {} } };
-  const c = prepareConfig(raw, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'password' });
+  const c = prepareConfig(raw, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'password', TASKSCAPE_PUBLIC_URL: 'https://tasks.example.test' });
   assert.equal(c.auth.provider, 'password');
   assert.deepEqual(c.auth.password, { session_days: 30, cookie_name: '__Host-taskscape_session' });
   for (const password of [{ session_days: 0 }, { session_days: 366 }, { session_days: 1.5 }, { cookie_name: 'a b' }, { cookie_name: '' }, { cookie_name: 'x'.repeat(65) }]) {
@@ -209,7 +209,7 @@ test('disabling a user ends sessions and revokes MCP tokens', async () => {
   assert.equal(issued.status, 201);
   assert.equal((await t.tokenAs(issued.body.plaintext).get('/api/me')).body.auth, 'token');
   const swept = await users.disable(t.db, 'dana', new Date().toISOString());
-  assert.deepEqual(swept, { found: true, sessions: 1, tokens: 1 });
+  assert.deepEqual(swept, { found: true, sessions: 1, tokens: 1, feeds: 0 });
   assert.equal((await t.cookie(value).get('/api/me')).status, 401);
   assert.equal((await t.tokenAs(issued.body.plaintext).get('/api/me')).status, 401);
   assert.equal((await tokens.listForUser(t.db, 'dana'))[0].revoked_at !== null, true);
@@ -283,7 +283,7 @@ test('passwd (repo) ends sessions and, as the CLI asks, revokes tokens', async (
   const value = t.cookieFrom(await t.login());
   const p = (await t.cookie(value).post('/api/tokens', { label: 'x' })).body.plaintext;
   const swept = await users.setPassword(t.db, 'dana', await hashPassword('reset by admin'), new Date().toISOString(), { revokeTokens: true });
-  assert.deepEqual(swept, { sessions: 1, tokens: 1 });
+  assert.deepEqual(swept, { sessions: 1, tokens: 1, feeds: 0 });
   assert.equal((await t.cookie(value).get('/api/me')).status, 401);
   assert.equal((await t.tokenAs(p).get('/api/me')).status, 401);
   assert.equal(await users.setPassword(t.db, 'nobody', 'x', new Date().toISOString()), null);
@@ -313,7 +313,7 @@ test('under password, a token needs a live users row; under dev it does not', as
 test('disable sweeps an id that has no users row', async () => {
   const t = await passwordApp();
   const orphan = await tokens.issue(t.db, { id: 'ghost', name: 'Ghost', groups: [], via: 'ui', auth: 'headers' }, 'old', new Date().toISOString());
-  assert.deepEqual(await users.disable(t.db, 'ghost', new Date().toISOString()), { found: false, sessions: 0, tokens: 1 });
+  assert.deepEqual(await users.disable(t.db, 'ghost', new Date().toISOString()), { found: false, sessions: 0, tokens: 1, feeds: 0 });
   assert.notEqual((await tokens.listForUser(t.db, 'ghost'))[0].revoked_at, null);
   await t.close();
   assert.equal(orphan.token.label, 'old');
@@ -332,7 +332,7 @@ test('new users: system is reserved; an id already in use needs claimExisting', 
   const hash = await hashPassword('claim this account');
   const refused = await users.create(t.db, { id: 'olddana', name: 'Dana' }, hash, now());
   assert.equal(refused.status, 'in_use');
-  assert.deepEqual(refused.claimed, { projects: 1, tasks: 0, activity: 1, tokens: 1, live_tokens: 1, preferences: 0 });
+  assert.deepEqual(refused.claimed, { projects: 1, tasks: 0, activity: 1, tokens: 1, live_tokens: 1, preferences: 0, feeds: 0, live_feeds: 0 });
   assert.equal(await users.get(t.db, 'olddana'), null);
   // an id whose only trace is a preferences row counts as in use too (its time zone is personal)
   await t.db.query("INSERT INTO preferences (user_id, time_zone, updated_at) VALUES ('prefonly', 'Asia/Tokyo', ?)", [now()]);

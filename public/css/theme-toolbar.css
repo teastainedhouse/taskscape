@@ -181,6 +181,7 @@ nav a::before {
 nav a[href="today.html"] { --icon: var(--icon-sun); }
 nav a[href="projects.html"] { --icon: var(--icon-folder); }
 nav a[href="mine.html"] { --icon: var(--icon-tasks); }
+nav a[href="calendar.html"] { --icon: var(--icon-calendar); }
 nav a[href="whats-new.html"] { --icon: var(--icon-news); }
 nav a[href="trash.html"] { --icon: var(--icon-trash); }
 nav a[href="profile.html"] { --icon: var(--icon-person); }

@@ -27,7 +27,7 @@ test('config: TASKSCAPE_ENV=production with dev provider throws at load', () => 
   assert.throws(() => prepareConfig(raw, { TASKSCAPE_ENV: 'production' }), /production/);
   assert.doesNotThrow(() => prepareConfig(raw, { TASKSCAPE_ENV: 'development' }));
   // env override of the provider
-  const c = prepareConfig({ ...raw, auth: { ...raw.auth, headers: {} } }, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'headers' });
+  const c = prepareConfig({ ...raw, auth: { ...raw.auth, headers: {} } }, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'headers', TASKSCAPE_PUBLIC_URL: 'https://tasks.example.test' });
   assert.equal(c.auth.provider, 'headers');
 });
 

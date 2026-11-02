@@ -140,6 +140,22 @@ tr.filtered-out td { opacity: 0.6; }
 .today-section { margin-top: 18px; }
 .today-table td.col-title { overflow-wrap: anywhere; min-width: 8em; }
 .empty-line { font-style: italic; }
+/* The calendar (js/calendar.js): a month table on wide screens, a list of days at phone width. */
+.cal-grid { table-layout: fixed; width: 100%; }
+.cal-grid td { vertical-align: top; height: 4.5em; }
+.cal-num { font-weight: 600; }
+.cal-today-word { font-weight: 400; font-style: italic; }
+.cal-day--today { outline: 2px solid currentColor; outline-offset: -2px; }
+.cal-day--late .cal-count { font-weight: 700; }
+.cal-count { font-size: 0.85em; padding: 1px 4px; white-space: normal; text-align: left; }
+.cal-list { display: none; padding-left: 0; list-style: none; }
+.cal-list h3 { margin: 12px 0 4px; font-size: 1em; }
+.cal-tasks { margin: 0; padding-left: 1.2em; }
+.cal-tasks li { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .cal-wrap, .cal-day-panel { display: none; }
+  .cal-list { display: block; }
+}
 @media (max-width: 600px) {
   .today-table, .today-table tbody, .today-table tr, .today-table td { display: block; }
   .today-table thead { display: none; }

@@ -38,7 +38,7 @@ export async function createTestApp(opts = {}) {
   const config = prepareConfig(raw, { TASKSCAPE_ENV: 'test', ...(opts.env ?? {}) });
   const db = await openDb(PG_URL || 'sqlite::memory:');
   await db.migrate(MIGRATIONS);
-  if (PG_URL) await db.exec('TRUNCATE task_checklist_items, task_links, comments, activity, task_tags, project_tags, tasks, mcp_tokens, projects, tags, sessions, users, preferences');
+  if (PG_URL) await db.exec('TRUNCATE feed_tokens, task_checklist_items, task_links, comments, activity, task_tags, project_tags, tasks, mcp_tokens, projects, tags, sessions, users, preferences');
   await ensureCatchAll(db, config, opts.now?.()); // same clock as the app, so General is never newer than a test's rows
   const errors = [];
   const app = createApp({ config, db, now: opts.now, log: (e) => errors.push(e) });
