@@ -14,7 +14,7 @@
  * where this one says "Comments"; both are accepted.
  */
 
-/** @typedef {{title: string, status: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, line: number}} ParsedTask */
+/** @typedef {{title: string, status: string|null, priority: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, line: number}} ParsedTask */
 /**
  * @typedef {Object} ParsedExport
  * @property {{name: string, description: string, status: string|null, owner_name: string|null, private: boolean|null, tags: string[]}} project
@@ -156,7 +156,7 @@ export function parseProjectExport(text) {
       const title = cell('title');
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
       tasks.push({
-        title, status: orNull(cell('status')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
+        title, status: orNull(cell('status')), priority: orNull(cell('priority')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
         tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', line: at(),
       });
       i++;

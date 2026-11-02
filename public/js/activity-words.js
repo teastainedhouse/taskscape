@@ -9,7 +9,7 @@ const VIA = { ui: 'UI', mcp: 'Claude' };
 
 /** Human labels for changed fields; anything else uses the field name. */
 const FIELD_LABELS = {
-  title: 'title', name: 'name', status: 'status', owner_id: 'owner', owner_name: 'owner',
+  title: 'title', name: 'name', status: 'status', priority: 'priority', owner_id: 'owner', owner_name: 'owner',
   due_date: 'due date', private: 'privacy', description: 'description', notes: 'notes',
   project_id: 'project', tags: 'tags', color: 'color',
 };

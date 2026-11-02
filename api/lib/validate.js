@@ -68,6 +68,11 @@ export function validateItem(body, config, kind, { partial }) {
       else if (body.project_id !== null && (typeof body.project_id !== 'string' || !body.project_id)) errors.project_id = 'must be a project id';
       else if (typeof body.project_id === 'string') out.project_id = body.project_id;
     }
+    if ('priority' in body) {
+      if (body.priority === null) out.priority = null;
+      else if (!config.priorities.includes(body.priority)) errors.priority = 'must be one of the configured priorities or null';
+      else out.priority = body.priority;
+    }
     if ('due_date' in body) {
       if (body.due_date === null) out.due_date = null;
       else if (typeof body.due_date !== 'string' || !validDate(body.due_date)) errors.due_date = 'must be YYYY-MM-DD or null';
@@ -238,8 +243,8 @@ export function validateNewUser(u) {
 }
 
 const PROJECT_SORTS = ['updated_at', 'created_at', 'name', 'status', 'owner_name'];
-const TASK_SORTS = [...PROJECT_SORTS.filter((s) => s !== 'name'), 'title', 'due_date'];
-const ASC_DEFAULT = new Set(['name', 'title', 'due_date']);
+const TASK_SORTS = [...PROJECT_SORTS.filter((s) => s !== 'name'), 'title', 'due_date', 'priority'];
+const ASC_DEFAULT = new Set(['name', 'title', 'due_date', 'priority']);
 
 /**
  * Parse and validate list query parameters (docs/API.md §5).
@@ -262,6 +267,7 @@ export function parseListQuery(q, config, kind) {
   };
   if (kind === 'task') {
     f.project = q.project || undefined;
+    f.priority = csv(q.priority)?.filter((s) => config.priorities.includes(s));
     for (const k of ['due_before', 'due_after']) {
       if (q[k]) { if (validDate(q[k])) f[k] = q[k]; else errors[k] = 'must be YYYY-MM-DD'; }
     }

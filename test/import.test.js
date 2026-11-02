@@ -16,7 +16,7 @@ async function seeded(t) {
   const a = t.as('alice');
   const web = (await a.post('/api/tags', { name: 'web' })).body;
   const p = (await a.post('/api/projects', { name: 'Site | refresh', description: 'Line one\n\n  indented two', status: 'Active', tag_ids: [web.id] })).body;
-  const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'Fix | GIFs', due_date: '2026-11-05', notes: 'Notes **bold**\n\nsecond paragraph', tag_ids: [web.id] })).body;
+  const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'Fix | GIFs', priority: 'Medium', due_date: '2026-11-05', notes: 'Notes **bold**\n\nsecond paragraph', tag_ids: [web.id] })).body;
   // distinct due dates: the export orders by due date, and undated tasks would tie
   await a.post('/api/tasks', { project_id: p.id, title: 'Bob does this', owner_id: 'bob', status: 'Doing', due_date: '2026-11-06' });
   await a.post('/api/tasks', { project_id: p.id, title: 'Carol does that', owner_id: 'carol', status: 'Done', due_date: '2026-11-07' });
@@ -47,6 +47,8 @@ test('round trip: export, import, export again; same text apart from ids, dates 
   assert.equal(byTitle['Carol does that'].owner_id, 'carol');
   assert.equal(byTitle['Fix | GIFs'].notes, 'Notes **bold**\n\nsecond paragraph');
   assert.equal(byTitle['Fix | GIFs'].tags[0].name, 'web');
+  assert.equal(byTitle['Fix | GIFs'].priority, 'Medium');
+  assert.equal(byTitle['Bob does this'].priority, null);
   assert.equal(copies.length, 3);
   assert.equal((await a.get('/api/tags')).body.items.length, 1, 'no second "web" tag');
   // one activity entry per created item, by the importer
@@ -238,5 +240,20 @@ test('a tag cell with thousands of commas is refused quickly, not regrouped slow
   assert.equal(r.status, 400);
   assert.match(r.body.error.details.fields.tags, /at most 20 tags/);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  await t.close();
+});
+
+test('import: an unknown priority names the field and the line; an empty cell is none', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const md = '# P\n\n## Tasks\n\n| Title | Status | Priority |\n| --- | --- | --- |\n| One | To do | Whenever |\n';
+  let r = await a.post('/api/projects/import?dry_run=true', md, MD);
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.priority, 'must be one of the configured priorities or null (line 7)');
+  r = await a.post('/api/projects/import?dry_run=true', md.replace('Whenever', ''), MD);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.tasks[0].priority, null);
+  r = await a.post('/api/projects/import?dry_run=true', md.replace('Whenever', 'Low'), MD);
+  assert.equal(r.body.tasks[0].priority, 'Low');
   await t.close();
 });

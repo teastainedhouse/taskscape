@@ -143,13 +143,13 @@ test('callTool: fetch rejection becomes an error result without the token', asyn
 test('list_tasks / list_projects map array filters to comma-separated query params', async () => {
   const { client, calls } = makeClient(() => json(200, { items: [], limit: 500, offset: 0 }));
   await callTool('list_tasks', {
-    project_id: 'p1', status: ['To do', 'Doing'], owner: 'me', tag: 'bug', q: 'gif',
+    project_id: 'p1', status: ['To do', 'Doing'], priority: ['High', 'Low'], owner: 'me', tag: 'bug', q: 'gif',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: true,
   }, client);
   assert.equal(calls[0].method, 'GET');
   assert.equal(calls[0].path, '/api/tasks');
   assert.deepEqual(calls[0].query, {
-    project: 'p1', status: 'To do,Doing', owner: 'me', tag: 'bug', q: 'gif',
+    project: 'p1', status: 'To do,Doing', priority: 'High,Low', owner: 'me', tag: 'bug', q: 'gif',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: 'true',
   });
   await callTool('list_projects', { status: ['Active'], include_trashed: false }, client);
@@ -229,7 +229,15 @@ test('update rejects fields of the other type and tags before calling the API', 
   r = await callTool('update', { type: 'task', id: 't1', version: 1, fields: { tags: ['a'] } }, client);
   assert.equal(r.isError, true);
   assert.match(text(r), /update\.fields\.tags: unknown field/);
+  r = await callTool('update', { type: 'project', id: 'p1', version: 1, fields: { priority: 'High' } }, client);
+  assert.match(text(r), /update\.fields\.priority: not a project field/);
   assert.equal(calls.length, 0);
+  // a task takes a priority name or null, passed through as is
+  r = await callTool('update', { type: 'task', id: 't1', version: 1, fields: { priority: null } }, client);
+  assert.equal(r.isError, undefined);
+  assert.deepEqual(calls[0].body, { priority: null, version: 1 });
+  await callTool('create', { type: 'task', fields: { title: 'X', priority: 'High' } }, client);
+  assert.deepEqual(calls[1].body, { title: 'X', priority: 'High' });
 });
 
 test('update on 409 returns isError with both versions and the full current record as JSON', async () => {
@@ -443,13 +451,16 @@ test('get returns only the newest comments of a long guestbook, and says how man
 });
 
 test('me: who the token acts as, with the time zone and today in it', async () => {
+  const site = { statuses: { project: ['Planned'], task: ['To do', 'Done'] }, closed_statuses: { project: [], task: ['Done'] }, priorities: ['High', 'Low'], auth: { provider: 'dev' } };
   const { client, calls } = makeClient(({ path }) => (path === '/api/me'
     ? json(200, { id: 'alice', name: 'Alice Lin', email: null, auth: 'token', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'Pacific/Kiritimati' } })
-    : null));
+    : path === '/api/config' ? json(200, site) : null));
   const out = parsed(await callTool('me', {}, client));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/api/me');
-  assert.deepEqual(Object.keys(out), ['id', 'name', 'can_edit', 'time_zone', 'today', 'now']);
+  assert.deepEqual(calls.map((c) => c.path), ['/api/me', '/api/config']);
+  assert.deepEqual(Object.keys(out), ['id', 'name', 'can_edit', 'time_zone', 'today', 'now', 'statuses', 'closed_statuses', 'priorities']);
+  assert.deepEqual(out.priorities, ['High', 'Low']);
+  assert.deepEqual(out.closed_statuses, site.closed_statuses);
+  assert.ok(!('auth' in out), 'only the vocabulary, not the rest of the config');
   assert.equal(out.time_zone, 'Pacific/Kiritimati');
   assert.equal(out.today, dateIn(new Date(out.now), 'Pacific/Kiritimati'));
   assert.match(out.today, /^\d{4}-\d{2}-\d{2}$/);

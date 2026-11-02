@@ -62,11 +62,13 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 **Task**
 ```json
 { "id": "9a2e…", "project_id": "6f1c…", "project_name": "Website refresh",
-  "title": "Fix broken GIFs", "status": "To do", "owner_id": "alice", "owner_name": "Alice Lin",
+  "title": "Fix broken GIFs", "status": "To do", "priority": "High", "owner_id": "alice", "owner_name": "Alice Lin",
   "private": false, "due_date": "2026-10-30", "notes": "", "version": 1,
   "created_at": "…", "updated_at": "…", "deleted_at": null,
   "tags": [ { "id": "t3", "name": "bug", "color": "#ff0000" } ] }
 ```
+
+`priority` is one of `/api/config` `priorities` or `null` (none); a name later removed from the config still reads, and sorts after the configured ones and before none, in either direction.
 
 **Tag** `{ "id", "name", "color", "created_at" }` (no usage counts).
 
@@ -98,13 +100,14 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | --- | --- | --- |
 | `project` | project id | tasks only |
 | `status` | comma-separated names | unknown names ignored |
+| `priority` | comma-separated names | tasks only; any of; unknown names ignored |
 | `owner` | owner id, or `me` | |
 | `tag` | tag name(s), comma = any of | names, not ids |
 | `q` | substring | case-insensitive on name/title and description/notes; `%` `_` `\` literal |
 | `due_before`, `due_after` | `YYYY-MM-DD` | tasks only, inclusive; `due_before` excludes null due dates |
 | `include_trashed` | `false` (default), `true`, `only` | tasks of a trashed project are excluded by default and under `only` (they carry no `deleted_at` of their own); `true` includes everything |
-| `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date` | `status` sorts in config order; `due_date` nulls last |
-| `dir` | `asc`, `desc` | default `desc`, except `asc` for `name`, `title`, `due_date` |
+| `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date`, `priority` | `status` and `priority` sort in config order; `due_date` and `priority` nulls last in either direction |
+| `dir` | `asc`, `desc` | default `desc`, except `asc` for `name`, `title`, `due_date`, `priority` |
 | `limit`, `offset` | `limit`: default `limits.page_size` (500), max `limits.max_page_size` (1000); `offset`: 0 to 2^53 − 1 | no total count |
 
 List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
@@ -134,13 +137,13 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | POST | `/api/projects/:id/restore` | any | `{version}` | `200 Project` | 400 invalid_state, 404, 409 |
 | PUT | `/api/projects/:id/tags/:tagId` | any | `{version}` | `200 Project` (idempotent attach) | 404, 409 |
 | DELETE | `/api/projects/:id/tags/:tagId` | any | `{version}` | `200 Project` (idempotent detach) | 404, 409 |
-| POST | `/api/projects/import` | any | `text/markdown`: a file in the export format (section 8), within the body limit; query `dry_run=true` plans only, `private=true` makes everything private to the caller | `201 {"project": Project, "tasks": [Task], "comments_skipped": n, "notes": [string]}`; with `dry_run`, `200 {"dry_run": true, "project", "tasks", "comments_skipped", "notes"}` where project and tasks are the planned records (no ids; each task has its `line`) | 400 (field names with the line, never the value: `name`, `tasks`, `title`, `status`, `due_date`, `private`, `tags`, `notes`, …; `dry_run`/`private` must be true or false), 403, 413, 415 (a body that is not `text/markdown`, from any principal) |
+| POST | `/api/projects/import` | any | `text/markdown`: a file in the export format (section 8), within the body limit; query `dry_run=true` plans only, `private=true` makes everything private to the caller | `201 {"project": Project, "tasks": [Task], "comments_skipped": n, "notes": [string]}`; with `dry_run`, `200 {"dry_run": true, "project", "tasks", "comments_skipped", "notes"}` where project and tasks are the planned records (no ids; each task has its `line`) | 400 (field names with the line, never the value: `name`, `tasks`, `title`, `status`, `priority`, `due_date`, `private`, `tags`, `notes`, …; `dry_run`/`private` must be true or false), 403, 413, 415 (a body that is not `text/markdown`, from any principal) |
 | GET | `/api/projects/:id/export.md` | any | — | `200 text/markdown; charset=utf-8`, `Content-Disposition: attachment; filename="<ascii-slug>.md"`; tasks ordered by due date, undated last | 404 |
 | POST | `/api/projects/:id/hit` | human | — | `200 {"project_id":"…","hit_count":1338}` | 400 invalid_state (trashed), 403 (token), 404 |
 | GET | `/api/tasks` | any | query section 5 | `200 {items:[Task]}` | 400 |
-| POST | `/api/tasks` | any | `{project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent or `null` = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
+| POST | `/api/tasks` | any | `{project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, tag_ids?}` (`project_id` absent or `null` = the catch-all project) | `201 Task` | 400 (incl. invalid_state), 403, 404 (project not visible) |
 | GET | `/api/tasks/:id` | any | — | `200 Task` (trashed ones too) | 404 |
-| PATCH | `/api/tasks/:id` | any | `{version, title?, status?, owner_id?, owner_name?, private?, due_date?, notes?, project_id?}` | `200 Task` | 400, 403, 404, 409 |
+| PATCH | `/api/tasks/:id` | any | `{version, title?, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, project_id?}` | `200 Task` | 400, 403, 404, 409 |
 | DELETE | `/api/tasks/:id` | any | `{version}` | `200 Task` | 400, 404, 409 |
 | POST | `/api/tasks/:id/restore` | any | `{version}` | `200 Task` | 400 invalid_state, 404, 409 |
 | PUT | `/api/tasks/:id/tags/:tagId` | any | `{version}` | `200 Task` | 404, 409 |
@@ -160,7 +163,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | POST | `/api/tokens` | human | `{label}` | `201 {"token": Token, "plaintext": "tsk_…"}`; plaintext never shown again | 400, 403 |
 | DELETE | `/api/tokens/:id` | human | — | `200 Token` with `revoked_at` | 404 (not yours = not found) |
 
-**Create defaults:** `status` = `default_status.<type>`; owner = caller; `private` = `privacy.default_private`.
+**Create defaults:** `status` = `default_status.<type>`; `priority` = `null`; owner = caller; `private` = `privacy.default_private`.
 
 **Owner names** (create and `PATCH`): `owner_id: "system"` is refused (`owner_id: "is reserved"`). If `owner_id` is the caller, `owner_name` is overwritten from the principal. If `owner_id` is someone the server's directory knows (an enabled `users` row under `password`; a configured dev user under `dev`), `owner_name` is optional and overwritten with the directory's name. Under `password` any other `owner_id` (unknown, disabled, or a look-alike) is 400 `owner_id: "must be someone who can sign in"`, so send `owner_id` only to change it. Under `dev` for an unlisted id, and always under `headers`, `owner_name` is required with `owner_id` and stored as sent. `owner_name` without `owner_id` is still 400. These owner checks come last, after every other answer a write can give (404 for a missing or hidden item or target project, 409 for a stale `version`, `invalid_state`, an unknown tag), so they never change which of those comes back.
 
@@ -172,7 +175,7 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 **The catch-all project** is an ordinary project row with a fixed id (`config.catch_all_project_id`, default `general`), created by `npm run migrate` if missing, owned by the system principal (`owner_id: "system"`), and exposed as `catch_all_project_id` in `/api/config`. It is always public and always present: `PATCH` with `private: true` or a new `owner_id`, and `DELETE`, return `400 invalid_state`. Its name, description, status, and tags are editable like any project. `POST /api/tasks` without `project_id` files the task there.
 
-**Import from Markdown.** `POST /api/projects/import` reads exactly what `GET /api/projects/:id/export.md` writes (section 8; an older export that says "Guestbook" is read too) and creates the project and its tasks in one transaction, each with its own `create` activity entry by the caller, so a failure halfway creates nothing. Tags are matched or created by name. An owner name in the file maps to a person only when exactly one person the caller may pick (`GET /api/people`) has exactly that name; otherwise the item goes to the caller, and a note says how many did. Statuses must be configured ones; a bad one is `400` naming the field and the line. An item the file marks `Private: yes` stays private (and so belongs to the caller; a private project makes every task in it the caller's and private too); an item marked public follows `privacy.default_private`, or `?private=true` makes everything private to the caller. Nothing an export marked private is ever made public by importing it. Limits: `limits.max_page_size` tasks per file, 20 tags on one item, 50 new tag names per import, 20,000 characters per line; a file with two `## Tasks` lines (a description can contain one) is refused naming the line, since the import will not guess which is the real one. A `charset` other than UTF-8 is 415. Tokens may import over HTTP like any write; the missing MCP tool is about Claude seeing each item it creates, not about what a token may do. Tag names are a shared vocabulary, so a note says how many new ones a private import would still create for everyone to see. Owner names are matched against the caller's own `GET /api/people`, so a token, which gets no directory, matches fewer names than its owner in the browser. Comments are never imported, because a comment is signed by whoever writes it and a file cannot sign for anyone; the response says how many were left out. Hits, created and updated dates come from the import, not the file. No MCP tool: Claude already creates projects and tasks one by one with `create`, and a file-shaped bulk write adds nothing but a way to create many things at once without the user seeing each.
+**Import from Markdown.** `POST /api/projects/import` reads exactly what `GET /api/projects/:id/export.md` writes (section 8; an older export that says "Guestbook" is read too) and creates the project and its tasks in one transaction, each with its own `create` activity entry by the caller, so a failure halfway creates nothing. Tags are matched or created by name. An owner name in the file maps to a person only when exactly one person the caller may pick (`GET /api/people`) has exactly that name; otherwise the item goes to the caller, and a note says how many did. Statuses and priorities must be configured ones; a bad one is `400` naming the field and the line. An item the file marks `Private: yes` stays private (and so belongs to the caller; a private project makes every task in it the caller's and private too); an item marked public follows `privacy.default_private`, or `?private=true` makes everything private to the caller. Nothing an export marked private is ever made public by importing it. Limits: `limits.max_page_size` tasks per file, 20 tags on one item, 50 new tag names per import, 20,000 characters per line; a file with two `## Tasks` lines (a description can contain one) is refused naming the line, since the import will not guess which is the real one. A `charset` other than UTF-8 is 415. Tokens may import over HTTP like any write; the missing MCP tool is about Claude seeing each item it creates, not about what a token may do. Tag names are a shared vocabulary, so a note says how many new ones a private import would still create for everyone to see. Owner names are matched against the caller's own `GET /api/people`, so a token, which gets no directory, matches fewer names than its owner in the browser. Comments are never imported, because a comment is signed by whoever writes it and a file cannot sign for anyone; the response says how many were left out. Hits, created and updated dates come from the import, not the file. No MCP tool: Claude already creates projects and tasks one by one with `create`, and a file-shaped bulk write adds nothing but a way to create many things at once without the user seeing each.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
 
@@ -195,8 +198,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
   "statuses": { "project": ["Planned","Active","On hold","Done"], "task": ["To do","Doing","Blocked","Done"] },
   "closed_statuses": { "project": ["Done"], "task": ["Done"] },
   "default_status": { "project": "Planned", "task": "To do" },
+  "priorities": ["High","Medium","Low"],
   "tag_palette": ["#000080","#008000","#800000","#808000","#800080","#008080","#ff0000","#0000ff"],
-  "task_fields": ["title","status","owner","due_date","tags","private"],
+  "task_fields": ["title","status","priority","owner","due_date","tags","private"],
   "default_views": { "tasks": { "sort": "due_date", "dir": "asc" } },
   "privacy": { "default_private": false },
   "permissions": { "edit": "everyone" },
@@ -232,9 +236,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 ## Tasks
 
-| Title | Status | Owner | Due | Tags | Private |
-| --- | --- | --- | --- | --- | --- |
-| Fix broken GIFs | To do | Alice Lin | 2026-10-30 | bug | no |
+| Title | Status | Priority | Owner | Due | Tags | Private |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fix broken GIFs | To do | High | Alice Lin | 2026-10-30 | bug | no |
 
 ### Fix broken GIFs
 
@@ -284,3 +288,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-02 (preferences and themes): new Preferences shape, carried in `Me`, with routes `GET /api/me/preferences` (any principal) and `PATCH /api/me/preferences` (human-only, no editor check; `null` resets a field to the site default). Migration `005_preferences.sql` adds the `preferences` table, keyed by principal id under every provider, outside the versioning rule like the auth tables. `GET /api/config` gains `theme`, `themes`, and `preference_defaults`; `GET /api/login` gains `theme` (the site default, for the sign-in page). The export says `Comments:` and `## Comments` where it said `Guestbook:` and `## Guestbook`, and the full-thread message reads "This item has as many comments as it can hold."; the shapes and routes for comments are unchanged. MCP: a new `me` tool returns the token's user with their `time_zone` and `today` in it (the tool, rather than a note in every result, so date context costs one small call and never pads a list); the server instructions and tool descriptions say "comments", not "guestbook". No MCP tool writes preferences: they are personal settings for the browser, and a token setting someone's theme has no use.
 - 2026-11-02 (import): `POST /api/projects/import` takes a `text/markdown` export and creates the project and its tasks in one transaction; `?dry_run=true` plans without writing; `?private=true` makes everything private to the caller; comments are counted and never imported; owners map only on an exact, unique name. Browser principals may send `text/markdown` to this one route (a form cannot send that type); every other write stays JSON-only. No MCP tool.
 - 2026-11-02 (whole-repo review): `Preferences` gains `chosen`, saying which keys the person set (the browser uses the device's time zone until one is chosen); a stored `time_zone` keeps the name as picked, case fixed; `POST /api/projects/import` is 415 for any body that is not `text/markdown`, from any principal, and reads `Private` in any case (any other non-empty value is a 400 on `private`); the export of a trashed project keeps the tasks that went into the trash with it (not those trashed on their own); creating the same tag from two transactions at once no longer fails on PostgreSQL (the second reads the first's tag).
+- 2026-11-02 (priority): tasks gain `priority`, one of the new `/api/config` `priorities` (default `["High","Medium","Low"]`) or `null`; `POST`/`PATCH /api/tasks` take it; `GET /api/tasks` filters on `priority` (comma = any of) and sorts by it in config order with none last. Migration `006_task_priority.sql`. The export's task table gains a Priority column after Status, and the import reads it (an unknown name is a 400 naming the field and the line). MCP: `create` and `update` take `priority`, `list_tasks` filters on it, and `me` also returns the site's `statuses`, `closed_statuses` and `priorities`, so Claude can see the allowed names before writing. Config: status and priority names may not contain a comma or start or end with a space (the list filters split on commas); startup refuses such a config.

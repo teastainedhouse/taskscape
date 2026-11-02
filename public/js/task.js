@@ -124,6 +124,12 @@ function render() {
     control: (v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
     save: (v) => patchTask({ status: v }, t.version) }));
 
+  if ((config.priorities ?? []).length || t.priority) {
+    row('Priority', inlineEdit({ key: 'task-priority', label: 'Priority', allowed: canEdit, value: t.priority, empty: 'none',
+      control: (v) => selectFor([{ value: '', label: 'None' }, ...(config.priorities ?? []).map((p) => ({ value: p }))], v),
+      save: (v) => patchTask({ priority: v || null }, t.version) }));
+  }
+
   row('Owner', inlineEdit({ key: 'task-owner', label: 'Owner', allowed: canEdit && (!t.private || owns()), value: t.owner_id,
     format: (id) => personName(id),
     // a private project holds only its owner's tasks, so inside one the only owner on offer is the project's

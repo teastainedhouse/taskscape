@@ -59,11 +59,12 @@ Environment variables:
 | Key | What it does |
 | --- | --- |
 | `site_title` | Shown in page titles and headers |
-| `statuses` | Allowed status names for `project` and `task`, in display and sort order |
+| `statuses` | Allowed status names for `project` and `task`, in display and sort order (no commas, no spaces at either end: the list filters split on commas) |
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |
+| `priorities` | Task priority names, highest first (shipped: `High`, `Medium`, `Low`); a task has one of these or none, and lists sort by it in this order. Same naming rules as statuses. An empty list turns priorities off |
 | `tag_palette` | `#rrggbb` colors handed to new tags in turn |
-| `task_fields` | Which task columns the task table shows, in order |
+| `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`) |
 | `default_views` | Named sort and filter presets; `tasks` is the one the task table opens with |
 | `privacy` | `default_private`: whether new items start private (shipped: `false`) |
 | `permissions` | `edit`: `everyone`, or `group` with `groups` listing the SSO groups that may write |
@@ -291,7 +292,7 @@ The server exposes ten tools:
 
 | Tool | Does |
 | --- | --- |
-| `me` | Who the token acts as, their time zone, and today's date in it; call it before working with dates |
+| `me` | Who the token acts as, their time zone, and today's date in it, plus the site's statuses and priorities; call it before working with dates |
 | `list_projects` | `GET /api/projects` with the same filters |
 | `list_tasks` | `GET /api/tasks` with the same filters |
 | `get` | One project or task by `type` and `id`, with its newest 50 comments |

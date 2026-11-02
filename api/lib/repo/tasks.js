@@ -7,8 +7,8 @@ import * as tags from './tags.js';
 import * as projects from './projects.js';
 import * as people from './people.js';
 
-const SETTABLE = ['project_id', 'title', 'status', 'owner_id', 'owner_name', 'private', 'due_date', 'notes'];
-const SORTS = { updated_at: 't.updated_at', created_at: 't.created_at', title: 'LOWER(t.title)', status: null, owner_name: 'LOWER(t.owner_name)', due_date: null };
+const SETTABLE = ['project_id', 'title', 'status', 'priority', 'owner_id', 'owner_name', 'private', 'due_date', 'notes'];
+const SORTS = { updated_at: 't.updated_at', created_at: 't.created_at', title: 'LOWER(t.title)', status: null, owner_name: 'LOWER(t.owner_name)', due_date: null, priority: null };
 const SELECT = 'SELECT t.*, p.name AS project_name FROM tasks t JOIN projects p ON p.id = t.project_id';
 
 async function withTags(db, rows) {
@@ -36,7 +36,7 @@ export async function mustGet(db, user, id) {
 }
 
 /**
- * @param {{project?: string, status?: string[], owner?: string, tag?: string[], q?: string, due_before?: string, due_after?: string, include_trashed: string, sort: string, dir: string, limit: number, offset: number}} f
+ * @param {{project?: string, status?: string[], priority?: string[], owner?: string, tag?: string[], q?: string, due_before?: string, due_after?: string, include_trashed: string, sort: string, dir: string, limit: number, offset: number}} f
  */
 export async function list(db, user, f, config) {
   const vis = taskVisible('t', 'p', user);
@@ -46,6 +46,7 @@ export async function list(db, user, f, config) {
   else if (f.include_trashed !== 'true') where.push(live('t'), live('p'));
   if (f.project) { where.push('t.project_id = ?'); params.push(f.project); }
   if (f.status?.length) { where.push(`t.status IN (${f.status.map(() => '?').join(', ')})`); params.push(...f.status); }
+  if (f.priority?.length) { where.push(`t.priority IN (${f.priority.map(() => '?').join(', ')})`); params.push(...f.priority); }
   if (f.owner) { where.push('t.owner_id = ?'); params.push(f.owner === 'me' ? user.id : f.owner); }
   if (f.tag?.length) {
     where.push(`EXISTS (SELECT 1 FROM task_tags j JOIN tags g ON g.id = j.tag_id WHERE j.task_id = t.id AND g.name IN (${f.tag.map(() => '?').join(', ')}))`);
@@ -56,6 +57,14 @@ export async function list(db, user, f, config) {
   if (f.due_after) { where.push('t.due_date >= ?'); params.push(f.due_after); }
   let order;
   if (f.sort === 'status') { const so = statusOrder(config.statuses.task, 't.status'); order = `${so.sql} ${f.dir}`; params.push(...so.params); }
+  // priority sorts in config order like status; in either direction a name no longer configured comes after the
+  // configured ones, and a task without one comes last
+  else if (f.sort === 'priority') {
+    const po = statusOrder(config.priorities, 't.priority');
+    const known = config.priorities.length ? `WHEN t.priority IN (${config.priorities.map(() => '?').join(', ')}) THEN 0 ` : '';
+    order = `CASE WHEN t.priority IS NULL THEN 2 ${known}ELSE 1 END ASC, ${po.sql} ${f.dir}`;
+    params.push(...config.priorities, ...po.params);
+  }
   else if (f.sort === 'due_date') order = `CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END ASC, t.due_date ${f.dir}`;
   else order = `${SORTS[f.sort]} ${f.dir}`;
   params.push(f.limit, f.offset);
@@ -91,7 +100,7 @@ async function targetProject(tx, user, projectId) {
 }
 
 /**
- * @param {{project_id?: string, title: string, status?: string, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[]}} input
+ * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[]}} input
  */
 export async function create(db, user, input, config, now) {
   return db.transaction((tx) => createIn(tx, user, input, config, now));
@@ -109,7 +118,7 @@ export async function createIn(tx, user, input, config, now) {
   const ownerId = input.owner_id ?? user.id;
   const projectId = input.project_id ?? config.catch_all_project.id;
   const row = {
-    id, project_id: projectId, title: input.title, status: input.status ?? config.default_status.task,
+    id, project_id: projectId, title: input.title, status: input.status ?? config.default_status.task, priority: input.priority ?? null,
     owner_id: ownerId, owner_name: user.name, private: input.private ?? config.privacy.default_private,
     due_date: input.due_date ?? null, notes: input.notes ?? '',
   };
@@ -121,9 +130,9 @@ export async function createIn(tx, user, input, config, now) {
     for (const tagId of input.tag_ids ?? []) tagList.push(await tags.mustExist(tx, tagId));
     if (ownerId !== user.id) row.owner_name = await people.ownerNameFor(tx, config, ownerId, input.owner_name); // last check: see people.js
     await tx.query(
-      `INSERT INTO tasks (id, project_id, title, status, owner_id, owner_name, private, due_date, notes, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [id, row.project_id, row.title, row.status, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, now, now]);
+      `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, now, now]);
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
     const tagNames = tagList.map((tag) => tag.name);
     const changes = Object.fromEntries(SETTABLE.map((k) => [k, { to: row[k] }]));
@@ -146,7 +155,7 @@ async function cas(tx, user, id, version, setSql, setParams = []) {
 }
 
 /**
- * @param {{version: number} & Partial<{project_id: string, title: string, status: string, owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string}>} input
+ * @param {{version: number} & Partial<{project_id: string, title: string, status: string, priority: string|null, owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string}>} input
  */
 export async function update(db, user, id, input, config, now) {
   return db.transaction(async (tx) => {
@@ -184,8 +193,8 @@ export async function update(db, user, id, input, config, now) {
     // The owner's own name refresh rides along silently, and is logged only when it is the whole change.
     if (changes.owner_name && !changes.owner_id && before.owner_id === user.id && Object.keys(changes).length > 1) delete changes.owner_name;
     await cas(tx, user, id, input.version,
-      'project_id = ?, title = ?, status = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, updated_at = ?',
-      [next.project_id, next.title, next.status, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, now]);
+      'project_id = ?, title = ?, status = ?, priority = ?, owner_id = ?, owner_name = ?, private = ?, due_date = ?, notes = ?, updated_at = ?',
+      [next.project_id, next.title, next.status, next.priority, next.owner_id, next.owner_name, next.private, next.due_date, next.notes, now]);
     await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
     // Only a reassignment can hide the task from its writer, and that path holds the project's row lock, so the
     // unfiltered read cannot pick up a concurrent privacy flip. Any other edit re-reads visibly: if a concurrent

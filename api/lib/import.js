@@ -18,7 +18,7 @@ import { canEdit } from './config.js';
 
 /**
  * @typedef {{name: string, description: string, status: string, owner_id: string, owner_name: string, private: boolean, tags: string[]}} PlannedProject
- * @typedef {{title: string, status: string, owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
+ * @typedef {{title: string, status: string, priority: string|null, owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
  * @typedef {{project: PlannedProject, tasks: PlannedTask[], comments_skipped: number, notes: string[]}} ImportPlan
  */
 
@@ -154,11 +154,11 @@ export async function planImport(db, user, text, config, { makePrivate = false }
     // a private project holds only its owner's tasks, so every task in one is the importer's and private too
     const isPrivate = projectPrivate || t.private === true;
     const owner = await ownerFor(t.owner_name, isPrivate);
-    const body = { title: t.title, status: t.status ?? config.default_status.task, owner_id: owner.id, owner_name: owner.name,
+    const body = { title: t.title, status: t.status ?? config.default_status.task, priority: t.priority, owner_id: owner.id, owner_name: owner.name,
       private: isPrivate, due_date: t.due_date, notes: t.notes };
     let fields;
     try { fields = validateItem(body, config, 'task', { partial: false }); } catch (err) { throw withLine(err, t.line); }
-    plannedTasks.push({ ...fields, owner_name: owner.name, private: isPrivate, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
+    plannedTasks.push({ ...fields, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
   }
 
   const privateCount = (projectPrivate ? 1 : 0) + plannedTasks.filter((t) => t.private).length;

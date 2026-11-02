@@ -5,14 +5,15 @@
 // Titles link to the task page, where notes, comments, moving, and trashing
 // live. The project's comments sit under the table (js/guestbook.js).
 //
-// Columns are data-driven: TASK_COLUMNS knows how to render each field and
-// config.task_fields picks which ones show, in order ("add a field" recipe).
+// Columns are data-driven: js/task-columns.js knows how to render each field
+// and config.task_fields picks which ones show, in order ("add a field" recipe).
 
 import { boot, say, sayError, attempt } from './page.js';
 import { get, post, patch, del, projectPath, taskPath, ApiError } from './api.js';
-import { el, btn, option, clear, setChildren, padlock, projectLink, taskLink, timeEl, oneLine } from './dom.js';
+import { el, btn, option, clear, setChildren, padlock, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, redraw } from './inline-edit.js';
 import { refreshOverdue, isOverdue } from './overdue.js';
+import { taskColumns, columnsFor, taskCell } from './task-columns.js';
 import { tagEditor } from './tags.js';
 import { createPager } from './pager.js';
 import { guestbook, commentWords } from './guestbook.js';
@@ -31,7 +32,7 @@ const state = {
   /** @type {string|null} */ catchAllName: null,
   sort: config.default_views?.tasks?.sort ?? 'updated_at',
   dir: config.default_views?.tasks?.dir ?? null,
-  status: '', owner: '', tag: '',
+  status: '', priority: '', owner: '', tag: '',
   hitDone: false,
 };
 
@@ -216,44 +217,16 @@ async function recordHit() {
 
 /* ------------------------------------------------------------------- tasks */
 
-/**
- * How each task field shows. A column with `view(t)` is read-only. A column
- * with `value(t)` and `control(t, v)` is edited in place: clicking the cell
- * opens the control, and a change becomes one PATCH of `fields(t, v)` with the
- * row's version. `allowed(t)` can keep the editor from a viewer who may not
- * change that field (the owner-only ones); `format(v)` draws the value;
- * `confirm(t, v)` may ask first. `sort` is the API sort field (or absent).
- */
-const TASK_COLUMNS = {
-  title: { label: 'Title', sort: 'title', view: (t) => [t.private ? padlock() : null, taskLink(t.id, t.title)] },
-  status: { label: 'Status', sort: 'status', value: (t) => t.status,
-    control: (t, v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
-    fields: (t, v) => ({ status: v }) },
-  owner: { label: 'Owner', sort: 'owner_name', value: (t) => t.owner_id, allowed: (t) => !t.private || owns(t),
-    format: (id, t) => (id === t.owner_id ? t.owner_name : personName(id)),
-    // a private project holds only its owner's tasks, so inside one the only owner on offer is the project's
-    control: (t, v) => selectFor((state.project.private ? state.people.filter((p) => p.id === state.project.owner_id) : state.people).map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
-    confirm: (t, v) => !t.private || v === t.owner_id || confirm(`Hand this private task to ${oneLine(personName(v))}?\nIt will be private to them: you will no longer see it, its history, or its comments.`),
-    fields: (t, v) => ({ owner_id: v, owner_name: personName(v) }) },
-  due_date: { label: 'Due', sort: 'due_date', value: (t) => t.due_date, empty: '—',
-    control: (t, v) => el('input', { type: 'date', value: v ?? '' }),
-    fields: (t, v) => ({ due_date: v || null }) },
-  // Tag chips save on their own (each attach or detach is its own versioned write).
-  tags: { label: 'Tags', view: (t) => tagEditor({ type: 'task', item: t, canEdit: mayEdit(), compact: true, config, onUpdated: replaceTask }) },
-  private: { label: 'Private', value: (t) => !!t.private, allowed: (t) => owns(t),
-    format: (v) => (v ? [padlock(), 'yes'] : 'no'),
-    control: (t, v) => el('input', { type: 'checkbox', checked: v }),
-    confirm: (t, v) => v || confirm('Make this task public?\nEveryone will see it, and its history becomes visible too.'),
-    fields: (t, v) => ({ private: v }) },
-  notes: { label: 'Notes', value: (t) => t.notes ?? '', block: true, empty: 'add notes',
-    control: (t, v) => el('textarea', { rows: '3', value: v }),
-    fields: (t, v) => ({ notes: v }) },
-  project: { label: 'Project', view: (t) => projectLink(t.project_id, t.project_name) },
-  created_at: { label: 'Created', sort: 'created_at', view: (t) => timeEl(t.created_at) },
-  updated_at: { label: 'Updated', sort: 'updated_at', view: (t) => timeEl(t.updated_at) },
+// How each task field shows lives in js/task-columns.js (shared with My tasks); config.task_fields picks the columns here.
+const columnContext = {
+  config, me, mayEdit, people: () => state.people, project: () => state.project, onUpdated: replaceTask,
+  save: async (t, fields) => {
+    const rec = await patchTask(t, fields);
+    return rec && { note: matchesFilters(rec) ? null : 'It no longer matches the filters and will leave the list on reload.' };
+  },
 };
-const columns = (config.task_fields ?? ['title', 'status', 'owner', 'due_date', 'tags', 'private'])
-  .map((f) => ({ key: f, ...(TASK_COLUMNS[f] ?? { label: f, view: (t) => String(t[f] ?? '') }) }));
+const columns = columnsFor(taskColumns(columnContext), (config.task_fields ?? ['title', 'status', 'owner', 'due_date', 'tags', 'private'])
+  .filter((f) => f !== 'priority' || (config.priorities ?? []).length > 0));
 
 function peopleOptions(current) {
   const opts = state.people.map((p) => option(p.id, p.name, p.id === current));
@@ -265,17 +238,20 @@ function personName(id) { return state.people.find((p) => p.id === id)?.name ?? 
 function buildFilters() {
   const host = document.getElementById('task-filters');
   const status = el('select', { id: 'tf-status' }, option('', 'Any status'), config.statuses.task.map((s) => option(s)));
+  const hasPriorities = (config.priorities ?? []).length > 0;
+  const priority = el('select', { id: 'tf-priority' }, option('', 'Any priority'), (config.priorities ?? []).map((p) => option(p)));
   const owner = el('select', { id: 'tf-owner' }, option('', 'Anyone'), option('me', 'Me'), state.people.filter((p) => p.id !== me.id).map((p) => option(p.id, p.name)));
   const tag = el('select', { id: 'tf-tag' }, option('', 'Any tag'));
   get('/api/tags').then((r) => { for (const t of r.items ?? []) tag.appendChild(option(t.name)); }).catch(() => {});
   setChildren(host, [
     el('div', { class: 'field' }, el('label', { for: 'tf-status' }, 'Status'), status),
+    hasPriorities ? el('div', { class: 'field' }, el('label', { for: 'tf-priority' }, 'Priority'), priority) : null,
     el('div', { class: 'field' }, el('label', { for: 'tf-owner' }, 'Owner'), owner),
     el('div', { class: 'field' }, el('label', { for: 'tf-tag' }, 'Tag'), tag),
-    el('div', { class: 'field' }, btn('Clear filters', () => { status.value = owner.value = tag.value = ''; apply(); })),
+    el('div', { class: 'field' }, btn('Clear filters', () => { status.value = priority.value = owner.value = tag.value = ''; apply(); })),
   ]);
-  const apply = () => { state.status = status.value; state.owner = owner.value; state.tag = tag.value; loadTasks(); };
-  for (const s of [status, owner, tag]) s.addEventListener('change', apply);
+  const apply = () => { state.status = status.value; state.priority = priority.value; state.owner = owner.value; state.tag = tag.value; loadTasks(); };
+  for (const s of [status, priority, owner, tag]) s.addEventListener('change', apply);
 }
 
 function buildTaskHeader() {
@@ -298,7 +274,7 @@ function buildTaskHeader() {
   setChildren(thead, [tr]);
 }
 /** The API's default direction per sort field. @param {string} field */
-function defaultDir(field) { return ['title', 'name', 'due_date'].includes(field) ? 'asc' : 'desc'; }
+function defaultDir(field) { return ['title', 'name', 'due_date', 'priority'].includes(field) ? 'asc' : 'desc'; }
 
 /** Pages of this project's tasks with the current sort and filters (created in start(), once the project is known). */
 let taskPager = null;
@@ -309,7 +285,7 @@ async function loadTasks() {
     path: '/api/tasks',
     button: document.getElementById('tasks-more'),
     query: () => ({
-      project: state.project.id, status: state.status, owner: state.owner, tag: state.tag,
+      project: state.project.id, status: state.status, priority: state.priority, owner: state.owner, tag: state.tag,
       sort: state.sort, dir: state.dir ?? undefined, include_trashed: state.project.deleted_at ? 'true' : undefined,
     }),
     onPage: (items, first) => {
@@ -333,7 +309,7 @@ function renderTasks() {
 
 /** The table, or the right empty-state message when there are no rows. */
 function showEmpty() {
-  const filtered = !!(state.status || state.owner || state.tag);
+  const filtered = !!(state.status || state.priority || state.owner || state.tag);
   const none = state.tasks.length === 0;
   table.parentElement.hidden = none;
   document.getElementById('tasks-empty').hidden = !(none && filtered);
@@ -352,30 +328,10 @@ function appendRow(t) {
 function taskRow(t) {
   // a row that stopped matching the filters stays, marked, until the list reloads
   const tr = el('tr', { id: `task-${t.id}`, class: [isOverdue(t, config) ? 'overdue' : '', matchesFilters(t) ? '' : 'filtered-out', t.deleted_at ? 'trashed' : ''].join(' ').trim() });
-  for (const c of columns) tr.appendChild(el('td', { class: `col-${c.key}`, 'data-label': c.label }, cell(c, t)));
+  for (const c of columns) tr.appendChild(el('td', { class: `col-${c.key}`, 'data-label': c.label }, taskCell(c, t, columnContext)));
   // a trashed project lists its tasks read-only; one trashed on its own says so
   if (t.deleted_at) tr.querySelector('td.col-title')?.append(' ', el('span', { class: 'muted' }, '(in the trash)'));
   return tr;
-}
-
-/**
- * One cell: the read-only view, or a click-to-edit value whose save is one
- * PATCH of that field with the row's version.
- * @param {any} c  a TASK_COLUMNS entry @param {any} t
- */
-function cell(c, t) {
-  if (!c.control) return c.view(t);
-  return inlineEdit({
-    key: `task-${t.id}-${c.key}`, label: c.label, value: c.value(t),
-    allowed: mayEdit() && (c.allowed?.(t) ?? true),
-    format: c.format ? (v) => c.format(v, t) : undefined, empty: c.empty, block: c.block,
-    control: (v) => c.control(t, v),
-    save: async (v) => {
-      if (c.confirm && !c.confirm(t, v)) return null;
-      const rec = await patchTask(t, c.fields(t, v));
-      return rec && { note: matchesFilters(rec) ? null : 'It no longer matches the filters and will leave the list on reload.' };
-    },
-  });
 }
 
 /**
@@ -396,9 +352,10 @@ function replaceTask(rec) {
   old.className = fresh.className;
 }
 
-/** Whether a task still matches the table's filters (status, owner, tag). @param {any} t */
+/** Whether a task still matches the table's filters (status, priority, owner, tag). @param {any} t */
 function matchesFilters(t) {
   if (state.status && t.status !== state.status) return false;
+  if (state.priority && t.priority !== state.priority) return false;
   if (state.owner && t.owner_id !== (state.owner === 'me' ? me.id : state.owner)) return false;
   if (state.tag && !(t.tags ?? []).some((g) => g.name === state.tag)) return false;
   return true;
@@ -424,13 +381,16 @@ function setupNewTask() {
   const owner = document.getElementById('nt-owner');
   setChildren(status, config.statuses.task.map((s) => option(s, s, s === config.default_status.task)));
   setChildren(owner, peopleOptions(me.id));
+  const priority = document.getElementById('nt-priority');
+  setChildren(priority, [option('', 'None', true), (config.priorities ?? []).map((p) => option(p))]);
+  priority.closest('.field').hidden = (config.priorities ?? []).length === 0;
   document.getElementById('nt-private').checked = !!config.privacy?.default_private;
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const title = document.getElementById('nt-title').value.trim();
     if (!title) return;
     const body = {
-      project_id: state.project.id, title, status: status.value,
+      project_id: state.project.id, title, status: status.value, priority: priority.value || null,
       owner_id: owner.value, owner_name: personName(owner.value),
       due_date: document.getElementById('nt-due').value || null,
       notes: document.getElementById('nt-notes').value,
@@ -456,7 +416,7 @@ async function loadOverdue() {
 }
 
 /* ------------------------------------------------------------------ start */
-// Last, so every const above (columns, TASK_COLUMNS) is initialized first.
+// Last, so every const above (columns, columnContext) is initialized first.
 if (!projectId) {
   notFound();
 } else {

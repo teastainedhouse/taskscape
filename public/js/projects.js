@@ -203,7 +203,7 @@ function setupImport() {
         location.href = `project.html?id=${encodeURIComponent(made.project.id)}`;
       } catch (err) { sayError(err, 'Could not import'); confirmBtn.disabled = false; }
     });
-    const rows = plan.tasks.map((t) => el('li', null, t.private ? padlock() : null, t.title, ` — ${t.status}, ${t.owner_name}`, t.due_date ? `, due ${t.due_date}` : null,
+    const rows = plan.tasks.map((t) => el('li', null, t.private ? padlock() : null, t.title, ` — ${t.status}${t.priority ? `, ${t.priority} priority` : ''}, ${t.owner_name}`, t.due_date ? `, due ${t.due_date}` : null,
       t.tags.length ? `, tags: ${t.tags.join(', ')}` : null, t.notes ? `, notes (${t.notes.length} characters)` : null, t.private ? ', private to you' : null));
     setChildren(preview, [
       el('h3', { tabindex: '-1', id: 'import-plan-h' }, 'What would be created'),

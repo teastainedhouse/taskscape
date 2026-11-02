@@ -30,6 +30,8 @@ const OWNER_NAME_TEXT =
   'Display name for owner_id when the owner is not you. When Taskscape knows that person (a signed-up user or a configured dev user) it uses its own name and ignores this; ' +
   'otherwise it is required with owner_id. On sites with their own sign-in, owner_id must be someone who can sign in.';
 
+const PRIORITY_TEXT = 'One of the configured priorities (see the me tool: priorities, highest first), or null for none.';
+
 const PROJECT_FIELDS = {
   name: { type: 'string' },
   description: { type: 'string' },
@@ -44,6 +46,7 @@ const TASK_FIELDS = {
   project_id: { type: ['string', 'null'], description: 'Omit or null for the catch-all project.' },
   title: { type: 'string' },
   status: { type: 'string', description: 'One of the configured task statuses.' },
+  priority: { type: ['string', 'null'], description: PRIORITY_TEXT },
   owner_id: { type: 'string' },
   owner_name: { type: 'string', description: OWNER_NAME_TEXT },
   private: { type: 'boolean' },
@@ -64,7 +67,8 @@ export const TOOLS = [
   {
     name: 'me',
     description:
-      'Who you act as and their settings: id, name, can_edit, time_zone (IANA), today (YYYY-MM-DD in that zone) and now (ISO 8601). ' +
+      'Who you act as and their settings: id, name, can_edit, time_zone (IANA), today (YYYY-MM-DD in that zone) and now (ISO 8601); ' +
+      'and the site\'s vocabulary: statuses and closed_statuses per type (in sort order) and task priorities (highest first). ' +
       'Call it before working with dates: due dates are calendar days in the user\'s time zone, not the server\'s (the site default when they chose none). ' + DATA_NOTICE,
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
@@ -95,6 +99,7 @@ export const TOOLS = [
       properties: {
         project_id: { type: 'string', description: 'Only tasks in this project.' },
         status: { ...STRING_LIST, description: 'Task status names; any of.' },
+        priority: { ...STRING_LIST, description: 'Priority names; any of.' },
         owner: { type: 'string', description: 'Owner id, or "me".' },
         tag: { type: 'string', description: 'Tag name(s), comma-separated = any of.' },
         q: { type: 'string', description: 'Case-insensitive substring on title and notes.' },
@@ -123,7 +128,7 @@ export const TOOLS = [
     name: 'create',
     description:
       'Create a project or a task. Project fields: name (required), description, status, owner_id, owner_name, private, tags. ' +
-      'Task fields: title (required), project_id (omit for the catch-all project), status, owner_id, owner_name, private, due_date, notes, tags. ' +
+      'Task fields: title (required), project_id (omit for the catch-all project), status, priority, owner_id, owner_name, private, due_date, notes, tags. ' +
       '"tags" are tag NAMES; missing tags are created first, and tag names and colours are visible to everyone, even on private items. Returns the new record. ' + DATA_NOTICE,
     inputSchema: {
       type: 'object',
@@ -131,7 +136,7 @@ export const TOOLS = [
         type: TYPE_SCHEMA,
         fields: {
           type: 'object',
-          description: 'The new record. Project: {name, description?, status?, owner_id?, owner_name?, private?, tags?}. Task: {project_id?, title, status?, owner_id?, owner_name?, private?, due_date?, notes?, tags?}.',
+          description: 'The new record. Project: {name, description?, status?, owner_id?, owner_name?, private?, tags?}. Task: {project_id?, title, status?, priority?, owner_id?, owner_name?, private?, due_date?, notes?, tags?}.',
           properties: { ...PROJECT_FIELDS, ...TASK_FIELDS },
           additionalProperties: false,
         },
@@ -145,7 +150,7 @@ export const TOOLS = [
     description:
       'Change fields on a project or task. "version" is required: use the version from the latest get or list result for this record. ' +
       'If someone changed the record since, the call fails with a conflict that includes the current record; re-read it (or use the embedded copy) and retry with its version. ' +
-      'Project fields: name, description, status, owner_id, owner_name, private. Task fields: title, status, owner_id, owner_name, private, due_date, notes, project_id. ' +
+      'Project fields: name, description, status, owner_id, owner_name, private. Task fields: title, status, priority, owner_id, owner_name, private, due_date, notes, project_id. ' +
       'To change tags use the tag tool. Moving a task out of a private project into a public one, or making an item public, shows it and its whole history to everyone; ' +
       'handing a private item to someone else hides it from its previous owner. Confirm those with the user first. ' + DATA_NOTICE,
     inputSchema: {
@@ -162,6 +167,7 @@ export const TOOLS = [
             description: { type: 'string' },
             title: { type: 'string' },
             status: { type: 'string' },
+            priority: { type: ['string', 'null'], description: PRIORITY_TEXT },
             owner_id: { type: 'string' },
             owner_name: { type: 'string', description: OWNER_NAME_TEXT },
             private: { type: 'boolean' },
@@ -475,7 +481,10 @@ const handlers = {
     const at = new Date();
     let today;
     try { today = dateIn(at, timeZone); } catch { timeZone = 'UTC'; today = at.toISOString().slice(0, 10); } // a zone this runtime lacks: say UTC and mean it
-    return ok({ id: me.id, name: me.name, can_edit: me.can_edit === true, time_zone: timeZone, today, now: at.toISOString() });
+    const cfg = await client.get('/api/config');
+    const site = isOk(cfg) && cfg.body && typeof cfg.body === 'object' ? cfg.body : {};
+    return ok({ id: me.id, name: me.name, can_edit: me.can_edit === true, time_zone: timeZone, today, now: at.toISOString(),
+      statuses: site.statuses ?? null, closed_statuses: site.closed_statuses ?? null, priorities: site.priorities ?? null });
   },
 
   async list_projects(args, client) {
@@ -493,6 +502,7 @@ const handlers = {
     const res = await client.get('/api/tasks', {
       project: args.project_id,
       status: args.status?.join(','),
+      priority: args.priority?.join(','),
       owner: args.owner,
       tag: args.tag,
       q: args.q,

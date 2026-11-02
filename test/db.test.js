@@ -30,11 +30,11 @@ test('placeholders: read statements are detected', () => {
 test('sqlite: migrate applies the shipped migrations once and is idempotent', async () => {
   const db = await openDb('sqlite::memory:');
   const first = await db.migrate(MIGRATIONS);
-  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences']);
+  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences', '006_task_priority']);
   const second = await db.migrate(MIGRATIONS);
   assert.deepEqual(second.applied, []);
   const { rows } = await db.query('SELECT id, name FROM schema_migrations ORDER BY id');
-  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }]);
+  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }, { id: 6, name: 'task_priority' }]);
   await db.close();
 });
 
@@ -42,7 +42,7 @@ test('sqlite: 004 widens the activity item_type CHECK and keeps every row and in
   const dir = await mkdtemp(path.join(os.tmpdir(), 'tsk-mig-'));
   try {
     const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql'));
-    for (const f of files.filter((f) => !f.startsWith('004_') && !f.startsWith('005_'))) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
+    for (const f of files.filter((f) => Number.parseInt(f, 10) < 4)) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
     const db = await openDb('sqlite::memory:');
     await db.migrate(dir);
     const row = (id, type, session) => db.query(

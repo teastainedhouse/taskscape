@@ -30,6 +30,7 @@ export function rowToTask(r, tags = []) {
     project_name: r.project_name ?? null,
     title: r.title,
     status: r.status,
+    priority: r.priority ?? null,
     owner_id: r.owner_id,
     owner_name: r.owner_name,
     private: bool(r.private),
@@ -74,7 +75,7 @@ export async function tagsFor(db, kind, ids) {
 
 /** @param {string[]} order @param {string} col @returns {{sql: string, params: string[]}} */
 export function statusOrder(order, col) {
-  if (order.length === 0) return { sql: '0', params: [] };
+  if (order.length === 0) return { sql: 'NULL', params: [] }; // a constant: a bare integer would name a column position
   const whens = order.map((_, i) => `WHEN ? THEN ${i}`).join(' ');
   return { sql: `CASE ${col} ${whens} ELSE ${order.length} END`, params: [...order] };
 }

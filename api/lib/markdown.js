@@ -79,9 +79,9 @@ export function renderProjectExport(project, tasks, meta, comments = {}) {
   if (tasks.length === 0) {
     lines.push('_No tasks._', '');
   } else {
-    lines.push('| Title | Status | Owner | Due | Tags | Private |', '| --- | --- | --- | --- | --- | --- |');
+    lines.push('| Title | Status | Priority | Owner | Due | Tags | Private |', '| --- | --- | --- | --- | --- | --- | --- |');
     for (const t of tasks) {
-      lines.push(`| ${mdCell(t.title)} | ${mdCell(t.status)} | ${mdCell(t.owner_name)} | ${t.due_date ?? ''} | ${mdCell(names(t.tags))} | ${yesno(t.private)} |`);
+      lines.push(`| ${mdCell(t.title)} | ${mdCell(t.status)} | ${mdCell(t.priority)} | ${mdCell(t.owner_name)} | ${t.due_date ?? ''} | ${mdCell(names(t.tags))} | ${yesno(t.private)} |`);
     }
     lines.push('');
     for (const t of tasks) {

@@ -63,16 +63,16 @@ P.reorg = await projects.create(db, carol, { id: 'reorg-notes', name: 'Reorg not
 P.party = await projects.create(db, alice, { id: 'holiday-party-1997', name: 'Holiday party 1997', status: 'Planned' }, config, tick());
 
 const T = {};
-T.gifs = await tasks.create(db, alice, { id: 'fix-broken-gifs', project_id: P.web.id, title: 'Fix broken GIFs', due_date: daysFromNow(-1), tag_ids: [tag.bug.id],
+T.gifs = await tasks.create(db, alice, { id: 'fix-broken-gifs', project_id: P.web.id, title: 'Fix broken GIFs', priority: 'High', due_date: daysFromNow(-1), tag_ids: [tag.bug.id],
   notes: 'The dancing baby is a broken image on the home page.' }, config, tick());
-T.copy = await tasks.create(db, bob, { id: 'write-homepage-copy', project_id: P.web.id, title: 'Write homepage copy', status: 'To do', due_date: daysFromNow(7) }, config, tick());
+T.copy = await tasks.create(db, bob, { id: 'write-homepage-copy', project_id: P.web.id, title: 'Write homepage copy', status: 'To do', priority: 'Medium', due_date: daysFromNow(7) }, config, tick());
 T.midi = await tasks.create(db, carol, { id: 'choose-midi-track', project_id: P.web.id, title: 'Choose MIDI background track', status: 'Done', due_date: daysFromNow(-3) }, config, tick());
 T.checklist = await tasks.create(db, alice, { id: 'alice-launch-checklist', project_id: P.web.id, title: "Alice's launch checklist", private: true,
   notes: 'Only I can see this. Do not forget the <blink> tag.' }, config, tick());
-T.chairs = await tasks.create(db, bob, { id: 'count-chairs', project_id: P.office.id, title: 'Count chairs', status: 'Blocked', due_date: daysFromNow(3), tag_ids: [tag.ops.id] }, config, tick());
+T.chairs = await tasks.create(db, bob, { id: 'count-chairs', project_id: P.office.id, title: 'Count chairs', status: 'Blocked', priority: 'Low', due_date: daysFromNow(3), tag_ids: [tag.ops.id] }, config, tick());
 T.lease = await tasks.create(db, bob, { id: 'negotiate-lease', project_id: P.office.id, title: 'Negotiate lease', private: true, notes: 'Numbers are not for sharing yet.' }, config, tick());
 T.orgchart = await tasks.create(db, carol, { id: 'draft-org-chart', project_id: P.reorg.id, title: 'Draft org chart', status: 'Doing', due_date: daysFromNow(10) }, config, tick());
-T.comp = await tasks.create(db, alice, { id: 'review-comp-bands', project_id: P.reorg.id, title: 'Review comp bands', due_date: daysFromNow(2) }, config, tick());
+T.comp = await tasks.create(db, alice, { id: 'review-comp-bands', project_id: P.reorg.id, title: 'Review comp bands', priority: 'High', due_date: daysFromNow(2) }, config, tick());
 
 // carol makes Reorg notes private: alice's task moves to the catch-all and alice sees why in What's New
 const flipped = await projects.update(db, carol, P.reorg.id, { version: P.reorg.version, private: true }, config, tick());
@@ -97,7 +97,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 
 console.log(`seeded ${url}`);
 console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
-console.log(`  guestbook comments: 5 (one trashed)`);
+console.log(`  comments: 5 (one trashed); priorities on 4 tasks`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

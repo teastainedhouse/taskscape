@@ -90,3 +90,75 @@ test('patch: edit, move between projects, reassign', async () => {
   assert.deepEqual(act[1].changes, { project_id: { from: p1.id, to: p2.id } });
   await t.close();
 });
+
+test('priority: from the config list or null; patch; sorts in config order with none last; filters', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const p = (await a.post('/api/projects', { name: 'P' })).body;
+  let r = await a.post('/api/tasks', { title: 'No priority', project_id: p.id });
+  assert.equal(r.body.priority, null, 'null by default');
+  const none = r.body;
+  const low = (await a.post('/api/tasks', { title: 'Low one', project_id: p.id, priority: 'Low' })).body;
+  const high = (await a.post('/api/tasks', { title: 'High one', project_id: p.id, priority: 'High' })).body;
+  const med = (await a.post('/api/tasks', { title: 'Medium one', project_id: p.id, priority: 'Medium' })).body;
+  assert.equal(high.priority, 'High');
+  r = await a.post('/api/tasks', { title: 'x', priority: 'Urgent!!' });
+  assert.equal(r.status, 400);
+  assert.deepEqual(r.body.error.details.fields, { priority: 'must be one of the configured priorities or null' });
+  assert.equal(JSON.stringify(r.body).includes('Urgent'), false, 'the value is never echoed');
+  r = await a.post('/api/tasks', { title: 'x', priority: 3 });
+  assert.equal(r.status, 400);
+  // patch, and back to none; the activity entry records the change
+  r = await a.patch(`/api/tasks/${none.id}`, { version: none.version, priority: 'Medium' });
+  assert.equal(r.body.priority, 'Medium');
+  r = await a.patch(`/api/tasks/${none.id}`, { version: r.body.version, priority: null });
+  assert.equal(r.body.priority, null);
+  const acts = (await a.get(`/api/activity?item_type=task&item_id=${none.id}`)).body.items;
+  assert.deepEqual(acts[0].changes, { priority: { from: 'Medium', to: null } });
+  assert.deepEqual(acts.at(-1).changes.priority, { to: null }, 'create lists it');
+  // sort: config order (High, Medium, Low), none last in both directions
+  r = await a.get(`/api/tasks?project=${p.id}&sort=priority`);
+  assert.deepEqual(r.body.items.map((x) => x.title), ['High one', 'Medium one', 'Low one', 'No priority']);
+  r = await a.get(`/api/tasks?project=${p.id}&sort=priority&dir=desc`);
+  assert.deepEqual(r.body.items.map((x) => x.title), ['Low one', 'Medium one', 'High one', 'No priority']);
+  // filter: any of; unknown names are ignored like statuses
+  r = await a.get(`/api/tasks?project=${p.id}&priority=High,Low&sort=title`);
+  assert.deepEqual(r.body.items.map((x) => x.id), [high.id, low.id]);
+  r = await a.get(`/api/tasks?project=${p.id}&priority=Nope`);
+  assert.equal(r.body.items.length, 4);
+  assert.equal(med.priority, 'Medium');
+  // the public config carries the list
+  assert.deepEqual((await a.get('/api/config')).body.priorities, ['High', 'Medium', 'Low']);
+  await t.close();
+});
+
+test('priority: a renamed or removed priority still reads, sorts after the configured ones, and the config is checked', async () => {
+  const t = await createTestApp({ config: { priorities: ['P1', 'P2'] } });
+  const a = t.as('alice');
+  const one = (await a.post('/api/tasks', { title: 'one', priority: 'P2' })).body;
+  await t.db.query("UPDATE tasks SET priority = 'Old' WHERE id = ?", [one.id]);
+  const two = (await a.post('/api/tasks', { title: 'two', priority: 'P1' })).body;
+  const three = (await a.post('/api/tasks', { title: 'three', priority: 'P2' })).body;
+  const none = (await a.post('/api/tasks', { title: 'none' })).body;
+  const ids = [one.id, two.id, three.id, none.id];
+  let r = await a.get('/api/tasks?sort=priority');
+  assert.deepEqual(r.body.items.filter((x) => ids.includes(x.id)).map((x) => x.priority), ['P1', 'P2', 'Old', null]);
+  r = await a.get('/api/tasks?sort=priority&dir=desc');
+  assert.deepEqual(r.body.items.filter((x) => ids.includes(x.id)).map((x) => x.priority), ['P2', 'P1', 'Old', null], 'an unconfigured name never jumps ahead');
+  await t.close();
+  const { prepareConfig } = await import('../api/lib/config.js');
+  const base = JSON.parse((await import('node:fs')).readFileSync(new URL('../taskscape.config.json', import.meta.url), 'utf8'));
+  assert.throws(() => prepareConfig({ ...base, priorities: ['A', 'A'] }), /priorities has duplicates/);
+  assert.throws(() => prepareConfig({ ...base, priorities: [''] }), /priorities must be/);
+  assert.throws(() => prepareConfig({ ...base, priorities: ['Low, later'] }), /priorities must be/, 'a list filter splits on commas');
+  assert.throws(() => prepareConfig({ ...base, priorities: [' High'] }), /priorities must be/);
+  assert.throws(() => prepareConfig({ ...base, statuses: { ...base.statuses, task: ['To do', 'Done, really'] } }), /statuses.task must be names/);
+  assert.deepEqual(prepareConfig({ ...base, priorities: undefined }).priorities, ['High', 'Medium', 'Low']);
+  assert.deepEqual(prepareConfig({ ...base, priorities: [] }).priorities, [], 'an empty list turns priorities off');
+  const off = await createTestApp({ config: { priorities: [] } });
+  await off.as('alice').post('/api/tasks', { title: 'x' });
+  const sorted = await off.as('alice').get('/api/tasks?sort=priority&dir=desc');
+  assert.equal(sorted.status, 200, 'sorting by priority with none configured is not an error');
+  assert.equal((await off.as('alice').post('/api/tasks', { title: 'y', priority: 'High' })).status, 400);
+  await off.close();
+});

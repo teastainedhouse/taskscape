@@ -26,7 +26,7 @@ Each fact lives in one place: the code map and recipes here, decisions in PLAN.m
 ## Code map
 
 ```
-taskscape.config.json      site title, statuses, palette, task fields, views, privacy default, permissions, webring, limits, catch-all project,
+taskscape.config.json      site title, statuses, priorities, palette, task fields, views, privacy default, permissions, webring, limits, catch-all project,
                            theme + themes (each public/css/theme-<name>.css), preference_defaults (comments label, shortcuts, time zone),
                            auth (provider, header names, dev users, password sessions)
 .env.example               TASKSCAPE_DATABASE_URL, TASKSCAPE_AUTH_PROVIDER, TASKSCAPE_ENV, TASKSCAPE_CONFIG, PORT, HOST,
@@ -109,6 +109,7 @@ migrations/
   003_comments.sql         comments (on a project or task)
   004_activity_comment_type.{sqlite,postgres}.sql   widens activity.item_type to 'comment' (SQLite rebuilds the table; PostgreSQL swaps the CHECK)
   005_preferences.sql      preferences (one row per principal id; NULL = site default)
+  006_task_priority.sql    tasks.priority (one of config priorities, or NULL)
 
 scripts/
   dev.js                   node:http on HOST:PORT (loopback by default): /api/* -> node-bridge -> app.fetch; everything else static from public/
@@ -143,13 +144,15 @@ public/                    served as-is; no build step
   js/overdue.js            isOverdue() (due_date before today, status not in closed_statuses.task); showOverdue() renders the static
                            #overdue-line (the signal) and the CSS-animated, aria-hidden marquee (decoration)
   js/pager.js              createPager(): "Load more" over a list route's {items, limit, offset}; more while a page comes back full
+  js/task-columns.js       taskColumns(ctx): how each task field shows in a list (view, or click-to-edit value/control/fields), shared by the
+                           project table and My tasks; columnsFor(), taskCell(); MINE_FIELDS + OPTIONAL_SUMMARY_FIELDS for My tasks
   js/inline-edit.js        inlineEdit(): click a value (a real button) to edit it; Enter/blur saves one field with version, Escape cancels; selectFor(), focusEditable()
   js/tags.js               shared tag chip editor: attach/detach with version, "New tag" using tag_palette
   js/guestbook.js          guestbook(): a project's or task's comments, the add form, Trash/Restore on one's own; commentWords(label) is the vocabulary ("Comments" or "Guestbook")
   js/activity-words.js     activity entry -> words + link
   js/for-you.js            For you: unread badge on the toolbar's What's New entry; last seen per user in localStorage (try/catch)
   js/login.js              the sign-in form: POST /api/login, 401/429 messages in #status, safe ?next= handling
-  js/projects.js tasks.js task.js mine.js whats-new.js trash.js profile.js   one module per page; tasks.js (project page) has the data-driven TASK_COLUMNS map
+  js/projects.js tasks.js task.js mine.js whats-new.js trash.js profile.js   one module per page; tasks.js (project page) and mine.js build their tables from js/task-columns.js
   img/                     stars.png (tileable starfield), under-construction.svg, padlock.svg
 
 mcp/                       the MCP server (local stdio script)
@@ -178,17 +181,21 @@ Each recipe lists every file to touch. Finish with `npm test`.
 
 ### Add a field to tasks
 
-Example: a nullable `priority` text column.
+Example: a nullable `priority` text column (this is how `priority` itself was added; pick a new name, such as `estimate`, to follow along).
 
-1. `migrations/NNN_task_priority.sql`, where `NNN` is the next unused number in `migrations/` (two files with one number make `npm run migrate` throw): `ALTER TABLE tasks ADD COLUMN priority TEXT;` (dialect-neutral; both databases accept it).
+1. `migrations/NNN_task_<field>.sql`, where `NNN` is the next unused number in `migrations/` (two files with one number make `npm run migrate` throw): `ALTER TABLE tasks ADD COLUMN <field> TEXT;` (dialect-neutral; both databases accept it). The steps below say `priority`; read your field's name. Add the new file to the expected list in `test/db.test.js`.
 2. `api/lib/repo/common.js`, `rowToTask()`: add `priority: r.priority ?? null`.
 3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `createIn()` (which `create()` wraps in a transaction); add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
 4. `api/lib/validate.js`, `validateItem()`: inside `if (kind === 'task')`, accept and check the value (allowlist, length, or `null`). Add it to `READ_ONLY` instead if the API computes it.
 5. `docs/API.md`: the Task shape in §4, the `POST`/`PATCH /api/tasks` bodies in §6, and a dated line in §9 Changes.
-6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js`: `label`, `sort` if the API sorts by it, and either `view(t)` for a read-only cell or `value(t)`, `control(t, v)` and `fields(t, v)` for a click-to-edit cell (plus `allowed(t)`, `format(v)`, `empty`, `confirm(t, v)` as needed; see the comment above the map); then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text. Add a row for it to `render()` in `public/js/task.js`, which shows every field.
+6. UI: add an entry to the map in `taskColumns()` in `public/js/task-columns.js`: `label`, `sort` if the API sorts by it, and either `view(t)` for a read-only cell or `value(t)`, `control(t, v)` and `fields(t, v)` for a click-to-edit cell (plus `allowed(t)`, `format(v, t)`, `empty`, `confirm(t, v)`, `after(t)` as needed; see the comment at the top of the file); then list the field name in `task_fields` in `taskscape.config.json`; the project's table shows the columns in that list's order, and an unknown field falls back to plain text. If My tasks should show it too, add it to `OPTIONAL_SUMMARY_FIELDS`. Add a row for it to `render()` in `public/js/task.js`, which shows every field, and a filter in `buildFilters()` in `public/js/tasks.js` if it is a list of names.
 7. MCP: the per-type field lists and the `fields` JSON Schema of `create` and `update` in `mcp/tools.js` (the `TOOLS` array and the field check in `callTool`).
-8. Tests: `test/tasks.test.js` (create, patch, validation, default) and `test/activity.test.js` if the `changes` shape matters.
-9. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, `renderHeader()` in `public/js/tasks.js` (the project page), and the `COLUMNS` list in `public/js/projects.js` if it should show in the project list.
+8. Export and import: a column in the task table in `renderProjectExport()` (`api/lib/markdown.js`), read back in `parseProjectExport()` (`api/lib/markdown-import.js`) and checked in `planImport()` (`api/lib/import.js`); the sample table in `docs/API.md` §8, the exact rows in `test/export.test.js`, `test/markdown-import.test.js` for the parser, and the round trip in `test/import.test.js`; the import preview in `public/js/projects.js`.
+9. Search, if the field is text worth finding (`list()`'s `q` in `api/lib/repo/tasks.js`); a name from a config list is a filter instead.
+   Sorting by it: `SORTS` (and an `order` branch if it is not a plain column) in `api/lib/repo/tasks.js`, `TASK_SORTS` and `ASC_DEFAULT` in `parseListQuery()`, and `defaultDir()` in `public/js/tasks.js`. Filtering by it: `parseListQuery()`, the `where` list in `list()`, `docs/API.md` §5, the `list_tasks` schema and handler in `mcp/tools.js`, and in `public/js/tasks.js` the filter's `state` key, the pager's `query()`, `matchesFilters()`, `showEmpty()` and "Clear filters".
+10. Seed: give some tasks a value in `scripts/seed.js`.
+11. Tests: `test/tasks.test.js` (create, patch, validation, default) and `test/activity.test.js` if the `changes` shape matters.
+12. For a project field, do the same in `rowToProject()`, `api/lib/repo/projects.js`, the project branch of `validateItem()`, `renderHeader()` in `public/js/tasks.js` (the project page), and the `COLUMNS` list in `public/js/projects.js` if it should show in the project list.
 
 ### Add a status
 

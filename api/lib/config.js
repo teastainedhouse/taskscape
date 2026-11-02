@@ -12,6 +12,7 @@ const PUBLIC_CSS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
  * @property {{project: string[], task: string[]}} statuses
  * @property {{project: string[], task: string[]}} closed_statuses
  * @property {{project: string, task: string}} default_status
+ * @property {string[]} priorities  task priorities, highest first; a task's priority is one of these or null
  * @property {string[]} tag_palette
  * @property {string[]} task_fields
  * @property {object} default_views
@@ -56,13 +57,19 @@ export function prepareConfig(raw, env = process.env) {
 /** @param {Config} c */
 function validate(c) {
   const fail = (msg) => { throw new Error(`taskscape.config.json: ${msg}`); };
+  // a name in a comma-separated list filter (?status=, ?priority=) is split on commas and trimmed, so no name may hold either
+  const listName = (x) => typeof x === 'string' && x.trim() !== '' && x === x.trim() && !x.includes(',') && x.length <= 40;
   for (const kind of ['project', 'task']) {
     const list = c.statuses?.[kind];
     if (!Array.isArray(list) || list.length === 0) fail(`statuses.${kind} must be a non-empty array`);
+    if (!list.every(listName)) fail(`statuses.${kind} must be names of 1 to 40 characters, without commas or spaces at either end`);
     if (new Set(list).size !== list.length) fail(`statuses.${kind} has duplicates`);
     if (!list.includes(c.default_status?.[kind])) fail(`default_status.${kind} must be one of statuses.${kind}`);
     for (const s of c.closed_statuses?.[kind] ?? []) if (!list.includes(s)) fail(`closed_statuses.${kind} contains unknown status`);
   }
+  c.priorities = c.priorities ?? ['High', 'Medium', 'Low'];
+  if (!Array.isArray(c.priorities) || !c.priorities.every(listName)) fail('priorities must be names of 1 to 40 characters, without commas or spaces at either end');
+  if (new Set(c.priorities).size !== c.priorities.length) fail('priorities has duplicates');
   if (!Array.isArray(c.tag_palette) || c.tag_palette.some((x) => !/^#[0-9a-f]{6}$/i.test(x))) fail('tag_palette must be #rrggbb colors');
   if (!c.catch_all_project?.id || !c.catch_all_project?.name) fail('catch_all_project needs id and name');
   if (!['everyone', 'group'].includes(c.permissions?.edit)) fail('permissions.edit must be "everyone" or "group"');
@@ -111,6 +118,7 @@ export function publicConfig(c) {
     statuses: c.statuses,
     closed_statuses: c.closed_statuses,
     default_status: c.default_status,
+    priorities: c.priorities,
     tag_palette: c.tag_palette,
     task_fields: c.task_fields,
     default_views: c.default_views,

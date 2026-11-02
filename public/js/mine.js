@@ -1,24 +1,37 @@
 // mine.js — My tasks (mine.html): tasks assigned to me in every project I can
 // see, each linked to its task page. Overdue first (computed here, docs/PLAN.md
 // §2 rule 8) under a static "N overdue" line, then by due date. Closed
-// statuses are hidden unless "Show closed tasks" is ticked. Status, due date
-// and tags are edited in place (js/inline-edit.js, js/tags.js): marking
+// statuses are hidden unless "Show closed tasks" is ticked. Columns come from
+// js/task-columns.js: the fixed ones (MINE_FIELDS) plus the summary columns
+// config.task_fields lists (priority, ...). Status, due date, priority and
+// tags are edited in place (js/inline-edit.js, js/tags.js): marking
 // things done from here is the main solo workflow. A row whose status just
 // closed stays, marked, until the list reloads. "Load more" pages through
 // the rest with the same query.
 
 import { boot, sayError, attempt } from './page.js';
 import { patch, taskPath } from './api.js';
-import { el, clear, setChildren, padlock, projectLink, taskLink, todayLocal } from './dom.js';
-import { inlineEdit, selectFor, redraw } from './inline-edit.js';
-import { tagEditor } from './tags.js';
+import { el, clear, setChildren, todayLocal } from './dom.js';
+import { redraw } from './inline-edit.js';
 import { isOverdue, fetchOverdue } from './overdue.js';
+import { taskColumns, columnsFor, taskCell, MINE_FIELDS, OPTIONAL_SUMMARY_FIELDS } from './task-columns.js';
 import { createPager } from './pager.js';
 
 const { config, me } = await boot({ title: 'My tasks' });
 const closed = config.closed_statuses?.task ?? [];
 const open = config.statuses.task.filter((s) => !closed.includes(s));
 const canEdit = !!me.can_edit;
+
+const columnContext = {
+  config, me, mayEdit: () => canEdit, people: () => [{ id: me.id, name: me.name }], onUpdated: replaceTask,
+  save: (t, fields) => patchTask(t, fields),
+};
+const listed = new Set(config.task_fields ?? []);
+const summary = OPTIONAL_SUMMARY_FIELDS.filter((f) => listed.has(f) && (f !== 'priority' || (config.priorities ?? []).length > 0));
+const fields = [...MINE_FIELDS];
+fields.splice(fields.indexOf('status') + 1, 0, ...summary);
+const columns = columnsFor(taskColumns(columnContext), fields).map((c) => (c.key === 'title' ? { ...c, label: 'Task' } : c));
+setChildren(document.querySelector('#mine thead'), el('tr', null, columns.map((c) => el('th', { scope: 'col' }, c.label))));
 
 const tbody = document.querySelector('#mine tbody');
 const empty = document.getElementById('mine-empty');
@@ -65,15 +78,7 @@ async function countOverdue() {
 function row(t) {
   const late = isOverdue(t, config);
   const tr = el('tr', { id: `task-${t.id}`, class: late ? 'overdue' : null },
-    el('td', { class: 'col-due' }, inlineEdit({ key: `task-${t.id}-due`, label: 'Due date', allowed: canEdit, value: t.due_date, empty: '—',
-      control: (v) => el('input', { type: 'date', value: v ?? '' }),
-      save: (v) => patchTask(t, { due_date: v || null }) }), late ? ' (overdue)' : null),
-    el('td', { class: 'col-title' }, t.private ? padlock() : null, taskLink(t.id, t.title)),
-    el('td', null, projectLink(t.project_id, t.project_name ?? 'project')),
-    el('td', { class: 'col-status' }, inlineEdit({ key: `task-${t.id}-status`, label: 'Status', allowed: canEdit, value: t.status,
-      control: (v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
-      save: (v) => patchTask(t, { status: v }) })),
-    el('td', null, tagEditor({ type: 'task', item: t, canEdit, compact: true, config, onUpdated: replaceTask })));
+    columns.map((c) => el('td', { class: `col-${c.key}`, 'data-label': c.label }, taskCell(c, t, columnContext))));
   if (!showClosed.checked && closed.includes(t.status)) tr.classList.add('filtered-out');
   return tr;
 }

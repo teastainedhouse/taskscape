@@ -9,7 +9,7 @@ import { parseProjectExport, splitCells, ImportParseError } from '../api/lib/mar
 const project = { name: 'Site | refresh', status: 'Active', owner_name: 'Alice Lin', private: false, hit_count: 12, tags: [{ name: 'web' }, { name: 'q4' }],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', description: 'Line one\n\n  indented two\n' };
 const tasks = [
-  { id: 't1', title: 'Fix | GIFs', status: 'To do', owner_name: 'Alice Lin', due_date: '2026-11-05', tags: [{ name: 'bug' }], private: false, notes: 'Notes **bold**\n\nsecond paragraph' },
+  { id: 't1', title: 'Fix | GIFs', status: 'To do', priority: 'High', owner_name: 'Alice Lin', due_date: '2026-11-05', tags: [{ name: 'bug' }], private: false, notes: 'Notes **bold**\n\nsecond paragraph' },
   { id: 't2', title: 'Plain', status: 'Done', owner_name: 'Bob Ortiz', due_date: null, tags: [], private: true, notes: 'first Plain' },
   { id: 't3', title: 'Plain', status: 'Doing', owner_name: 'Carol Nkemelu', due_date: null, tags: [], private: false, notes: 'second Plain has notes' },
   { id: 't4', title: 'Commented only', status: 'To do', owner_name: 'Alice Lin', due_date: null, tags: [], private: false, notes: '' },
@@ -32,6 +32,7 @@ test('what renderProjectExport writes, parseProjectExport reads back', () => {
     ['Plain', 'Doing', 'Carol Nkemelu', null, [], false, 'second Plain has notes'],
     ['Commented only', 'To do', 'Alice Lin', null, [], false, ''],
   ]);
+  assert.deepEqual(out.tasks.map((t) => t.priority), ['High', null, null, null]);
   assert.ok(out.tasks.every((t) => Number.isInteger(t.line) && t.line > 1));
   assert.equal(out.comments_skipped, 4, 'one on the project, three on tasks: counted, never kept');
   assert.equal(JSON.stringify(out).includes('On the task'), false);
