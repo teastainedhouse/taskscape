@@ -14,6 +14,9 @@ const FIELD_LABELS = {
   project_id: 'project', tags: 'tags', color: 'color',
 };
 
+/** A link as an entry names it: its label, else its URL. @param {any} l */
+const linkName = (l) => `"${String(l?.label || l?.url || 'link')}"`;
+
 /** @param {any} v */
 const show = (v) => (v == null || v === '' ? 'none' : Array.isArray(v) ? (v.length ? v.join(', ') : 'none') : String(v));
 
@@ -64,6 +67,8 @@ export function describeActivity(a, ctx = {}) {
           case 'title': case 'name': phrases.push(`renamed it to "${show(to)}"`); break;
           case 'description': case 'notes': phrases.push(`edited the ${field}`); break;
           case 'tags': phrases.push(`tags: ${show(from)} → ${show(to)}`); break;
+          case 'link': phrases.push(!from ? `added the link ${linkName(to)}` : !to ? `removed the link ${linkName(from)}` : `changed the link ${linkName(from)} to ${linkName(to)}`); break;
+          case 'link_moved': phrases.push(`moved the link ${linkName(d?.link)} ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           default: phrases.push(`${FIELD_LABELS[field] ?? field}: ${show(from)} → ${show(to)}`);
         }
       }

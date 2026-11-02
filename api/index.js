@@ -18,6 +18,7 @@ import { routes as tokens } from './handlers/tokens.js';
 import { routes as login } from './handlers/login.js';
 import { routes as comments } from './handlers/comments.js';
 import { routes as preferences } from './handlers/preferences.js';
+import { routes as links } from './handlers/links.js';
 
 /**
  * Build the API. This is the only entry point: the dev server, tests, and
@@ -29,7 +30,7 @@ import { routes as preferences } from './handlers/preferences.js';
 export function createApp(env) {
   const router = new Router();
   router.add(health).add(login).add(config).add(me).add(preferences).add(people)
-    .add(importMd).add(projects).add(exportMd).add(tasks).add(comments).add(tags).add(trash).add(activity).add(search).add(tokens);
+    .add(importMd).add(projects).add(exportMd).add(tasks).add(links).add(comments).add(tags).add(trash).add(activity).add(search).add(tokens);
   // The lockouts live with the app instance: one per process in production, one per test app.
   // Password changes count separately, so failed sign-ins for a name cannot block its owner's change.
   const lockouts = env.lockouts ?? { signIn: createLockout(), passwordChange: createLockout() };

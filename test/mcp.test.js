@@ -53,8 +53,8 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the ten tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'tag']);
+test('tool definitions: exactly the eleven tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'tag']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
@@ -73,7 +73,7 @@ test('tool definitions: exactly the ten tools, plain JSON Schema, data-not-instr
   assert.match(upd.description, /version/);
   assert.match(upd.description, /latest get or list/);
   assert.match(upd.description, /conflict.*current record/i);
-  for (const name of ['update', 'delete', 'restore', 'tag']) {
+  for (const name of ['update', 'delete', 'restore', 'link', 'tag']) {
     const t = TOOLS.find((x) => x.name === name);
     assert.equal(t.inputSchema.properties.version.type, 'integer', `${name}.version is an integer`);
     assert.ok(t.inputSchema.required.includes('version'), `${name} requires version`);
@@ -489,4 +489,48 @@ test('tag reads its target first, so a hidden or missing item leaves no new publ
   assert.equal(out.isError, true);
   assert.equal(text(out), NOT_FOUND_TEXT);
   assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`), ['GET /api/tasks/nope']);
+});
+
+test('link: one add, update or remove per call, on the task, with its version; bad combinations never reach the API', async () => {
+  const withLinks = { ...task(), version: 2, links: [{ id: 'l1', url: 'https://example.test/', label: null, position: 0 }] };
+  const { client, calls } = makeClient(() => json(200, withLinks));
+  let r = await callTool('link', { id: 't1', version: 1, action: 'add', url: 'https://example.test/', label: 'Spec' }, client);
+  assert.equal(parsed(r).links[0].id, 'l1');
+  assert.deepEqual([calls[0].method, calls[0].path, calls[0].body], ['POST', '/api/tasks/t1/links', { version: 1, url: 'https://example.test/', label: 'Spec' }]);
+  await callTool('link', { id: 't1', version: 2, action: 'update', link_id: 'l1', label: null, position: 0 }, client);
+  assert.deepEqual([calls[1].method, calls[1].path, calls[1].body], ['PATCH', '/api/tasks/t1/links/l1', { version: 2, label: null, position: 0 }]);
+  await callTool('link', { id: 't1', version: 3, action: 'remove', link_id: 'l1' }, client);
+  assert.deepEqual([calls[2].method, calls[2].path, calls[2].body], ['DELETE', '/api/tasks/t1/links/l1', { version: 3 }]);
+  for (const bad of [
+    { id: 't1', version: 1, action: 'add' },
+    { id: 't1', version: 1, action: 'add', url: 'https://x.test/', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'update', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'remove', link_id: 'l1', url: 'https://x.test/' },
+    { id: 't1', version: 1, action: 'remove' },
+    { id: ['t1'], version: 1, action: 'remove', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'fetch', link_id: 'l1' },
+  ]) assert.equal((await callTool('link', bad, client)).isError, true, JSON.stringify(bad));
+  assert.equal(calls.length, 3);
+  // a 409 names both versions, like update
+  const stale = makeClient(() => json(409, { error: { code: 'conflict', message: 'x' }, current: withLinks }));
+  r = await callTool('link', { id: 't1', version: 1, action: 'remove', link_id: 'l1' }, stale.client);
+  assert.match(text(r), /task t1 is at version 2 \(you sent 1\)/);
+});
+
+test('an id of "." or ".." is refused before any request: dot segments would turn a link route into the task route', async () => {
+  const { client, calls } = makeClient(() => json(200, task()));
+  for (const args of [
+    ['link', { id: 't1', version: 1, action: 'remove', link_id: '..' }],
+    ['link', { id: 't1', version: 1, action: 'update', link_id: '.', label: 'x' }],
+    ['link', { id: 't1', version: 1, action: 'remove', link_id: '%2E%2e' }],
+    ['delete', { type: 'task', id: '..', version: 1 }],
+    ['get', { type: 'task', id: '.' }],
+  ]) {
+    const r = await callTool(args[0], args[1], client);
+    assert.equal(r.isError, true, JSON.stringify(args));
+    assert.match(text(r), /is not an id/);
+  }
+  assert.equal(calls.length, 0);
+  // and through a real URL parser, a link route with a normal id stays a link route
+  assert.equal(new URL('http://x.test/api/tasks/t1/links/' + encodeURIComponent('a.b')).pathname, '/api/tasks/t1/links/a.b');
 });

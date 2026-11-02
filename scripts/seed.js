@@ -11,6 +11,7 @@ import * as projects from '../api/lib/repo/projects.js';
 import * as tasks from '../api/lib/repo/tasks.js';
 import * as tags from '../api/lib/repo/tags.js';
 import * as comments from '../api/lib/repo/comments.js';
+import * as links from '../api/lib/repo/links.js';
 import { daysFromNow } from '../api/lib/time.js';
 
 try { process.loadEnvFile('.env'); } catch { /* optional */ }
@@ -36,7 +37,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
+    for (const table of ['task_links', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -83,6 +84,11 @@ await tasks.update(db, mcp('carol', 'seed-session-0001'), T.orgchart.id, { versi
 const trashed = await tasks.trash(db, alice, T.midi.id, T.midi.version, tick());
 await tasks.restore(db, alice, T.midi.id, trashed.version, tick());
 
+// links on tasks: one added in the browser, one by Claude, one on a private task
+let gifs = await links.add(db, alice, T.gifs.id, (await tasks.get(db, alice, T.gifs.id)).version, { url: 'https://example.test/dancing-baby.gif', label: 'The broken GIF' }, tick());
+gifs = await links.add(db, mcp('alice', 'seed-session-0002'), T.gifs.id, gifs.version, { url: 'https://example.test/style-guide#images', label: null }, tick());
+await links.add(db, alice, T.checklist.id, T.checklist.version, { url: 'https://example.test/launch-plan', label: 'Launch plan (draft)' }, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
 await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
 await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
@@ -97,7 +103,7 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 
 console.log(`seeded ${url}`);
 console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
-console.log(`  comments: 5 (one trashed); priorities on 4 tasks`);
+console.log(`  comments: 5 (one trashed); priorities on 4 tasks; 3 links`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

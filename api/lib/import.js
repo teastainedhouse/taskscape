@@ -8,7 +8,8 @@
 // record instead of a file and run the same way.
 
 import { parseProjectExport, ImportParseError } from './markdown-import.js';
-import { validateItem, validateTag } from './validate.js';
+import { validateItem, validateTag, cleanLinkUrl, LINK_LABEL_MAX, UNSAFE_LABEL_CHARS } from './validate.js';
+import { MAX_LINKS } from './repo/links.js';
 import { ApiError, validationFailed, forbidden } from './errors.js';
 import * as people from './repo/people.js';
 import * as projects from './repo/projects.js';
@@ -18,7 +19,8 @@ import { canEdit } from './config.js';
 
 /**
  * @typedef {{name: string, description: string, status: string, owner_id: string, owner_name: string, private: boolean, tags: string[]}} PlannedProject
- * @typedef {{title: string, status: string, priority: string|null, owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
+ * @typedef {{url: string, label: string|null}} PlannedLink
+ * @typedef {{title: string, status: string, priority: string|null, links: PlannedLink[], owner_id: string, owner_name: string, private: boolean, due_date: string|null, notes: string, tags: string[], line: number}} PlannedTask
  * @typedef {{project: PlannedProject, tasks: PlannedTask[], comments_skipped: number, notes: string[]}} ImportPlan
  */
 
@@ -158,7 +160,15 @@ export async function planImport(db, user, text, config, { makePrivate = false }
       private: isPrivate, due_date: t.due_date, notes: t.notes };
     let fields;
     try { fields = validateItem(body, config, 'task', { partial: false }); } catch (err) { throw withLine(err, t.line); }
-    plannedTasks.push({ ...fields, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
+    if (t.links.length > MAX_LINKS) throw validationFailed({ links: `at most ${MAX_LINKS} links on one task (line ${t.links[MAX_LINKS].line})` });
+    const links = t.links.map((l) => {
+      const url = cleanLinkUrl(l.url);
+      if (!url) throw validationFailed({ links: `must be http or https URLs without a user name or password (line ${l.line})` });
+      const label = l.label?.trim() || null;
+      if (label !== null && ([...label].length > LINK_LABEL_MAX || UNSAFE_LABEL_CHARS.test(label))) throw validationFailed({ links: `labels must be one line of at most ${LINK_LABEL_MAX} characters without control characters (line ${l.line})` });
+      return { url, label };
+    });
+    plannedTasks.push({ ...fields, links, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
   }
 
   const privateCount = (projectPrivate ? 1 : 0) + plannedTasks.filter((t) => t.private).length;

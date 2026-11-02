@@ -30,11 +30,11 @@ test('placeholders: read statements are detected', () => {
 test('sqlite: migrate applies the shipped migrations once and is idempotent', async () => {
   const db = await openDb('sqlite::memory:');
   const first = await db.migrate(MIGRATIONS);
-  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences', '006_task_priority']);
+  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences', '006_task_priority', '007_task_links']);
   const second = await db.migrate(MIGRATIONS);
   assert.deepEqual(second.applied, []);
   const { rows } = await db.query('SELECT id, name FROM schema_migrations ORDER BY id');
-  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }, { id: 6, name: 'task_priority' }]);
+  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }, { id: 6, name: 'task_priority' }, { id: 7, name: 'task_links' }]);
   await db.close();
 });
 

@@ -6,14 +6,17 @@ import { record } from './activity.js';
 import * as tags from './tags.js';
 import * as projects from './projects.js';
 import * as people from './people.js';
+import * as links from './links.js';
 
 const SETTABLE = ['project_id', 'title', 'status', 'priority', 'owner_id', 'owner_name', 'private', 'due_date', 'notes'];
 const SORTS = { updated_at: 't.updated_at', created_at: 't.created_at', title: 'LOWER(t.title)', status: null, owner_name: 'LOWER(t.owner_name)', due_date: null, priority: null };
 const SELECT = 'SELECT t.*, p.name AS project_name FROM tasks t JOIN projects p ON p.id = t.project_id';
 
-async function withTags(db, rows) {
-  const map = await tagsFor(db, 'task', rows.map((r) => r.id));
-  return rows.map((r) => rowToTask(r, map.get(r.id)));
+/** Tags and links for rows already read through the visibility predicate. */
+async function withTags(db, user, rows) {
+  const ids = rows.map((r) => r.id);
+  const [tagMap, linkMap] = await Promise.all([tagsFor(db, 'task', ids), links.linksFor(db, user, ids)]);
+  return rows.map((r) => ({ ...rowToTask(r, tagMap.get(r.id)), links: linkMap.get(r.id) ?? [] }));
 }
 
 /** Visible read by id (trash state ignored). */
@@ -21,12 +24,13 @@ export async function get(db, user, id) {
   const vis = taskVisible('t', 'p', user);
   const { rows } = await db.query(`${SELECT} WHERE t.id = ? AND ${vis.sql}`, [id, ...vis.params]);
   if (!rows[0]) return null;
-  return (await withTags(db, rows))[0];
+  return (await withTags(db, user, rows))[0];
 }
 
 async function unsafeGet(db, id) {
   const { rows } = await db.query(`${SELECT} WHERE t.id = ?`, [id]);
-  return rows[0] ? (await withTags(db, rows))[0] : null;
+  // read as the task's owner, who can always see their own task (a private project holds only its owner's tasks)
+  return rows[0] ? (await withTags(db, { id: rows[0].owner_id }, rows))[0] : null;
 }
 
 export async function mustGet(db, user, id) {
@@ -52,7 +56,12 @@ export async function list(db, user, f, config) {
     where.push(`EXISTS (SELECT 1 FROM task_tags j JOIN tags g ON g.id = j.tag_id WHERE j.task_id = t.id AND g.name IN (${f.tag.map(() => '?').join(', ')}))`);
     params.push(...f.tag.map(tags.normalizeTagName));
   }
-  if (f.q) { where.push("(LOWER(t.title) LIKE ? ESCAPE '\\' OR LOWER(t.notes) LIKE ? ESCAPE '\\')"); const l = likeContains(f.q); params.push(l, l); }
+  if (f.q) {
+    // title, notes, and the task's live links (a URL or a label is often what someone remembers)
+    where.push(`(LOWER(t.title) LIKE ? ESCAPE '\\' OR LOWER(t.notes) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM task_links ql
+      WHERE ql.task_id = t.id AND ql.deleted_at IS NULL AND (LOWER(ql.url) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(ql.label, '')) LIKE ? ESCAPE '\\')))`);
+    const l = likeContains(f.q); params.push(l, l, l, l);
+  }
   if (f.due_before) { where.push('t.due_date IS NOT NULL AND t.due_date <= ?'); params.push(f.due_before); }
   if (f.due_after) { where.push('t.due_date >= ?'); params.push(f.due_after); }
   let order;
@@ -69,7 +78,7 @@ export async function list(db, user, f, config) {
   else order = `${SORTS[f.sort]} ${f.dir}`;
   params.push(f.limit, f.offset);
   const { rows } = await db.query(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order}, t.id ASC LIMIT ? OFFSET ?`, params);
-  return withTags(db, rows);
+  return withTags(db, user, rows);
 }
 
 /**
@@ -100,7 +109,8 @@ async function targetProject(tx, user, projectId) {
 }
 
 /**
- * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[]}} input
+ * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[], links?: Array<{url: string, label: string|null}>}} input
+ *   `links` only from internal callers (the import), already validated
  */
 export async function create(db, user, input, config, now) {
   return db.transaction((tx) => createIn(tx, user, input, config, now));
@@ -134,9 +144,12 @@ export async function createIn(tx, user, input, config, now) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, now, now]);
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
+    const linkList = (input.links ?? []).slice(0, links.MAX_LINKS);
+    await links.insertIn(tx, user, id, linkList, now);
     const tagNames = tagList.map((tag) => tag.name);
     const changes = Object.fromEntries(SETTABLE.map((k) => [k, { to: row[k] }]));
     if (tagNames.length) changes.tags = { to: tagNames.sort() };
+    if (linkList.length) changes.links = { to: linkList.map((l) => ({ url: l.url, label: l.label ?? null })) };
     await record(tx, user, { item_type: 'task', item_id: id, action: 'create', changes }, now);
     return mustGet(tx, user, id);
   }
@@ -222,6 +235,33 @@ export async function restore(db, user, id, version, now) {
     checkInvariant(project, before.owner_id);
     await cas(tx, user, id, version, 'deleted_at = NULL, updated_at = ?', [now]);
     await record(tx, user, { item_type: 'task', item_id: id, action: 'restore', changes: {} }, now);
+    return mustGet(tx, user, id);
+  });
+}
+
+/**
+ * A write to something that belongs to a task (a link, a checklist item), done the way tag attach and detach are:
+ * the task is read visibly (else 404), refused when trashed, and version-checked; `apply(tx, task)` makes the change
+ * and returns the activity entry's `changes`, or null when nothing would change (then it is not a write: the version
+ * is checked under the row lock and nothing is bumped or logged, as in PLAN.md §2 rule 11). Otherwise the task's
+ * version and updated_at move and the entry is recorded, all in one transaction, so a stale version rolls back
+ * whatever `apply` wrote.
+ * @param {import('../db/index.js').Db} db
+ * @param {(tx: import('../db/index.js').Db, task: any) => Promise<Record<string, unknown>|null>} apply
+ */
+export async function childWrite(db, user, id, version, now, apply) {
+  return db.transaction(async (tx) => {
+    const before = await mustGet(tx, user, id);
+    if (before.deleted_at) throw invalidState('This task is in the trash.');
+    if (before.version !== version) throw conflict(before);
+    // The task's row lock first, with the version check under it, before any child row is touched: two writes to
+    // one task's children then queue on the task instead of locking child rows in different orders (a deadlock
+    // on PostgreSQL), and the second meets the 409.
+    await cas(tx, user, id, version, null);
+    const changes = await apply(tx, before);
+    if (!changes) return mustGet(tx, user, id);
+    await tx.query('UPDATE tasks SET version = version + 1, updated_at = ? WHERE id = ?', [now, id]);
+    await record(tx, user, { item_type: 'task', item_id: id, action: 'update', changes }, now);
     return mustGet(tx, user, id);
   });
 }

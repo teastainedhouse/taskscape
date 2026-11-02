@@ -3,7 +3,7 @@ import * as tagsRepo from './repo/tags.js';
 import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
 
-const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name'];
+const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
@@ -92,6 +92,64 @@ export function validateItem(body, config, kind, { partial }) {
 export function validateVersionOnly(body) {
   if (!Number.isInteger(body.version) || body.version < 1) throw validationFailed({ version: 'is required and must be a positive integer' });
   return { version: body.version };
+}
+
+/** Control characters and the bidirectional overrides and isolates, which could make a label read as something else. */
+export const UNSAFE_LABEL_CHARS = /[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+/** Longest link URL and label, in characters. */
+export const LINK_URL_MAX = 2000;
+export const LINK_LABEL_MAX = 200;
+
+/**
+ * A web link's URL: http: or https: only, no user name or password in it, at most LINK_URL_MAX characters.
+ * Returns the URL as the WHATWG parser writes it (so spaces and angle brackets are percent-encoded), or null.
+ * The server only stores it: nothing ever fetches it.
+ * @param {unknown} v
+ */
+export function cleanLinkUrl(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s || s.length > LINK_URL_MAX || /[\u0000-\u001f\u007f]/.test(s)) return null;
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password || !u.hostname) return null;
+  // a backslash survives in a query or fragment; encoded, it cannot escape the ">" of the export's <url>
+  const href = u.href.replace(/\\/g, '%5C');
+  return href.length > LINK_URL_MAX ? null : href;
+}
+
+/**
+ * A link body: `url` (required on create), optional `label` (one line; empty or null means none), and on PATCH
+ * an optional `position` (0-based among the task's live links), plus the task's `version`.
+ * @param {Record<string, unknown>} body
+ * @param {{partial: boolean}} opts
+ * @returns {{version: number} & Partial<{url: string, label: string|null, position: number}>}
+ */
+export function validateLink(body, { partial }) {
+  const errors = {};
+  const out = {};
+  if (!Number.isInteger(body.version) || body.version < 1) errors.version = 'is required and must be a positive integer';
+  else out.version = body.version;
+  if ('url' in body || !partial) {
+    const url = cleanLinkUrl(body.url);
+    if (url) out.url = url;
+    else errors.url = `must be an http or https URL of at most ${LINK_URL_MAX} characters, without a user name or password`;
+  }
+  if ('label' in body) {
+    if (body.label === null) out.label = null;
+    else if (typeof body.label !== 'string' || UNSAFE_LABEL_CHARS.test(body.label) || [...body.label.trim()].length > LINK_LABEL_MAX) errors.label = `must be one line of at most ${LINK_LABEL_MAX} characters without control characters, or null`;
+    else out.label = body.label.trim() || null;
+  } else if (!partial) out.label = null;
+  if ('position' in body) {
+    if (!partial) errors.position = 'can only be set when changing a link';
+    else if (!Number.isInteger(body.position) || body.position < 0) errors.position = 'must be a non-negative integer';
+    else out.position = body.position;
+  }
+  for (const k of Object.keys(body)) if (!['version', 'url', 'label', 'position'].includes(k)) errors.body = 'has a key that is not a link field'; // never echo the caller's key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
 }
 
 /** Longest guestbook comment, in characters. */

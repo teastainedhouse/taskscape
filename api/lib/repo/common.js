@@ -75,7 +75,8 @@ export async function tagsFor(db, kind, ids) {
 
 /** @param {string[]} order @param {string} col @returns {{sql: string, params: string[]}} */
 export function statusOrder(order, col) {
-  if (order.length === 0) return { sql: 'NULL', params: [] }; // a constant: a bare integer would name a column position
+  // nothing to order by: an expression that is always 0 (a bare integer would name a column position, and PostgreSQL refuses a constant)
+  if (order.length === 0) return { sql: `(CASE WHEN ${col} IS NULL THEN 0 ELSE 0 END)`, params: [] };
   const whens = order.map((_, i) => `WHEN ? THEN ${i}`).join(' ');
   return { sql: `CASE ${col} ${whens} ELSE ${order.length} END`, params: [...order] };
 }

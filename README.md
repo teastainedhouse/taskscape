@@ -64,7 +64,7 @@ Environment variables:
 | `default_status` | Status a new project or task gets when none is sent |
 | `priorities` | Task priority names, highest first (shipped: `High`, `Medium`, `Low`); a task has one of these or none, and lists sort by it in this order. Same naming rules as statuses. An empty list turns priorities off |
 | `tag_palette` | `#rrggbb` colors handed to new tags in turn |
-| `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`) |
+| `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`, `links`, the number of links) |
 | `default_views` | Named sort and filter presets; `tasks` is the one the task table opens with |
 | `privacy` | `default_private`: whether new items start private (shipped: `false`) |
 | `permissions` | `edit`: `everyone`, or `group` with `groups` listing the SSO groups that may write |
@@ -288,7 +288,7 @@ Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which cal
 
    `TASKSCAPE_URL` is the origin of your Taskscape (the deployed site, or the dev server). `${TASKSCAPE_TOKEN}` is expanded from your shell environment by the client; never write the token itself into `.mcp.json`, and never commit one. The repo ships `.mcp.example.json` as a starting point. The server exits with one line on stderr if either variable is missing.
 
-The server exposes ten tools:
+The server exposes eleven tools:
 
 | Tool | Does |
 | --- | --- |
@@ -301,6 +301,7 @@ The server exposes ten tools:
 | `delete` | Moves ONE item to the trash: a project, a task, or a comment you wrote. Takes a single id and refuses arrays; it will not bulk-delete |
 | `restore` | Brings one item back from the trash (a comment: only your own) |
 | `comment` | Comments on one project or task |
+| `link` | Adds, changes, moves, or removes one web link on a task (http or https only; Taskscape never fetches it) |
 | `tag` | Adds and removes tags by name on one item |
 
 Every write records the session id (a random id per server process, sent as `X-Taskscape-Session`) and `via: "mcp"`, so "What's New?" shows which Claude session did what. Reading a project through MCP does not bump its hit counter.

@@ -5,7 +5,8 @@
 // the same generic not-found page.
 
 import { boot, say, sayError, attempt } from './page.js';
-import { get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
+import { api, get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
+import { linksList, linkForm } from './task-links.js';
 import { el, btn, setChildren, padlock, projectLink, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, focusEditable, redraw } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
@@ -30,6 +31,10 @@ const state = {
 
 const host = document.getElementById('task');
 const notesSection = document.getElementById('notes-section');
+const linksSection = document.getElementById('links-section');
+const linksHost = document.getElementById('links');
+const linkFormHost = document.getElementById('link-form-host');
+/** @type {HTMLElement|null} */ let linkFormEl = null;
 const notesHost = document.getElementById('notes');
 const actions = document.getElementById('task-actions');
 const activitySection = document.getElementById('activity-section');
@@ -157,6 +162,11 @@ function render() {
   parts.push(el('div', { class: 'table-wrap' }, meta));
   redraw(host, parts); // an open editor, and focus, survive the redraw
 
+  linksSection.hidden = false;
+  redraw(linksHost, [linksList({ task: t, canEdit, write: writeChild, taskPath: taskPath(t.id) })]);
+  if (canEdit && !linkFormEl) { linkFormEl = linkForm({ write: writeChild, taskPath: taskPath(t.id), version: () => state.task.version }); linkFormHost.append(linkFormEl); }
+  if (linkFormEl) linkFormEl.hidden = !canEdit;
+
   notesSection.hidden = false;
   redraw(notesHost, [inlineEdit({ key: 'task-notes', label: 'Notes', allowed: canEdit, value: t.notes ?? '', block: true,
     empty: canEdit ? 'No notes yet. Click to add some.' : 'No notes.',
@@ -197,6 +207,20 @@ async function patchTask(fields, version) {
   if (rec.project_id !== t.project_id) state.project = state.projects?.find((p) => p.id === rec.project_id) ?? null; // moved: the target was offered from the live list
   render();
   loadActivity(true); // the edit is an entry now
+  return rec;
+}
+
+/**
+ * One write to something on the task (a link): the task comes back and the page redraws from it, or from
+ * `current` on a 409. Resolves with the task, or null.
+ * @param {string} method @param {string} path @param {object} body
+ */
+async function writeChild(method, path, body) {
+  const rec = await attempt(() => api(method, path, { body }), (current) => { state.task = current; render(); });
+  if (!rec) return null;
+  state.task = rec;
+  render();
+  loadActivity(true);
   return rec;
 }
 

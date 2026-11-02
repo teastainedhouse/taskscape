@@ -65,10 +65,13 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
   "title": "Fix broken GIFs", "status": "To do", "priority": "High", "owner_id": "alice", "owner_name": "Alice Lin",
   "private": false, "due_date": "2026-10-30", "notes": "", "version": 1,
   "created_at": "…", "updated_at": "…", "deleted_at": null,
-  "tags": [ { "id": "t3", "name": "bug", "color": "#ff0000" } ] }
+  "tags": [ { "id": "t3", "name": "bug", "color": "#ff0000" } ],
+  "links": [ { "id": "l1", "url": "https://example.test/spec", "label": "The spec", "position": 0 } ] }
 ```
 
 `priority` is one of `/api/config` `priorities` or `null` (none); a name later removed from the config still reads, and sorts after the configured ones and before none, in either direction.
+
+`links` are the task's live web links in order (section 6, "Links"); `url` is `http:` or `https:` as the URL parser writes it, `label` is a line of text or `null`.
 
 **Tag** `{ "id", "name", "color", "created_at" }` (no usage counts).
 
@@ -103,7 +106,7 @@ The HTTP contract the UI and the MCP server both use. It is frozen at the end of
 | `priority` | comma-separated names | tasks only; any of; unknown names ignored |
 | `owner` | owner id, or `me` | |
 | `tag` | tag name(s), comma = any of | names, not ids |
-| `q` | substring | case-insensitive on name/title and description/notes; `%` `_` `\` literal |
+| `q` | substring | case-insensitive on name/title and description/notes, and on a task's live link URLs and labels; `%` `_` `\` literal |
 | `due_before`, `due_after` | `YYYY-MM-DD` | tasks only, inclusive; `due_before` excludes null due dates |
 | `include_trashed` | `false` (default), `true`, `only` | tasks of a trashed project are excluded by default and under `only` (they carry no `deleted_at` of their own); `true` includes everything |
 | `sort` | projects: `updated_at` (default), `created_at`, `name`, `status`, `owner_name`; tasks: `updated_at` (default), `created_at`, `title`, `status`, `owner_name`, `due_date`, `priority` | `status` and `priority` sort in config order; `due_date` and `priority` nulls last in either direction |
@@ -148,6 +151,9 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 | POST | `/api/tasks/:id/restore` | any | `{version}` | `200 Task` | 400 invalid_state, 404, 409 |
 | PUT | `/api/tasks/:id/tags/:tagId` | any | `{version}` | `200 Task` | 404, 409 |
 | DELETE | `/api/tasks/:id/tags/:tagId` | any | `{version}` | `200 Task` | 404, 409 |
+| POST | `/api/tasks/:id/links` | any | `{version, url, label?}` | `201 Task` (the link is last) | 400 (field names only: `url` http or https, at most 2000 characters, no user name or password; `label` one line of at most 200 characters, or null; invalid_state for a trashed task or a task with 50 links), 403, 404, 409 |
+| PATCH | `/api/tasks/:id/links/:linkId` | any | `{version, url?, label?, position?}` (`position` 0-based among the live links; past the end means last) | `200 Task` | 400, 403, 404 (also a link that is trashed or on another task), 409 |
+| DELETE | `/api/tasks/:id/links/:linkId` | any | `{version}` | `200 Task` (the link is trashed: kept with `deleted_at`, no longer listed) | 400 invalid_state (trashed task), 403, 404, 409 |
 | GET | `/api/tags` | any | — | `200 {items:[Tag]}` by name | |
 | POST | `/api/tags` | any | `{name, color?}` | `201 Tag`, or `200 Tag` if the normalized name exists | 400 (name 1–40 chars, color `#rrggbb`, default next palette color) |
 | GET | `/api/projects/:id/comments` | any | — | `200 {"items":[Comment]}` oldest first: live comments, plus the caller's own trashed ones | 404 |
@@ -176,6 +182,8 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 **The catch-all project** is an ordinary project row with a fixed id (`config.catch_all_project_id`, default `general`), created by `npm run migrate` if missing, owned by the system principal (`owner_id: "system"`), and exposed as `catch_all_project_id` in `/api/config`. It is always public and always present: `PATCH` with `private: true` or a new `owner_id`, and `DELETE`, return `400 invalid_state`. Its name, description, status, and tags are editable like any project. `POST /api/tasks` without `project_id` files the task there.
 
 **Import from Markdown.** `POST /api/projects/import` reads exactly what `GET /api/projects/:id/export.md` writes (section 8; an older export that says "Guestbook" is read too) and creates the project and its tasks in one transaction, each with its own `create` activity entry by the caller, so a failure halfway creates nothing. Tags are matched or created by name. An owner name in the file maps to a person only when exactly one person the caller may pick (`GET /api/people`) has exactly that name; otherwise the item goes to the caller, and a note says how many did. Statuses and priorities must be configured ones; a bad one is `400` naming the field and the line. An item the file marks `Private: yes` stays private (and so belongs to the caller; a private project makes every task in it the caller's and private too); an item marked public follows `privacy.default_private`, or `?private=true` makes everything private to the caller. Nothing an export marked private is ever made public by importing it. Limits: `limits.max_page_size` tasks per file, 20 tags on one item, 50 new tag names per import, 20,000 characters per line; a file with two `## Tasks` lines (a description can contain one) is refused naming the line, since the import will not guess which is the real one. A `charset` other than UTF-8 is 415. Tokens may import over HTTP like any write; the missing MCP tool is about Claude seeing each item it creates, not about what a token may do. Tag names are a shared vocabulary, so a note says how many new ones a private import would still create for everyone to see. Owner names are matched against the caller's own `GET /api/people`, so a token, which gets no directory, matches fewer names than its owner in the browser. Comments are never imported, because a comment is signed by whoever writes it and a file cannot sign for anyone; the response says how many were left out. Hits, created and updated dates come from the import, not the file. No MCP tool: Claude already creates projects and tasks one by one with `create`, and a file-shaped bulk write adds nothing but a way to create many things at once without the user seeing each.
+
+**Links** on a task belong to the task: they are listed only on a task the caller can see, and a hidden task's link routes are the generic 404. Each write is a compare-and-set on the task's `version` and returns the task with its new version; it writes an `update` entry on the task with `changes.link` `{from, to}` (each `{url, label}`, `null` for an added or removed link) or `changes.link_moved` `{from, to, link}` (positions). A task's `create` entry lists its links as `changes.links` `{to: [{url, label}]}` when it was created with some (an import). A change that changes nothing is not a write (section 1). Removing a link trashes it; there is no restore route. The server never fetches a link. `q` in `GET /api/tasks` and `GET /api/search` also matches a live link's URL and label.
 
 **Hit counter semantics:** only the UI project page calls `/hit`, once per page load after the project has loaded. `GET` never increments. Token principals get 403, so MCP reads never count. On a private project a non-owner gets the standard 404 and the count does not move. Not version-checked, not logged, does not touch `updated_at` or `version`. Privacy flips do not reset the count.
 
@@ -242,6 +250,11 @@ List response: `{ "items": [...], "limit": 500, "offset": 0 }`.
 
 ### Fix broken GIFs
 
+Links:
+
+- [The spec](<https://example.test/spec>)
+- <https://example.test/plain>
+
 <notes, raw block>
 
 Comments:
@@ -261,7 +274,7 @@ Comments:
 Exported from Taskscape on 2026-10-31 by Alice Lin.
 ```
 
-Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. A bare `\r` counts as a line break everywhere, as in CommonMark. Comments are quote blocks (every line prefixed `> `, so none can start a heading; every `[` escaped, so none can define a link; and every `<` and `&` escaped, so raw HTML and autolinks show as text), with the author's name, like the footer's, escaped as Markdown text; oldest first, live ones only, even for their author; a task gets a `###` section when it has notes or comments, and `## Comments` appears only when the project has comments. Only tasks visible to the caller are included; the footer does not mention omissions.
+Table cells escape `|` as `\|` and collapse newlines to spaces; headings collapse newlines. Description and notes are raw blocks: the export is for humans and is never rendered by Taskscape. A bare `\r` counts as a line break everywhere, as in CommonMark. Comments are quote blocks (every line prefixed `> `, so none can start a heading; every `[` escaped, so none can define a link; and every `<` and `&` escaped, so raw HTML and autolinks show as text), with the author's name, like the footer's, escaped as Markdown text; oldest first, live ones only, even for their author; a task gets a `###` section when it has links, notes or comments; links come first, as `Links:` and one list item per link (`- [label](<url>)`, the label escaped as Markdown text, or `- <url>` without one), so a notes block can never end them; the import reads one such block, only at the top of the section, and a `Links:` line further down is part of the notes; when a task's notes themselves start with a `Links:` line, the block is written even when empty, as `_None._`, so the import reads those notes as notes; a backslash in a URL is stored as `%5C`, so no URL can close the angle brackets early; and `## Comments` appears only when the project has comments. Only tasks visible to the caller are included; the footer does not mention omissions.
 
 ## 9. Changes
 
@@ -289,3 +302,4 @@ Frozen at the end of Phase 1. Any later change gets a dated entry here and a mat
 - 2026-11-02 (import): `POST /api/projects/import` takes a `text/markdown` export and creates the project and its tasks in one transaction; `?dry_run=true` plans without writing; `?private=true` makes everything private to the caller; comments are counted and never imported; owners map only on an exact, unique name. Browser principals may send `text/markdown` to this one route (a form cannot send that type); every other write stays JSON-only. No MCP tool.
 - 2026-11-02 (whole-repo review): `Preferences` gains `chosen`, saying which keys the person set (the browser uses the device's time zone until one is chosen); a stored `time_zone` keeps the name as picked, case fixed; `POST /api/projects/import` is 415 for any body that is not `text/markdown`, from any principal, and reads `Private` in any case (any other non-empty value is a 400 on `private`); the export of a trashed project keeps the tasks that went into the trash with it (not those trashed on their own); creating the same tag from two transactions at once no longer fails on PostgreSQL (the second reads the first's tag).
 - 2026-11-02 (priority): tasks gain `priority`, one of the new `/api/config` `priorities` (default `["High","Medium","Low"]`) or `null`; `POST`/`PATCH /api/tasks` take it; `GET /api/tasks` filters on `priority` (comma = any of) and sorts by it in config order with none last. Migration `006_task_priority.sql`. The export's task table gains a Priority column after Status, and the import reads it (an unknown name is a 400 naming the field and the line). MCP: `create` and `update` take `priority`, `list_tasks` filters on it, and `me` also returns the site's `statuses`, `closed_statuses` and `priorities`, so Claude can see the allowed names before writing. Config: status and priority names may not contain a comma or start or end with a space (the list filters split on commas); startup refuses such a config.
+- 2026-11-02 (links): tasks gain `links` (live, in order) and the routes `POST /api/tasks/:id/links`, `PATCH`/`DELETE /api/tasks/:id/links/:linkId`, each a compare-and-set on the task's version with an activity entry; removing a link trashes it. Only `http:`/`https:` URLs. `q` matches link URLs and labels. Migration `007_task_links.sql`. The export writes a `Links:` block at the top of a task's section and the import reads it. MCP: a new `link` tool (one add, update or remove per call); `get` and the list tools return `links` with each task. `task_fields` may list `links` for a count column.

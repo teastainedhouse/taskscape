@@ -21,7 +21,7 @@ import { tagEditor } from './tags.js';
 /** Columns My tasks always shows, in order. */
 export const MINE_FIELDS = ['due_date', 'title', 'project', 'status', 'tags'];
 /** Summary columns My tasks also shows when config.task_fields lists them, after status. */
-export const OPTIONAL_SUMMARY_FIELDS = ['priority'];
+export const OPTIONAL_SUMMARY_FIELDS = ['priority', 'links'];
 
 /**
  * @typedef {Object} ColumnContext
@@ -74,6 +74,8 @@ export function taskColumns(ctx) {
     notes: { label: 'Notes', value: (t) => t.notes ?? '', block: true, empty: 'add notes',
       control: (t, v) => el('textarea', { rows: '3', value: v }),
       fields: (t, v) => ({ notes: v }) },
+    // a count only; the links themselves are on the task page
+    links: { label: 'Links', view: (t) => ((t.links ?? []).length ? `${t.links.length} link${t.links.length === 1 ? '' : 's'}` : '—') },
     project: { label: 'Project', view: (t) => projectLink(t.project_id, t.project_name ?? 'project') },
     created_at: { label: 'Created', sort: 'created_at', view: (t) => timeEl(t.created_at) },
     updated_at: { label: 'Updated', sort: 'updated_at', view: (t) => timeEl(t.updated_at) },
