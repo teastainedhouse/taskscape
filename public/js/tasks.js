@@ -267,8 +267,13 @@ const duplicate = (() => {
     submit.disabled = true; // one copy per press
     try {
       const res = await post(`${projectPath(state.project.id)}/duplicate`, body);
-      say(`Copy made with ${res.tasks.length} task${res.tasks.length === 1 ? '' : 's'}. Opening it…`);
-      location.href = `project.html?id=${encodeURIComponent(res.project.id)}`;
+      const made = `Copy made with ${res.tasks.length} task${res.tasks.length === 1 ? '' : 's'}.`;
+      const href = `project.html?id=${encodeURIComponent(res.project.id)}`;
+      if (!res.notes?.length) { say(`${made} Opening it…`); location.href = href; return; }
+      // notes say what changed on the way: show them, and let the person go to the copy when they have read them
+      close(false);
+      say([`${made} `, res.notes.join(' '), ' ', el('a', { href }, 'Open the copy')], { sticky: true });
+      submit.disabled = false;
     } catch (err) {
       sayError(err, 'Could not duplicate the project');
       submit.disabled = false;

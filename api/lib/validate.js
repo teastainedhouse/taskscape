@@ -375,6 +375,8 @@ export function validateNewUser(u) {
   return { id: /** @type {string} */ (u.id), name, email, groups: [...new Set(groups)] };
 }
 
+/** Tag names one list filter may name. */
+const MAX_TAG_FILTER = 50;
 const PROJECT_SORTS = ['updated_at', 'created_at', 'name', 'status', 'owner_name'];
 const TASK_SORTS = [...PROJECT_SORTS.filter((s) => s !== 'name'), 'title', 'due_date', 'priority'];
 const ASC_DEFAULT = new Set(['name', 'title', 'due_date', 'priority']);
@@ -398,6 +400,8 @@ export function parseListQuery(q, config, kind) {
     sort: q.sort || 'updated_at',
     dir: q.dir,
   };
+  // statuses and priorities are filtered against the config; tag names are not, so their number is capped
+  if (f.tag && f.tag.length > MAX_TAG_FILTER) errors.tag = `must name at most ${MAX_TAG_FILTER} tags`;
   if (kind === 'task') {
     f.project = q.project || undefined;
     f.priority = csv(q.priority)?.filter((s) => config.priorities.includes(s));

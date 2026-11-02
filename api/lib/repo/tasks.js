@@ -25,7 +25,10 @@ function select(user) {
 /** Tags, links and the checklist for rows already read through the visibility predicate. */
 async function withTags(db, user, rows) {
   const ids = rows.map((r) => r.id);
-  const [tagMap, linkMap, checkMap] = await Promise.all([tagsFor(db, 'task', ids), links.linksFor(db, user, ids), checklist.checklistFor(db, user, ids)]);
+  // one after another: inside a transaction `db` is one client, which must not run two queries at once
+  const tagMap = await tagsFor(db, 'task', ids);
+  const linkMap = await links.linksFor(db, user, ids);
+  const checkMap = await checklist.checklistFor(db, user, ids);
   return rows.map((r) => ({ ...rowToTask(r, tagMap.get(r.id)), links: linkMap.get(r.id) ?? [], checklist: checkMap.get(r.id) ?? [] }));
 }
 
@@ -38,12 +41,15 @@ export async function get(db, user, id) {
   return (await withTags(db, user, rows))[0];
 }
 
-async function unsafeGet(db, id) {
-  const { rows: [own] } = await db.query('SELECT owner_id FROM tasks WHERE id = ?', [id]);
-  if (!own) return null;
-  const s = select({ id: own.owner_id }); // as its owner, like the links below
+/**
+ * The task just handed over, for the writer's answer, though they may no longer see it. Its own row, links and
+ * checklist are read as its new owner, who can always see their own task (a private project holds only its owner's
+ * tasks); but the ids of the other task in its recurring pair are judged by the writer, the one reading the answer,
+ * so a handover never names a task the writer cannot see.
+ */
+async function unsafeGet(db, id, writer) {
+  const s = select(writer);
   const { rows } = await db.query(`${s.sql} WHERE t.id = ?`, [...s.params, id]);
-  // read as the task's owner, who can always see their own task (a private project holds only its owner's tasks)
   return rows[0] ? (await withTags(db, { id: rows[0].owner_id }, rows))[0] : null;
 }
 
@@ -135,7 +141,8 @@ async function targetProject(tx, user, projectId) {
 
 /**
  * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[], links?: Array<{url: string, label: string|null}>, checklist?: Array<{text: string, done?: boolean}>}} input
- *   `links` and `checklist` only from internal callers (the import), already validated
+ *   `links`, `checklist` and `closed_at` only from internal callers (the import and the duplicate), already validated;
+ *   `closed_at` (null for unknown) is kept only when the task is created in a closed status
  */
 export async function create(db, user, input, config, now) {
   return db.transaction((tx) => createIn(tx, user, input, config, now));
@@ -171,7 +178,7 @@ export async function createIn(tx, user, input, config, now) {
       `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, recurred_from, closed_at, version, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
       [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, row.recurrence, row.recurred_from,
-        config.closed_statuses.task.includes(row.status) ? now : null, now, now]);
+        config.closed_statuses.task.includes(row.status) ? (input.closed_at !== undefined ? input.closed_at : now) : null, now, now]);
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
     const linkList = (input.links ?? []).slice(0, links.MAX_LINKS);
     await links.insertIn(tx, user, id, linkList, now);
@@ -260,7 +267,7 @@ export async function update(db, user, id, input, config, now) {
     // Only a reassignment can hide the task from its writer, and that path holds the project's row lock, so the
     // unfiltered read cannot pick up a concurrent privacy flip. Any other edit re-reads visibly: if a concurrent
     // flip hid the task meanwhile, the 404 rolls this write back.
-    return ownerChanged ? unsafeGet(tx, id) : mustGet(tx, user, id);
+    return ownerChanged ? unsafeGet(tx, id, user) : mustGet(tx, user, id);
   });
 }
 

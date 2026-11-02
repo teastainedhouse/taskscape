@@ -7,13 +7,14 @@
 
 /**
  * A TEXT value (RFC 5545 §3.3.11): `\` `;` `,` escaped, every line break as `\n`, control characters removed
- * (a TEXT value may not contain them, and a title is never meant to).
+ * (a TEXT value may not contain them, and a title is never meant to), and the bidi marks, embeddings, overrides and
+ * isolates too, as in the Atom feed, so one title cannot reorder the text around it.
  * @param {unknown} v
  */
 export function icalText(v) {
   return String(v ?? '')
     .replace(/\r\n?|\n/g, '\n')
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u2028\u2029]/g, '')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200e\u200f\u2028-\u202e\u2066-\u2069]/g, '')
     .replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,')
     .replace(/\n/g, '\\n');
 }
@@ -52,11 +53,12 @@ export function icalStamp(iso) {
   return new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
-/** The day after YYYY-MM-DD (the exclusive end of an all-day event). @param {string} d */
+/** The day after YYYY-MM-DD (the exclusive end of an all-day event), or null past 9999-12-31. @param {string} d */
 function nextDay(d) {
   const t = new Date(`${d}T00:00:00Z`);
   t.setUTCDate(t.getUTCDate() + 1);
-  return t.toISOString().slice(0, 10);
+  const out = t.toISOString().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(out) ? out : null;
 }
 
 /**
@@ -77,7 +79,8 @@ export function renderCalendar(cal, tasks) {
       `DTSTAMP:${icalStamp(cal.stamp)}`,
       `LAST-MODIFIED:${icalStamp(t.updated_at)}`,
       `DTSTART;VALUE=DATE:${icalDate(t.due_date)}`,
-      `DTEND;VALUE=DATE:${icalDate(nextDay(t.due_date))}`,
+      // with a DATE start and no DTEND an event lasts that one day (§3.6.1): only for 9999-12-31, which has no next day
+      ...(nextDay(t.due_date) ? [`DTEND;VALUE=DATE:${icalDate(nextDay(t.due_date))}`] : []),
       `SUMMARY:${icalText(t.title)}`,
       `DESCRIPTION:${icalText(description)}`,
       `URL:${url}`,

@@ -289,3 +289,33 @@ test('duplicate: General, a disabled owner under password, and text the caller c
   assert.deepEqual(plan.notes, ['1 task belongs to someone who can no longer be given one; its copy goes to you.']);
   await p.close();
 });
+
+test('duplicate: leftover statuses and priorities, one series per series, and when a closed task was closed', async () => {
+  let n = 0;
+  const t = await createTestApp({ now: () => new Date(Date.parse(NOW) + 86_400_000 * n++).toISOString() });
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Old ways' })).body;
+  const odd = (await a.post('/api/tasks', { project_id: P.id, title: 'Odd' })).body;
+  await t.db.query("UPDATE tasks SET status = 'Old', priority = 'Urgent' WHERE id = ?", [odd.id]); // names a config change removed
+  // a monthly series closed twice: two closed predecessors and one open newest copy
+  let rent = (await a.post('/api/tasks', { project_id: P.id, title: 'Pay rent', recurrence: 'monthly', due_date: '2026-11-01' })).body;
+  const closedAt = [];
+  for (let i = 0; i < 2; i++) {
+    const r = (await a.patch(`/api/tasks/${rent.id}`, { version: rent.version, status: 'Done' })).body;
+    closedAt.push(r.closed_at);
+    rent = (await a.get(`/api/tasks/${r.recurred_to}`)).body;
+  }
+  const r = await a.post(`/api/projects/${P.id}/duplicate`, { reset_statuses: false });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const copy = r.body.tasks.find((x) => x.title === 'Odd');
+  assert.deepEqual([copy.status, copy.priority], ['To do', null]);
+  assert.ok(r.body.notes.some((x) => /no longer has/.test(x)));
+  const rents = r.body.tasks.filter((x) => x.title === 'Pay rent');
+  assert.deepEqual(rents.map((x) => x.recurrence).sort(), ['monthly', null, null], 'only the newest keeps repeating');
+  assert.deepEqual(rents.filter((x) => x.status === 'Done').map((x) => x.closed_at).sort(), closedAt.sort(), 'closed when the original was');
+  // with statuses reset there is still one series, and nothing looks finished
+  const reset = (await a.post(`/api/projects/${P.id}/duplicate`, { reset_statuses: true })).body;
+  assert.equal(reset.tasks.filter((x) => x.recurrence).length, 1);
+  assert.equal(reset.tasks.filter((x) => x.closed_at).length, 0);
+  await t.close();
+});

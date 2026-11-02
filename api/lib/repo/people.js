@@ -42,6 +42,8 @@ export async function list(db, user, config, { directory: withDirectory = user.v
 
 /** Mention words resolved per comment at most; the rest are text (a 2000-character body holds few real mentions). */
 const MAX_MENTION_WORDS = 64;
+/** Trailing characters taken off a mention word at most, when looking for who it names. */
+const MAX_STRIPPED = 3;
 
 /**
  * Who a comment by `user` mentions, from its mention words (comments.parseMentions()), looking up only the ids
@@ -62,7 +64,9 @@ const MAX_MENTION_WORDS = 64;
 export async function mentionable(db, user, config, words) {
   if (!words.length) return [];
   const { mentionCandidates } = await import('./comments.js');
-  const tries = words.slice(0, MAX_MENTION_WORDS).map(mentionCandidates);
+  // at most a few trailing characters come off a word: enough for "@bob_." and a sentence's punctuation, and a bound
+  // on the ids looked up (a word of 200 dashes would otherwise try 200 ids)
+  const tries = words.slice(0, MAX_MENTION_WORDS).map((w) => mentionCandidates(w).slice(0, MAX_STRIPPED + 1));
   const ids = [...new Set(tries.flat().flatMap((c) => [c, c.toLowerCase()]))];
   const pv = projectVisible('p', user);
   const tv = taskVisible('t', 'p', user);
@@ -79,9 +83,9 @@ export async function mentionable(db, user, config, words) {
   for (const r of rows) owners.set(r.id, r.name); // newest last, so it wins
   owners.delete('system');
   const withDirectory = user.via === 'ui' && canEdit(config, user);
-  /** @type {Map<string, string|null>} */
-  const dir = new Map();
-  const dirName = async (id) => { if (!dir.has(id)) dir.set(id, await directoryName(db, config, id)); return dir.get(id); };
+  // every candidate's directory name at once (one query under password), never one lookup per id
+  const dir = await directoryNames(db, config, ids);
+  const dirName = async (id) => dir.get(id) ?? null;
   /** May the caller pick `id`? Its name if so, else null. @param {string} id */
   const pickable = async (id) => {
     const known = await dirName(id);
@@ -133,6 +137,21 @@ export async function directoryName(db, config, id) {
     return u && !u.disabled_at ? u.name : null;
   }
   return null;
+}
+
+/**
+ * directoryName() for many ids at once: id -> name for those the directory knows.
+ * @param {import('../db/index.js').Db} db @param {import('../config.js').Config} config @param {string[]} ids
+ * @returns {Promise<Map<string, string>>}
+ */
+export async function directoryNames(db, config, ids) {
+  const wanted = ids.filter((id) => id !== 'system');
+  if (config.auth.provider === 'dev') {
+    const known = new Map(config.auth.dev.users.map((u) => [u.id, u.name]));
+    return new Map(wanted.filter((id) => known.has(id)).map((id) => [id, known.get(id)]));
+  }
+  if (config.auth.provider === 'password') return users.enabledNames(db, wanted);
+  return new Map();
 }
 
 /**

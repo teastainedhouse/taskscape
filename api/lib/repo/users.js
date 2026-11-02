@@ -33,6 +33,23 @@ export async function listEnabled(db) {
 }
 
 /**
+ * The names of those of `ids` that are enabled users, in one query per 500 ids (mention resolution). No version, no
+ * activity; names only.
+ * @param {import('../db/index.js').Db} db @param {string[]} ids
+ * @returns {Promise<Map<string, string>>}
+ */
+export async function enabledNames(db, ids) {
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const { rows } = await db.query(
+      `SELECT id, name FROM users WHERE disabled_at IS NULL AND id <> 'system' AND id IN (${chunk.map(() => '?').join(', ')})`, chunk);
+    for (const r of rows) out.set(String(r.id), String(r.name));
+  }
+  return out;
+}
+
+/**
  * The user plus the stored hash, for checking a password. Login only.
  * @param {import('../db/index.js').Db} db
  * @param {string} id

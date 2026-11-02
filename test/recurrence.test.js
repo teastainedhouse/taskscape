@@ -248,3 +248,20 @@ test('the owner\'s zone, not the closer\'s; no copy for closed-to-closed moves o
   assert.equal(r.body.recurred_to, null, 'giving a closed task a repeat makes nothing');
   await t.close();
 });
+
+test('privacy: handing a task over never answers with the id of a pair task the writer cannot see', async () => {
+  const t = await createTestApp({ now: () => '2026-01-31T10:00:00.000Z' });
+  const a = t.as('alice');
+  const c = t.as('carol');
+  const t1 = (await c.post('/api/tasks', { title: 'Weekly sync', recurrence: 'weekly', due_date: '2026-02-02' })).body;
+  const [closed, t2] = await close(c, t1);
+  await c.patch(`/api/tasks/${t2.id}`, { version: t2.version, private: true }); // the copy is carol's alone
+  const handed = (await c.patch(`/api/tasks/${t1.id}`, { version: closed.version, owner_id: 'alice' })).body;
+  assert.equal(handed.recurred_to, t2.id, 'carol, who can see the copy, is told');
+  // alice hands it back: her answer is read as carol for the row, but judged by alice for the link
+  const back = await a.patch(`/api/tasks/${t1.id}`, { version: handed.version, owner_id: 'carol' });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.recurred_to, null);
+  assert.equal(JSON.stringify(back.body).includes(t2.id), false);
+  await t.close();
+});

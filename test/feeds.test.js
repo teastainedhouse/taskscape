@@ -357,3 +357,11 @@ test('the Atom feed: one 404 for an unknown, malformed, or revoked link, the sam
   }
   await t.close();
 });
+
+test('the calendar: a task due 9999-12-31 is a one-day event without DTEND; bidi controls never reach a SUMMARY', () => {
+  const task = (id, due, title = id) => ({ id, title, status: 'To do', priority: null, project_name: null, due_date: due, updated_at: NOW });
+  const cal = renderCalendar({ name: 'X', base: 'https://x.test', stamp: NOW }, [task('last', '9999-12-31'), task('flip', '2026-11-05', 'abc\u202Edef\u2066g\u200fh')]);
+  assert.ok(cal.includes('DTSTART;VALUE=DATE:99991231\r\nSUMMARY:last'), 'no DTEND past year 9999');
+  assert.equal(cal.includes('+0100'), false);
+  assert.ok(cal.includes('SUMMARY:abcdefgh\r\n'));
+});

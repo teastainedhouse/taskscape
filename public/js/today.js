@@ -79,7 +79,7 @@ const SECTIONS = [
     empty: () => (scope === 'mine' ? 'Nothing of yours was finished this week yet.' : 'Nothing was finished this week yet.') },
 ];
 
-/** Seven days before the server's today, as a date (the API reads it as the start of that day, UTC). */
+/** The first of the last seven days, today included (six days back), as a date (the API reads it as that day's start, UTC). */
 function weekAgo() {
   const d = new Date(`${me.today ?? new Date().toISOString().slice(0, 10)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 6);

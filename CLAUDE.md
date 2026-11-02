@@ -141,7 +141,7 @@ scripts/
   migrate.js               apply pending migrations + ensureCatchAll; run as a deploy step
   seed.js                  demo data through the repo layer with real principals; --reset to replace
   backup.js                SQLite online copy to backups/; PostgreSQL prints pg_dump / pg_restore commands
-  users.js                 password-provider users: add [--claim-existing], passwd (also revokes tokens), disable, enable, list;
+  users.js                 password-provider users: add [--claim-existing], passwd (also revokes tokens and feed links), disable, enable, list;
                            passwords from a hidden prompt or stdin, never argv
 
 public/                    served as-is; no build step
@@ -159,7 +159,7 @@ public/                    served as-is; no build step
   css/base.css             layout, focus rings, table scroll wrapper, marquee keyframes, reduced-motion kill switch, the shortcuts dialog and kbd
   css/theme-toolbar.css    the default look, linked by every page: old browser chrome (dithered toolbars, pixel icons, starfield avatar, status bar) around a modern page; dark mode
   css/theme-netscape.css   the 1996 look (Times, grey bevels, starfield) as a second theme; same selectors, dark variant
-  js/shortcuts.js          single-key shortcuts (/ n ? g+h/m/w/t/p), mounted by page.js when the shortcuts preference is on; ignored in fields and dialogs; never trash or restore
+  js/shortcuts.js          single-key shortcuts (/ n ? g+h/l/m/c/w/t/p), mounted by page.js when the shortcuts preference is on; ignored in fields and dialogs; never trash or restore
   js/theme.js              applyTheme() swaps the theme <link> to the person's preference (names checked against config.themes); applyRememberedTheme() does it from localStorage before boot
   js/page.js               shared boot: loads /api/config and /api/me, site title, nav, dev banner, avatar, applyPreferences() (theme, time zone, shortcuts), aria-live say(), attempt() = the 409 handler
   js/avatar.js             the header's profile link: the person's initial from a 5x7 bitmap font as SVG rects (dom.js svg()), "T" fallback

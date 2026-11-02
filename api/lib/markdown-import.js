@@ -92,10 +92,12 @@ const orNull = (v) => (v === '' ? null : v);
 
 /**
  * @param {string} text
+ * @param {{maxTasks?: number}} [opts]  stop at the first table row past this many, so the work done on a file is
+ *   bounded by what an import accepts, not by what fits in the body limit
  * @returns {ParsedExport}
  * @throws {ImportParseError}
  */
-export function parseProjectExport(text) {
+export function parseProjectExport(text, { maxTasks = Infinity } = {}) {
   const lines = String(text ?? '').split(LINE_BREAK);
   const n = lines.length;
   let i = 0;
@@ -163,6 +165,7 @@ export function parseProjectExport(text) {
       const cell = (want) => (col(want) >= 0 ? cells[col(want)] ?? '' : '');
       const title = cell('title');
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
+      if (tasks.length >= maxTasks) throw new ImportParseError('tasks', `at most ${maxTasks} tasks per import`, at());
       tasks.push({
         title, status: orNull(cell('status')), priority: orNull(cell('priority')), recurrence: orNull(cell('repeats').toLowerCase()), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
         tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', links: [], checklist: [], line: at(),
@@ -242,6 +245,8 @@ export function parseProjectExport(text) {
   // for a task with notes or comments, so two tasks with one title and notes on only one cannot be told apart;
   // the caller is told how many were attached by order)
   const used = new Map();
+  const count = new Map(); // title key -> tasks with that title, counted once (a per-task scan was quadratic)
+  for (const k of titleKeys) count.set(k, (count.get(k) ?? 0) + 1);
   let ambiguous = 0;
   for (const t of tasks) {
     const key = titleKey(t.title);
@@ -249,7 +254,7 @@ export function parseProjectExport(text) {
     if (!list) continue;
     const k = used.get(key) ?? 0;
     if (k < list.length) { t.notes = list[k].notes; t.links = list[k].links; t.checklist = list[k].checklist; used.set(key, k + 1); }
-    if (pending.get(key) !== 0 || titleKeys.filter((x) => x === key).length > list.length) ambiguous++;
+    if (pending.get(key) !== 0 || count.get(key) > list.length) ambiguous++;
   }
 
   return {

@@ -162,3 +162,16 @@ test('priority: a renamed or removed priority still reads, sorts after the confi
   assert.equal((await off.as('alice').post('/api/tasks', { title: 'y', priority: 'High' })).status, 400);
   await off.close();
 });
+
+test('a tag filter names at most 50 tags (400, field only)', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const many = Array.from({ length: 51 }, (_, i) => `t${i}`).join(',');
+  let r = await a.get(`/api/tasks?tag=${many}`);
+  assert.equal(r.status, 400);
+  assert.deepEqual(Object.keys(r.body.error.details.fields), ['tag']);
+  r = await a.get(`/api/projects?tag=${many}`);
+  assert.equal(r.status, 400);
+  assert.equal((await a.get(`/api/tasks?tag=${Array.from({ length: 50 }, (_, i) => `t${i}`).join(',')}`)).status, 200);
+  await t.close();
+});

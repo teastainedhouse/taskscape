@@ -203,16 +203,17 @@ test('restore brings a mention back; under password a token or a read-only reade
   // dana in the browser may pick erin from the directory; her token may not
   let c = await comments.create(t.db, dana, 'task', task.id, 'hi @ERIN', NOW, t.config);
   assert.deepEqual(c.mentions, [{ id: 'erin', name: 'Erin Moss' }]);
+  const firstId = c.id; // both comments share a timestamp, so find this one by id, never by place
   c = await comments.create(t.db, who('dana', 'Dana Fox', ['editors'], 'mcp'), 'task', task.id, 'hi @erin', NOW, t.config);
   assert.deepEqual(c.mentions, [], 'a token never resolves the directory');
   // what a reader sees in another author's comment is that author's choice: the id and name show to every reader
   const forGus = await comments.listFor(t.db, who('gus', 'Gus Read', []), 'task', task.id);
-  assert.deepEqual(forGus[0].mentions, [{ id: 'erin', name: 'Erin Moss' }]);
+  assert.deepEqual(forGus.find((x) => x.id === firstId).mentions, [{ id: 'erin', name: 'Erin Moss' }]);
   // trash withdraws a mention; restore brings it back
   const erin = who('erin', 'Erin Moss', ['editors']);
   const activity = await import('../api/lib/repo/activity.js');
   const mine = async () => (await activity.list(t.db, erin, { limit: 50, for_me: true })).items.length;
-  const first = (await comments.listFor(t.db, dana, 'task', task.id))[0];
+  const first = (await comments.listFor(t.db, dana, 'task', task.id)).find((x) => x.id === firstId);
   assert.equal(await mine(), 1);
   const trashed = await comments.trash(t.db, dana, first.id, first.version, NOW);
   assert.equal(await mine(), 0);

@@ -326,3 +326,15 @@ test('import: checklist items must be one line within the limit; a "Checklist:" 
   assert.equal(r.body.tasks[0].notes, 'Notes here.\n\nChecklist:\n\n- [ ] not an item');
   await t.close();
 });
+
+test('an imported closed task has no closed_at: a file does not say when it was closed', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Done things' })).body;
+  await a.post('/api/tasks', { project_id: P.id, title: 'Finished', status: 'Done' });
+  const md = (await a.get(`/api/projects/${P.id}/export.md`)).text;
+  const r = await a.post('/api/projects/import', md, MD);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks.map((x) => [x.status, x.closed_at]), [['Done', null]], 'so it never shows as finished this week');
+  await t.close();
+});

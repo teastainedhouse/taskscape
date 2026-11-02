@@ -69,3 +69,15 @@ test('a hand-written file works too, and problems name field and line only', () 
     assert.equal(e.message.includes('SECRET'), false);
   }
 });
+
+test('a file of many same-title rows and sections parses in linear time, and stops at the task cap', () => {
+  const n = 26_000; // fits in the 256 KB body limit
+  const text = `# P\n\n## Tasks\n\n| Title |\n| --- |\n${'| a |\n'.repeat(n)}\n${'### a\n\n'.repeat(n)}`;
+  let t0 = performance.now();
+  const parsed = parseProjectExport(text);
+  assert.equal(parsed.tasks.length, n);
+  assert.ok(performance.now() - t0 < 5_000, 'was a minute (a per-task scan of every task)');
+  t0 = performance.now();
+  assert.throws(() => parseProjectExport(text, { maxTasks: 1000 }), (e) => e.field === 'tasks' && e.line === 1007);
+  assert.ok(performance.now() - t0 < 1_000);
+});

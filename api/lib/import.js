@@ -92,7 +92,7 @@ export async function planImport(db, user, text, config, { makePrivate = false }
   if (!canEdit(config, user)) throw forbidden('Your account is read-only.');
   let parsed;
   try {
-    parsed = parseProjectExport(text);
+    parsed = parseProjectExport(text, { maxTasks: config.limits.max_page_size });
   } catch (err) {
     if (err instanceof ImportParseError) throw validationFailed({ [err.field]: `${err.problem} (line ${err.line})` });
     throw err;
@@ -204,7 +204,8 @@ async function planParsed(db, user, parsed, config, { makePrivate = false, dupli
       if (!text || [...text].length > CHECKLIST_TEXT_MAX || UNSAFE_LABEL_CHARS.test(text)) throw validationFailed({ checklist: `items must be one line of 1 to ${CHECKLIST_TEXT_MAX} characters${at(c.line)}` });
       return { text, done: c.done };
     });
-    plannedTasks.push({ ...fields, links, checklist, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, recurrence: fields.recurrence ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), line: t.line });
+    // closed_at: a duplicate's own; a file says nothing of when a task was closed, so an import leaves it unknown
+    plannedTasks.push({ ...fields, links, checklist, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, recurrence: fields.recurrence ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), closed_at: t.closed_at ?? null, line: t.line });
   }
 
   const privateCount = (projectPrivate ? 1 : 0) + plannedTasks.filter((t) => t.private).length;
@@ -269,16 +270,34 @@ export async function planDuplicate(db, user, projectId, opts, config) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(moved)) throw validationFailed({ days: 'moves a due date out of range' });
     return moved;
   };
+  // a status or priority the config no longer has still reads (API.md), but cannot be written: it becomes the default
+  // status, or no priority, and the notes say so
+  let leftovers = 0;
+  const statusFor = (kind, s) => {
+    if (opts.reset_statuses) return config.default_status[kind];
+    if (config.statuses[kind].includes(s)) return s;
+    leftovers++;
+    return config.default_status[kind];
+  };
+  const priorityFor = (p) => {
+    if (p == null || (config.priorities ?? []).includes(p)) return p ?? null;
+    leftovers++;
+    return null;
+  };
   const parsed = {
     project: {
       name: opts.name ?? copyName(source.name), description: source.description ?? '',
-      status: opts.reset_statuses ? config.default_status.project : source.status,
+      status: statusFor('project', source.status),
       owner_name: source.owner_name, private: source.private, tags: (source.tags ?? []).map((x) => x.name),
     },
     lines: {},
     tasks: items.map((t) => ({
-      title: t.title, status: opts.reset_statuses ? config.default_status.task : t.status, priority: t.priority ?? null,
-      recurrence: t.recurrence ?? null, owner_id: t.owner_id, owner_name: t.owner_name, private: t.private,
+      title: t.title, status: statusFor('task', t.status), priority: priorityFor(t.priority ?? null),
+      // a task that already made its next copy has handed the series on: only the newest of a series keeps repeating,
+      // so a copy (above all with statuses reset) is one series, not one per closed predecessor
+      recurrence: t.recurred_to ? null : t.recurrence ?? null, owner_id: t.owner_id, owner_name: t.owner_name, private: t.private,
+      // when it was closed, if it still is: a copy of last June's work is not "finished this week"
+      closed_at: t.closed_at ?? null,
       due_date: dueFor(t.due_date), notes: t.notes ?? '', tags: (t.tags ?? []).map((x) => x.name),
       links: (t.links ?? []).map((l) => ({ url: l.url, label: l.label ?? null })),
       checklist: (t.checklist ?? []).map((c) => ({ text: c.text, done: false })),
@@ -287,7 +306,9 @@ export async function planDuplicate(db, user, projectId, opts, config) {
     comments_skipped: 0,
     ambiguous_notes: 0,
   };
-  return planParsed(db, user, parsed, config, { duplicate: true });
+  const plan = await planParsed(db, user, parsed, config, { duplicate: true });
+  if (leftovers) plan.notes.push(`${leftovers} status${leftovers === 1 ? ' or priority this site no longer has was' : 'es or priorities this site no longer has were'} replaced by the default (no priority).`);
+  return plan;
 }
 
 /** A duplicate copies at most this many request bodies' worth of text (limits.body_bytes each). */
