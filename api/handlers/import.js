@@ -1,5 +1,5 @@
 import { json, readText } from '../lib/http.js';
-import { validationFailed } from '../lib/errors.js';
+import { validationFailed, unsupportedMediaType } from '../lib/errors.js';
 import { planImport, runImport } from '../lib/import.js';
 
 /** @param {string|undefined} v  a boolean query flag; anything but true/false is 400 */
@@ -18,6 +18,7 @@ function flag(name, v) {
  */
 export const routes = [
   { method: 'POST', path: '/api/projects/import', accepts: ['text/markdown'], handler: async (req, ctx) => {
+    if ((req.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase() !== 'text/markdown') throw unsupportedMediaType(); // the body is a Markdown file, from anyone
     const dryRun = flag('dry_run', ctx.query.dry_run);
     const makePrivate = flag('private', ctx.query.private);
     const text = await readText(req, ctx.config.limits.body_bytes);

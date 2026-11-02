@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTestApp } from './helpers.js';
+import { createTestApp, tickingClock } from './helpers.js';
 
 test('tags: create is idempotent on the normalized name; palette default; validation', async () => {
   const t = await createTestApp();
@@ -30,7 +30,7 @@ test('tags: create is idempotent on the normalized name; palette default; valida
 });
 
 test('attach and detach are idempotent and bump the version only on a real change', async () => {
-  const t = await createTestApp();
+  const t = await createTestApp({ now: tickingClock() });
   const a = t.as('alice');
   const tag = (await a.post('/api/tags', { name: 'bug' })).body;
   const task = (await a.post('/api/tasks', { title: 'T' })).body;

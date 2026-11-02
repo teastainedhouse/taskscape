@@ -9,7 +9,7 @@ import { describeActivity, viaBadge } from './activity-words.js';
 import { commentWords } from './guestbook.js';
 import { readSeen, markSeen } from './for-you.js';
 
-const { me } = await boot({ title: "What's New?" });
+const { config, me } = await boot({ title: "What's New?" });
 const words = commentWords(me.preferences.comments_label);
 
 const tbody = document.querySelector('#feed tbody');
@@ -28,7 +28,7 @@ const state = {
 forSel.value = state.forMe ? 'me' : '';
 
 try {
-  const res = await get('/api/projects', { limit: 1000 });
+  const res = await get('/api/projects', { limit: config.limits?.max_page_size });
   for (const p of res.items ?? []) state.projectNames.set(p.id, p.name);
 } catch { /* names are a nicety; the feed still renders */ }
 

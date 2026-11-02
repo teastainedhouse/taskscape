@@ -317,7 +317,7 @@ input[type="text"], input[type="search"], input[type="date"], input[type="url"],
 }
 input[readonly] { background: var(--zebra); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-.field label, .field .field-label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.field label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
 .field { margin: 10px 0; }
 .filters .field { margin: 0; }
 

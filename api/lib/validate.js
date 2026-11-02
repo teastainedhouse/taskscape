@@ -1,5 +1,6 @@
 import { validationFailed } from './errors.js';
 import * as tagsRepo from './repo/tags.js';
+import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
 
 const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name'];
@@ -146,7 +147,7 @@ export function validTimeZone(name) {
 export function validatePreferences(body, config) {
   const errors = {};
   const out = {};
-  const known = ['theme', 'comments_label', 'shortcuts', 'time_zone'];
+  const known = PREFERENCE_KEYS;
   if (Object.keys(body).some((k) => !known.includes(k))) errors.body = 'has a key that is not a preference'; // never echo the caller's key
   if ('theme' in body) {
     if (body.theme === null || config.themes.includes(body.theme)) out.theme = body.theme;
@@ -161,8 +162,11 @@ export function validatePreferences(body, config) {
     else errors.shortcuts = 'must be true or false';
   }
   if ('time_zone' in body) {
-    const zone = body.time_zone === null ? null : canonicalTimeZone(body.time_zone);
-    if (body.time_zone === null || zone) out.time_zone = zone; // stored canonical ("asia/tokyo" becomes "Asia/Tokyo")
+    const canonical = body.time_zone === null ? null : canonicalTimeZone(body.time_zone);
+    // stored as sent once Intl accepts it, with only the case fixed ("asia/tokyo" becomes "Asia/Tokyo"): a runtime's
+    // alias for a zone (one name for Kolkata, another for Calcutta) must not replace the name the person picked
+    if (body.time_zone === null) out.time_zone = null;
+    else if (canonical) out.time_zone = canonical.toLowerCase() === String(body.time_zone).toLowerCase() ? canonical : String(body.time_zone);
     else errors.time_zone = 'must be an IANA time zone name';
   }
   if (Object.keys(errors).length) throw validationFailed(errors);

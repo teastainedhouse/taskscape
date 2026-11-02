@@ -64,7 +64,7 @@ test('login sets a hardened session cookie that authenticates /api/me', async ()
   assert.equal((await t.anon().get('/api/me')).status, 401);
   const r = await t.login('  Dana ');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { id: 'dana', name: 'Dana Fox', email: 'dana@example.test', auth: 'password', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' } });
+  assert.deepEqual(r.body, { id: 'dana', name: 'Dana Fox', email: 'dana@example.test', auth: 'password', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } } });
   const set = r.headers.get('set-cookie');
   assert.match(set, /^__Host-taskscape_session=[A-Za-z0-9_-]{43}; /);
   for (const attr of ['Path=/', 'HttpOnly', 'Secure', 'SameSite=Strict', `Max-Age=${30 * 86400}`]) assert.ok(set.split('; ').includes(attr), attr);

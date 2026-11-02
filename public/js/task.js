@@ -25,6 +25,7 @@ const state = {
   /** @type {string|null} */ cursor: null,
   activityCount: 0,
   activityBusy: false,
+  activityAgain: false,
 };
 
 const host = document.getElementById('task');
@@ -90,8 +91,10 @@ function render() {
 
   const parts = [];
   if (t.deleted_at) {
+    // a task in a trashed project cannot be restored on its own: the API says "restore the project first"
     parts.push(el('div', { class: 'status error', role: 'alert' }, 'This task is in the trash (since ', timeEl(t.deleted_at), '). ',
-      me.can_edit ? btn('Restore', restoreTask) : null));
+      state.project?.deleted_at ? ['Its project is in the trash too; restore ', projectLink(state.project.id, 'the project'), ' first.']
+        : me.can_edit ? btn('Restore', restoreTask) : null));
   } else if (state.project?.deleted_at) {
     parts.push(el('div', { class: 'status error', role: 'alert' }, 'This task\'s project is in the trash (since ', timeEl(state.project.deleted_at),
       '), so the task is read-only until the project is restored. ', projectLink(state.project.id, 'Open the project')));
@@ -123,7 +126,8 @@ function render() {
 
   row('Owner', inlineEdit({ key: 'task-owner', label: 'Owner', allowed: canEdit && (!t.private || owns()), value: t.owner_id,
     format: (id) => personName(id),
-    control: (v) => selectFor(state.people.map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
+    // a private project holds only its owner's tasks, so inside one the only owner on offer is the project's
+    control: (v) => selectFor((state.project?.private ? state.people.filter((p) => p.id === state.project.owner_id) : state.people).map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
     save: (v) => {
       // handing over a private task hands over its history and comments, and you lose sight of it
       if (t.private && v !== t.owner_id && !confirm(`Hand this private task to ${oneLine(personName(v))}?\nIt will be private to them: you will no longer see it, its history, or its comments.`)) return null;
@@ -141,7 +145,7 @@ function render() {
   if (owns() && canEdit) privacy.push(' ', btn(t.private ? 'Make public' : 'Make private', togglePrivacy, { class: 'privacy-toggle' }));
   row('Privacy', privacy);
 
-  row('Tags', tagEditor({ type: 'task', item: t, canEdit, config, onUpdated: (rec) => { state.task = rec; render(); } }));
+  row('Tags', tagEditor({ type: 'task', item: t, canEdit, config, onUpdated: (rec) => { state.task = rec; render(); loadActivity(true); } }));
   row('Created', timeEl(t.created_at));
   row('Updated', timeEl(t.updated_at));
   parts.push(el('div', { class: 'table-wrap' }, meta));
@@ -203,20 +207,20 @@ async function trashTask() {
   const t = state.task;
   if (!confirm(`Move the task "${oneLine(t.title)}" to the trash?\nYou can restore it from this page or the Trash page.`)) return;
   const rec = await attempt(() => del(taskPath(t.id), { version: t.version }), (current) => { state.task = current; render(); });
-  if (rec) { state.task = rec; render(); say('Task moved to the trash.'); host.querySelector('button')?.focus(); }
+  if (rec) { state.task = rec; render(); loadActivity(true); say('Task moved to the trash.'); host.querySelector('button')?.focus(); }
 }
 
 async function restoreTask() {
   const t = state.task;
   const rec = await attempt(() => post(`${taskPath(t.id)}/restore`, { version: t.version }), (current) => { state.task = current; render(); });
-  if (rec) { state.task = rec; render(); say('Task restored.'); focusEditable('task-title'); }
+  if (rec) { state.task = rec; render(); loadActivity(true); say('Task restored.'); focusEditable('task-title'); }
 }
 
 /* ---------------------------------------------------------------- activity */
 
 /** This task's entries, newest first, a page at a time. @param {boolean} [first] */
 async function loadActivity(first = false) {
-  if (state.activityBusy) return;
+  if (state.activityBusy) { if (first) state.activityAgain = true; return; } // a reload asked for mid-load runs when this one ends
   state.activityBusy = true;
   if (first) { state.cursor = null; state.activityCount = 0; setChildren(activityList, []); }
   activityMore.setAttribute('aria-disabled', 'true');
@@ -232,7 +236,11 @@ async function loadActivity(first = false) {
     state.cursor = res.next_cursor ?? null;
     activityMore.hidden = !state.cursor;
     document.getElementById('activity-empty').hidden = state.activityCount > 0;
-  } catch (err) { sayError(err, 'Could not load the activity'); } finally { activityMore.removeAttribute('aria-disabled'); state.activityBusy = false; }
+  } catch (err) { sayError(err, 'Could not load the activity'); } finally {
+    activityMore.removeAttribute('aria-disabled');
+    state.activityBusy = false;
+    if (state.activityAgain) { state.activityAgain = false; loadActivity(true); }
+  }
 }
 
 await start();

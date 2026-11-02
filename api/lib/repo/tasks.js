@@ -1,6 +1,6 @@
 import { newId } from '../ids.js';
 import { notFound, conflict, invalidState, forbidden } from '../errors.js';
-import { taskVisible, trashState, live, likeContains } from './visibility.js';
+import { taskVisible, live, likeContains } from './visibility.js';
 import { rowToTask, tagsFor, statusOrder, diff } from './common.js';
 import { record } from './activity.js';
 import * as tags from './tags.js';

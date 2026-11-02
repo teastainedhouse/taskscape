@@ -14,7 +14,7 @@ import { applyTheme, applyRememberedTheme, forgetTheme } from './theme.js';
 import { mountShortcuts } from './shortcuts.js';
 
 /**
- * @typedef {{theme: string, comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string}} Preferences
+ * @typedef {{theme: string, comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string, chosen: Record<string, boolean>}} Preferences
  * @typedef {{config: any, me: {id: string, name: string, auth: string, can_edit: boolean, preferences: Preferences}}} PageContext
  */
 
@@ -146,7 +146,7 @@ export async function boot(opts) {
   ready = true;
   passwordSession = me.auth === 'password';
   /** Pages built before preferences existed still work: every key has a site default. */
-  me.preferences = { theme: config.theme, comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', ...(config.preference_defaults ?? {}), ...(me.preferences ?? {}) };
+  me.preferences = { theme: config.theme, comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: {}, ...(config.preference_defaults ?? {}), ...(me.preferences ?? {}) };
   applyPreferences(config, me.preferences);
 
   applySiteTitle(config.site_title, opts?.title);
@@ -175,7 +175,9 @@ export async function boot(opts) {
  */
 export function applyPreferences(config, prefs) {
   applyTheme(prefs.theme, config.themes ?? [config.theme], { fallback: config.theme });
-  setTimeZone(prefs.time_zone);
+  // a zone the person chose follows them everywhere; otherwise this device's zone decides "today", as it always did
+  // (Claude, which has no device, follows the site default through the MCP me tool)
+  setTimeZone(prefs.chosen?.time_zone ? prefs.time_zone : null);
   mountShortcuts(!!prefs.shortcuts);
 }
 

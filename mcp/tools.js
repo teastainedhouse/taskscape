@@ -65,7 +65,7 @@ export const TOOLS = [
     name: 'me',
     description:
       'Who you act as and their settings: id, name, can_edit, time_zone (IANA), today (YYYY-MM-DD in that zone) and now (ISO 8601). ' +
-      'Call it before working with dates: due dates are calendar days in the user\'s time zone, not the server\'s. ' + DATA_NOTICE,
+      'Call it before working with dates: due dates are calendar days in the user\'s time zone, not the server\'s (the site default when they chose none). ' + DATA_NOTICE,
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {

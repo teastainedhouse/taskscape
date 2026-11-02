@@ -36,7 +36,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'projects', 'tags']) {
+    for (const table of ['comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }

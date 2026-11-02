@@ -162,7 +162,7 @@ test('body rules: text/markdown only from a browser, size limit, cross-site, rea
   assert.equal((await a.post('/api/projects/import', '# Big\n\n' + 'x'.repeat(3000) + '\n\n## Tasks\n\n_No tasks._\n', MD)).status, 413);
   assert.equal((await t.as('ro').post('/api/projects/import', md, MD)).status, 403);
   const json = await a.post('/api/projects/import', { markdown: md });
-  assert.equal(json.status, 400, 'JSON is read as text and is not an export');
+  assert.equal(json.status, 415, 'the body is a Markdown file, not JSON');
   const tok = t.tokenAs((await a.post('/api/tokens', { label: 'x' })).body.plaintext);
   assert.equal((await tok.post('/api/projects/import', md, MD)).status, 201);
   assert.equal((await a.post('/api/projects/import', md, MD)).status, 201);
@@ -180,6 +180,10 @@ test('limits and hostile files: long lines, too many tasks, too many tags, a sec
   assert.deepEqual(await field(head + row(1, Array.from({ length: 21 }, (_, i) => `t${i}`).join(', '))), [400, { tags: 'at most 20 tags on one item (line 7)' }]);
   assert.equal((await field(head + [1, 2, 3].map((n) => row(n, Array.from({ length: 20 }, (_, i) => `n${n}-${i}`).join(', '))).join('')))[1].tags, 'at most 50 new tag names per import');
   assert.deepEqual(await field('# P\n\nIntro\n\n## Tasks\n\n| Title |\n| --- |\n| Injected |\n\n## Tasks\n\n_No tasks._\n'), [400, { description: 'has a line that reads as the "## Tasks" heading; change or indent it (line 11)' }]);
+  assert.deepEqual(await field('# P\n\n## Tasks\n\n| Title |\n| --- |\n| A |\n\n### A\n\nnotes with\n## Tasks\ninside\n'), [400, { notes: 'has a line that reads as the "## Tasks" heading; change or indent it (line 12)' }]);
+  // Private in any case; anything else is an error naming field and line, never the value
+  assert.equal((await a.post('/api/projects/import?dry_run=true', '# P\n\n| Field | Value |\n| --- | --- |\n| Private | YES |\n\n## Tasks\n\n| Title | Private |\n| --- | --- |\n| T | Yes |\n', MD)).body.tasks[0].private, true);
+  assert.deepEqual(await field('# P\n\n| Field | Value |\n| --- | --- |\n| Private | maybe |\n\n## Tasks\n\n_No tasks._\n'), [400, { private: 'must be yes or no (line 5)' }]);
   assert.equal((await a.post('/api/projects/import', head + row(1), { 'content-type': 'text/markdown; charset=utf-16' })).status, 415);
   assert.equal((await a.post('/api/projects/import', '\ufeff' + head + row(1), { 'content-type': 'TEXT/MARKDOWN; charset="UTF-8"' })).status, 201, 'a BOM and an upper-case type are fine');
   await t.close();

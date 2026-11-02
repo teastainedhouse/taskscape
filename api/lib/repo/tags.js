@@ -58,7 +58,9 @@ export async function createIn(tx, user, input, config, now) {
       color = palette[Number(rows[0].n) % palette.length];
     }
     const id = newId();
-    await tx.query('INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?)', [id, name, color, now]);
+    // two transactions can both find no row (PostgreSQL); the loser of the unique name reads the winner's tag
+    const { changes } = await tx.query('INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (name) DO NOTHING', [id, name, color, now]);
+    if (!changes) return { tag: await getByName(tx, name), created: false };
     await record(tx, user, { item_type: 'tag', item_id: id, action: 'create', changes: { name: { to: name }, color: { to: color } } }, now);
     return { tag: { id, name, color, created_at: now }, created: true };
   }

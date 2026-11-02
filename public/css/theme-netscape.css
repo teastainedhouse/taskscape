@@ -154,7 +154,7 @@ input[type="text"], input[type="search"], input[type="date"], input[type="url"],
 }
 input[readonly] { background: var(--zebra); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-.field label, .field .field-label { font-family: var(--sans); font-size: 0.85em; font-weight: bold; margin-bottom: 2px; }
+.field label { font-family: var(--sans); font-size: 0.85em; font-weight: bold; margin-bottom: 2px; }
 .field { margin: 8px 0; }
 .filters .field { margin: 0; }
 

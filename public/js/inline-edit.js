@@ -108,6 +108,7 @@ export function inlineEdit(spec) {
     };
 
     control.addEventListener('keydown', (ev) => {
+      pointer = false; // back on the keyboard: the next change waits for Enter or Tab
       if (ev.isComposing) return;
       if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
       else if (ev.key === 'Enter' && (!isText || ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); commit(true); }

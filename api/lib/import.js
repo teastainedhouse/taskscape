@@ -193,6 +193,9 @@ export async function planImport(db, user, text, config, { makePrivate = false }
  * @returns {Promise<{project: object, tasks: object[]}>}
  */
 export async function runImport(db, user, plan, config, now) {
+  // one millisecond apart per record, so What's New lists the project before its tasks and the tasks in file order
+  let tick = Date.parse(now);
+  const next = () => new Date(tick++).toISOString();
   return db.transaction(async (tx) => {
     const tagIds = new Map();
     const idsFor = async (names) => {
@@ -200,17 +203,17 @@ export async function runImport(db, user, plan, config, now) {
       for (const name of names) {
         const key = tags.normalizeTagName(name);
         if (!key) continue;
-        if (!tagIds.has(key)) tagIds.set(key, (await tags.createIn(tx, user, { name }, config, now)).tag.id);
+        if (!tagIds.has(key)) tagIds.set(key, (await tags.createIn(tx, user, { name }, config, next())).tag.id);
         if (!out.includes(tagIds.get(key))) out.push(tagIds.get(key));
       }
       return out;
     };
     const { tags: projectTags, ...projectInput } = plan.project;
-    const project = await projects.createIn(tx, user, { ...projectInput, tag_ids: await idsFor(projectTags) }, config, now);
+    const project = await projects.createIn(tx, user, { ...projectInput, tag_ids: await idsFor(projectTags) }, config, next());
     const created = [];
     for (const t of plan.tasks) {
       const { tags: taskTags, line, ...input } = t;
-      created.push(await tasks.createIn(tx, user, { ...input, project_id: project.id, tag_ids: await idsFor(taskTags) }, config, now));
+      created.push(await tasks.createIn(tx, user, { ...input, project_id: project.id, tag_ids: await idsFor(taskTags) }, config, next()));
     }
     return { project, tasks: created };
   });

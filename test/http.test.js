@@ -41,7 +41,7 @@ test('me reports identity and edit rights; config is the public subset only', as
   const t = await createTestApp();
   const me = await t.as('bob').get('/api/me');
   assert.equal(me.status, 200);
-  assert.deepEqual(me.body, { id: 'bob', name: 'Bob Ortiz', email: 'bob@example.test', auth: 'dev', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' } });
+  assert.deepEqual(me.body, { id: 'bob', name: 'Bob Ortiz', email: 'bob@example.test', auth: 'dev', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } } });
   const cfg = await t.as('bob').get('/api/config');
   assert.equal(cfg.status, 200);
   assert.equal(cfg.body.catch_all_project_id, 'general');

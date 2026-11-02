@@ -231,7 +231,8 @@ const TASK_COLUMNS = {
     fields: (t, v) => ({ status: v }) },
   owner: { label: 'Owner', sort: 'owner_name', value: (t) => t.owner_id, allowed: (t) => !t.private || owns(t),
     format: (id, t) => (id === t.owner_id ? t.owner_name : personName(id)),
-    control: (t, v) => selectFor(state.people.map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
+    // a private project holds only its owner's tasks, so inside one the only owner on offer is the project's
+    control: (t, v) => selectFor((state.project.private ? state.people.filter((p) => p.id === state.project.owner_id) : state.people).map((p) => ({ value: p.id, label: p.name })), v, { missing: t.owner_name }),
     confirm: (t, v) => !t.private || v === t.owner_id || confirm(`Hand this private task to ${oneLine(personName(v))}?\nIt will be private to them: you will no longer see it, its history, or its comments.`),
     fields: (t, v) => ({ owner_id: v, owner_name: personName(v) }) },
   due_date: { label: 'Due', sort: 'due_date', value: (t) => t.due_date, empty: '—',
@@ -350,8 +351,10 @@ function appendRow(t) {
 /** @param {any} t */
 function taskRow(t) {
   // a row that stopped matching the filters stays, marked, until the list reloads
-  const tr = el('tr', { id: `task-${t.id}`, class: [isOverdue(t, config) ? 'overdue' : '', matchesFilters(t) ? '' : 'filtered-out'].join(' ').trim() });
+  const tr = el('tr', { id: `task-${t.id}`, class: [isOverdue(t, config) ? 'overdue' : '', matchesFilters(t) ? '' : 'filtered-out', t.deleted_at ? 'trashed' : ''].join(' ').trim() });
   for (const c of columns) tr.appendChild(el('td', { class: `col-${c.key}`, 'data-label': c.label }, cell(c, t)));
+  // a trashed project lists its tasks read-only; one trashed on its own says so
+  if (t.deleted_at) tr.querySelector('td.col-title')?.append(' ', el('span', { class: 'muted' }, '(in the trash)'));
   return tr;
 }
 

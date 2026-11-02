@@ -7,7 +7,8 @@ import { createTestApp } from './helpers.js';
 import { prepareConfig } from '../api/lib/config.js';
 import { readFileSync } from 'node:fs';
 
-const DEFAULTS = { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC' };
+const NONE = { theme: false, comments_label: false, shortcuts: false, time_zone: false };
+const DEFAULTS = { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: NONE };
 const RAW = JSON.parse(readFileSync(new URL('../taskscape.config.json', import.meta.url), 'utf8'));
 
 test('defaults come from the config; GET and the Me shape agree; a token can read', async () => {
@@ -28,12 +29,12 @@ test('PATCH stores per principal, overlays the defaults, null goes back to the d
   const a = t.as('alice');
   const r = await a.patch('/api/me/preferences', { theme: 'netscape', time_zone: 'Asia/Tokyo' });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { ...DEFAULTS, theme: 'netscape', time_zone: 'Asia/Tokyo' });
+  assert.deepEqual(r.body, { ...DEFAULTS, theme: 'netscape', time_zone: 'Asia/Tokyo', chosen: { ...NONE, theme: true, time_zone: true } });
   assert.deepEqual((await a.get('/api/me')).body.preferences, r.body);
   // a second write keeps what the first set
-  assert.deepEqual((await a.patch('/api/me/preferences', { shortcuts: false })).body, { ...DEFAULTS, theme: 'netscape', time_zone: 'Asia/Tokyo', shortcuts: false });
+  assert.deepEqual((await a.patch('/api/me/preferences', { shortcuts: false })).body, { ...DEFAULTS, theme: 'netscape', time_zone: 'Asia/Tokyo', shortcuts: false, chosen: { ...NONE, theme: true, time_zone: true, shortcuts: true } });
   // null = site default
-  assert.deepEqual((await a.patch('/api/me/preferences', { theme: null, shortcuts: null })).body, { ...DEFAULTS, time_zone: 'Asia/Tokyo' });
+  assert.deepEqual((await a.patch('/api/me/preferences', { theme: null, shortcuts: null })).body, { ...DEFAULTS, time_zone: 'Asia/Tokyo', chosen: { ...NONE, time_zone: true } });
   // someone else is untouched
   assert.deepEqual((await t.as('bob').get('/api/me/preferences')).body, DEFAULTS);
   // outside the versioning rule: no activity entry
@@ -62,6 +63,7 @@ test('validation names the field only: themes from the config, the two labels, a
   assert.equal((await a.patch('/api/me/preferences', { time_zone: 'America/New_York' })).status, 200);
   // stored canonical; offsets are not zone names; a prototype key is just an unknown key
   assert.equal((await a.patch('/api/me/preferences', { time_zone: 'asia/tokyo' })).body.time_zone, 'Asia/Tokyo');
+  assert.equal((await a.patch('/api/me/preferences', { time_zone: 'Asia/Kolkata' })).body.time_zone, 'Asia/Kolkata', 'the name as picked, not the runtime\'s alias');
   assert.equal((await a.patch('/api/me/preferences', { time_zone: '+05' })).status, 400);
   assert.equal((await a.patch('/api/me/preferences', JSON.parse('{"__proto__": {"x": 1}, "theme": "netscape"}'))).status, 400);
   await t.close();
@@ -80,7 +82,9 @@ test('writes are human-only and self-scoped; a read-only account still sets its 
 test('a stored theme the site no longer lists falls back to the default in the Me shape', async () => {
   const t = await createTestApp();
   await t.db.query("INSERT INTO preferences (user_id, theme, updated_at) VALUES ('alice', 'gone', '2026-01-01T00:00:00.000Z')");
-  assert.equal((await t.as('alice').get('/api/me')).body.preferences.theme, 'toolbar');
+  const prefs = (await t.as('alice').get('/api/me')).body.preferences;
+  assert.equal(prefs.theme, 'toolbar');
+  assert.equal(prefs.chosen.theme, false, 'a removed theme no longer counts as chosen');
   await t.close();
 });
 

@@ -29,11 +29,15 @@ export async function get(db, userId) {
  */
 export function effective(config, row) {
   const d = config.preference_defaults;
+  const themeOk = !!row?.theme && config.themes.includes(row.theme); // a theme a fork removed falls back to the default
   return {
-    theme: row?.theme && config.themes.includes(row.theme) ? row.theme : config.theme, // a theme a fork removed falls back to the default
+    theme: themeOk ? row.theme : config.theme,
     comments_label: row?.comments_label ?? d.comments_label,
     shortcuts: row?.shortcuts ?? d.shortcuts,
     time_zone: row?.time_zone ?? d.time_zone,
+    // which of these the person chose (the rest are the site's defaults): the browser uses the device's
+    // time zone unless one was chosen, and the profile page can say "(site default)"
+    chosen: { theme: themeOk, comments_label: row?.comments_label != null, shortcuts: row?.shortcuts != null, time_zone: row?.time_zone != null },
   };
 }
 

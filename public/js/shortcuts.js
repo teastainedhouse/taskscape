@@ -90,8 +90,8 @@ function onKey(ev) {
   const now = Date.now();
   if (pendingG && now - pendingG <= SEQUENCE_MS && key !== 'g') {
     pendingG = 0;
-    if (Object.hasOwn(GO, key)) { ev.preventDefault(); location.href = GO[key][0]; }
-    return;
+    if (Object.hasOwn(GO, key)) { ev.preventDefault(); location.href = GO[key][0]; return; }
+    // not a destination: the key means what it always means (a / or n right after a stray g still works)
   }
   pendingG = 0;
   switch (key) {

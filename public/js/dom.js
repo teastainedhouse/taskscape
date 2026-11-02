@@ -129,19 +129,6 @@ export function option(value, label, selected) {
   return el('option', { value, selected: !!selected }, label ?? value);
 }
 
-/**
- * A <select> with a label.
- * @param {{id: string, label: string, options: Array<{value: string, label?: string}>, value?: string, blank?: string}} spec
- * @returns {{wrap: HTMLElement, select: HTMLSelectElement}}
- */
-export function labeledSelect(spec) {
-  const select = el('select', { id: spec.id, name: spec.id });
-  if (spec.blank != null) select.appendChild(option('', spec.blank));
-  for (const o of spec.options) select.appendChild(option(o.value, o.label ?? o.value, o.value === spec.value));
-  const wrap = el('div', { class: 'field' }, el('label', { for: spec.id }, spec.label), select);
-  return { wrap, select };
-}
-
 /** Private marker: a padlock icon. */
 export function padlock() {
   return el('span', { class: 'padlock', title: 'Private: only you can see this' },

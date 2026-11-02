@@ -63,7 +63,7 @@ api/
     config.js              loadConfig(), prepareConfig() (env overrides + validation, incl. that every theme has its CSS file), publicConfig(), canEdit()
     validate.js            validateItem() for project/task bodies, validateTag(), validateTokenInput(), validateLogin(), validatePasswordChange(),
                            validateNewUser(), validatePreferences() (+ validTimeZone(), COMMENTS_LABELS), parseListQuery(), parseActivityQuery()
-    markdown.js            renderProjectExport(), mdCell(), mdInline(), slug()
+    markdown.js            renderProjectExport(), mdCell(), mdInline(), mdText(), slug()
     markdown-import.js     parseProjectExport(): the export format back into a project and tasks, pure; ImportParseError names field and line
     import.js              planImport() (owners by exact unique name, statuses and fields checked with the line, notes) and runImport()
                            (tags, project, tasks in one transaction through the repo's createIn functions); reusable for "duplicate project"
@@ -100,7 +100,7 @@ api/
       users.js             password-provider users: get, credentials (login only), list, listEnabled (people picker), existingFootprint (counts an id's items, for the CLI),
                            create (refuses an id in use unless claimExisting), setPassword, disable, enable; no version, no activity
       sessions.js          sign-in sessions: create (cookie value returned once), lookup, touch, listForUser (never the hash), removeOwn, removeByToken/ForUser/Expired; no version, no activity
-      preferences.js       get (the row or null), effective (defaults overlaid), set (UPDATE then INSERT); no version, no activity
+      preferences.js       get (the row or null), effective (defaults overlaid, with `chosen`), set (one ON CONFLICT upsert); no version, no activity
 
 migrations/
   001_init.sql             projects, tasks, tags, project_tags, task_tags, activity, mcp_tokens, schema_migrations
@@ -181,7 +181,7 @@ Example: a nullable `priority` text column.
 
 1. `migrations/NNN_task_priority.sql`, where `NNN` is the next unused number in `migrations/` (two files with one number make `npm run migrate` throw): `ALTER TABLE tasks ADD COLUMN priority TEXT;` (dialect-neutral; both databases accept it).
 2. `api/lib/repo/common.js`, `rowToTask()`: add `priority: r.priority ?? null`.
-3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `create()`; add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
+3. `api/lib/repo/tasks.js`: add `'priority'` to `SETTABLE`; add it to `row` and to the `INSERT` column and value lists in `createIn()` (which `create()` wraps in a transaction); add `priority = ?` and `next.priority` to the `cas()` call in `update()`. `diff()` and the activity entry pick it up from `SETTABLE`.
 4. `api/lib/validate.js`, `validateItem()`: inside `if (kind === 'task')`, accept and check the value (allowlist, length, or `null`). Add it to `READ_ONLY` instead if the API computes it.
 5. `docs/API.md`: the Task shape in §4, the `POST`/`PATCH /api/tasks` bodies in §6, and a dated line in §9 Changes.
 6. UI: add an entry to the `TASK_COLUMNS` map in `public/js/tasks.js`: `label`, `sort` if the API sorts by it, and either `view(t)` for a read-only cell or `value(t)`, `control(t, v)` and `fields(t, v)` for a click-to-edit cell (plus `allowed(t)`, `format(v)`, `empty`, `confirm(t, v)` as needed; see the comment above the map); then list the field name in `task_fields` in `taskscape.config.json`; the table shows the columns in that list's order, and an unknown field falls back to plain text. Add a row for it to `render()` in `public/js/task.js`, which shows every field.

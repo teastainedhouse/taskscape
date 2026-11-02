@@ -70,8 +70,13 @@ const isTableRow = (s) => /^\s*\|.*\|\s*$/.test(s);
 export const titleKey = (s) => String(s).replace(/\s+/g, ' ').trim();
 /** @param {string} s */
 const isSeparator = (s) => /^\s*\|(\s*:?-{3,}:?\s*\|)+\s*$/.test(s);
-/** @param {string} v */
-const yesNo = (v) => (v === 'yes' ? true : v === 'no' ? false : null);
+/** "yes"/"no" in any case, empty for unknown; anything else is a mistake the caller must hear about, not a silent "public". @param {string} v @param {string} field @param {number} line */
+function yesNo(v, field, line) {
+  const w = v.trim().toLowerCase();
+  if (w === 'yes' || w === 'true') return true;
+  if (w === 'no' || w === 'false' || w === '') return w === '' ? null : false;
+  throw new ImportParseError(field, 'must be yes or no', line);
+}
 /** @param {string} v  the export joins tag names with ", " */
 const tagList = (v) => v.split(',').map((t) => t.trim()).filter(Boolean);
 /** @param {string} v */
@@ -101,7 +106,7 @@ export function parseProjectExport(text) {
   // the Field | Value table
   while (i < n && lines[i].trim() === '') i++;
   const fields = new Map();
-  const fieldLines = { name: nameLine, status: 0, owner: 0, tags: 0, description: 0 };
+  const fieldLines = { name: nameLine, status: 0, owner: 0, tags: 0, private: 0, description: 0 };
   if (i < n && isTableRow(lines[i]) && splitCells(lines[i])[0] === 'Field') {
     i++;
     if (i < n && isSeparator(lines[i])) i++;
@@ -121,7 +126,12 @@ export function parseProjectExport(text) {
   const headings = [];
   for (let j = i; j < n; j++) if (/^## Tasks\s*$/.test(lines[j])) headings.push(j);
   if (!headings.length) throw new ImportParseError('tasks', 'the file needs a "## Tasks" section', Math.max(1, lines.findLastIndex((l) => l.trim() !== '') + 1));
-  if (headings.length > 1) throw new ImportParseError('description', 'has a line that reads as the "## Tasks" heading; change or indent it', headings[1] + 1);
+  if (headings.length > 1) {
+    // before the first heading it can only be the description; after it, a task's notes
+    const second = headings[1];
+    const field = lines.slice(headings[0] + 1, second).some((l) => /^### \S/.test(l)) ? 'notes' : 'description';
+    throw new ImportParseError(field, 'has a line that reads as the "## Tasks" heading; change or indent it', second + 1);
+  }
   const tasksAt = headings[0];
   const descLines = trimBlank(lines.slice(descStart, tasksAt));
   fieldLines.description = descLines.length ? lines.indexOf(descLines[0], descStart) + 1 : 0;
@@ -147,7 +157,7 @@ export function parseProjectExport(text) {
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
       tasks.push({
         title, status: orNull(cell('status')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
-        tags: tagList(cell('tags')), private: yesNo(cell('private')), notes: '', line: at(),
+        tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', line: at(),
       });
       i++;
     }
@@ -220,7 +230,7 @@ export function parseProjectExport(text) {
       name, description,
       status: orNull(fields.get('Status') ?? ''),
       owner_name: orNull(fields.get('Owner') ?? ''),
-      private: yesNo(fields.get('Private') ?? ''),
+      private: yesNo(fields.get('Private') ?? '', 'private', fieldLines.private || nameLine),
       tags: tagList(fields.get('Tags') ?? ''),
     },
     lines: fieldLines,

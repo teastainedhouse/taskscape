@@ -63,8 +63,10 @@ function setupPreferences() {
   const theme = el('select', { id: 'pref-theme', name: 'theme' }, (config.themes ?? [config.theme]).map((t) => option(t, t === config.theme ? `${t} (site default)` : t, t === prefs.theme)));
   const label = el('select', { id: 'pref-comments', name: 'comments_label' }, ['Comments', 'Guestbook'].map((l) => option(l, l, l === prefs.comments_label)));
   const shortcuts = el('input', { type: 'checkbox', id: 'pref-shortcuts', name: 'shortcuts', checked: !!prefs.shortcuts });
-  const zone = el('select', { id: 'pref-zone', name: 'time_zone' }, timeZones(prefs.time_zone).map((z) => option(z, z, z === prefs.time_zone)));
   const device = deviceZone();
+  // not chosen yet: the form shows the device's zone, which is what the pages use until one is saved
+  const shownZone = prefs.chosen?.time_zone ? prefs.time_zone : (device ?? prefs.time_zone);
+  const zone = el('select', { id: 'pref-zone', name: 'time_zone' }, timeZones(shownZone).map((z) => option(z, z, z === shownZone)));
   const useDevice = device ? btn(`Use this device's (${device})`, () => { if (![...zone.options].some((o) => o.value === device)) zone.appendChild(option(device)); zone.value = device; }) : null;
   const save = el('button', { type: 'submit' }, 'Save preferences');
   setChildren(form, [
@@ -72,7 +74,9 @@ function setupPreferences() {
     el('div', { class: 'field' }, el('label', { for: label.id }, 'Call comments'), label),
     el('div', { class: 'field' }, el('label', null, shortcuts, ' Single-key keyboard shortcuts (press ? for the list)')),
     el('div', { class: 'field' }, el('label', { for: zone.id }, 'Time zone'), zone, useDevice ? [' ', useDevice] : null,
-      el('p', { class: 'muted', id: 'pref-zone-hint' }, 'Due dates and "today" follow this zone, in the browser and for Claude.')),
+      el('p', { class: 'muted', id: 'pref-zone-hint' }, prefs.chosen?.time_zone
+        ? 'Due dates and "today" follow this zone, in the browser and for Claude.'
+        : `Not set: the browser uses this device's zone, and Claude uses the site default (${prefs.time_zone}). Save to make one zone follow you everywhere.`)),
     el('div', { class: 'field' }, save),
   ]);
   zone.setAttribute('aria-describedby', 'pref-zone-hint');
@@ -83,7 +87,8 @@ function setupPreferences() {
     try {
       // only what changed, so an untouched field keeps following the site default (NULL in the row)
       const wanted = { theme: theme.value, comments_label: label.value, shortcuts: shortcuts.checked, time_zone: zone.value };
-      const changes = Object.fromEntries(Object.entries(wanted).filter(([k, v]) => v !== me.preferences[k]));
+      // what differs from the stored choice (a never-chosen zone counts as different, so saving the form chooses it)
+      const changes = Object.fromEntries(Object.entries(wanted).filter(([k, v]) => v !== me.preferences[k] || (k === 'time_zone' && !me.preferences.chosen?.time_zone)));
       if (!Object.keys(changes).length) { say('Nothing changed.'); return; }
       const fresh = await patch('/api/me/preferences', changes);
       me.preferences = fresh;
