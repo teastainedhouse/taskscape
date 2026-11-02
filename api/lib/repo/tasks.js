@@ -54,7 +54,7 @@ export async function mustGet(db, user, id) {
 }
 
 /**
- * @param {{project?: string, status?: string[], priority?: string[], owner?: string, tag?: string[], q?: string, due_before?: string, due_after?: string, include_trashed: string, sort: string, dir: string, limit: number, offset: number}} f
+ * @param {{project?: string, status?: string[], priority?: string[], owner?: string, tag?: string[], q?: string, due_before?: string, due_after?: string, open?: boolean, include_trashed: string, sort: string, dir: string, limit: number, offset: number}} f
  */
 export async function list(db, user, f, config) {
   const vis = taskVisible('t', 'p', user);
@@ -77,11 +77,12 @@ export async function list(db, user, f, config) {
       OR EXISTS (SELECT 1 FROM task_checklist_items qc WHERE qc.task_id = t.id AND qc.deleted_at IS NULL AND LOWER(qc.text) LIKE ? ESCAPE '\\'))`);
     const l = likeContains(f.q); params.push(l, l, l, l, l);
   }
-  // `due` needs the caller's today (f.today, from preferences.todayFor()); overdue also means not in a closed status
+  // `due` needs the caller's today (f.today, from preferences.todayFor()); overdue also means not in a closed status.
+  // `open` (internal callers only, such as the calendar feed) is that status rule alone, so closed rows never use up the limit.
+  const closedList = config.closed_statuses.task;
+  if ((f.due === 'overdue' || f.open) && closedList.length) { where.push(`t.status NOT IN (${closedList.map(() => '?').join(', ')})`); params.push(...closedList); }
   if (f.due === 'overdue') {
     where.push('t.due_date IS NOT NULL AND t.due_date < ?'); params.push(f.today);
-    const closedList = config.closed_statuses.task;
-    if (closedList.length) { where.push(`t.status NOT IN (${closedList.map(() => '?').join(', ')})`); params.push(...closedList); }
   } else if (f.due === 'today') { where.push('t.due_date = ?'); params.push(f.today); }
   else if (f.due === 'week') { where.push('t.due_date >= ? AND t.due_date <= ?'); params.push(f.today, addDays(f.today, 6)); }
   if (f.closed_since) { where.push('t.closed_at IS NOT NULL AND t.closed_at >= ?'); params.push(f.closed_since); }

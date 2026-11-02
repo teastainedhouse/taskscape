@@ -15,7 +15,9 @@ import { recurrenceMark } from './task-columns.js';
 const { config, me } = await boot({ title: 'Calendar' });
 const today = me.today ?? new Date().toISOString().slice(0, 10);
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const fmtMonth = (y, m) => new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+/** A UTC date; setUTCFullYear, since Date.UTC reads years 0-99 as 1900-1999. */
+function utc(y, m, d) { const t = new Date(0); t.setUTCFullYear(y, m - 1, d); return t; }
+const fmtMonth = (y, m) => utc(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const fmtDay = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -26,6 +28,8 @@ try { onlyMine = localStorage.getItem(`taskscape_calendar_mine:${me.id}`) === '1
 /** @type {Map<string, any[]>} tasks by due date, for the shown month */
 let byDay = new Map();
 let selected = null;
+/** Bumped by every load, so a slow answer for a month already left is never drawn. */
+let generation = 0;
 
 const grid = document.getElementById('cal-grid');
 const list = document.getElementById('cal-list');
@@ -50,12 +54,15 @@ function move(delta) {
 }
 
 async function load() {
-  const first = `${year}-${pad(month)}-01`;
-  const last = `${year}-${pad(month)}-${pad(new Date(Date.UTC(year, month, 0)).getUTCDate())}`;
-  history.replaceState(null, '', `?month=${year}-${pad(month)}`);
+  const ym = `${String(year).padStart(4, '0')}-${pad(month)}`;
+  const first = `${ym}-01`;
+  const last = `${ym}-${pad(utc(year, month + 1, 0).getUTCDate())}`;
+  const gen = generation += 1;
+  history.replaceState(null, '', `?month=${ym}`);
   document.getElementById('cal-title').textContent = fmtMonth(year, month);
   try {
     const res = await get('/api/tasks', { due_after: first, due_before: last, sort: 'due_date', dir: 'asc', limit: config.limits?.max_page_size, ...(onlyMine ? { owner: 'me' } : {}) });
+    if (gen !== generation) return;
     byDay = new Map();
     for (const t of res.items ?? []) { if (!byDay.has(t.due_date)) byDay.set(t.due_date, []); byDay.get(t.due_date).push(t); }
     renderGrid();
@@ -65,7 +72,7 @@ async function load() {
     document.getElementById('cal-summary').textContent = n
       ? `${n}${n >= (res.limit ?? Infinity) ? '+' : ''} task${n === 1 ? '' : 's'} due in ${fmtMonth(year, month)}${onlyMine ? ', yours' : ''}.`
       : `Nothing is due in ${fmtMonth(year, month)}${onlyMine ? ' for you' : ''}. Give a task a due date and it shows up here.`;
-  } catch (err) { sayError(err, 'Could not load the month'); }
+  } catch (err) { if (gen === generation) sayError(err, 'Could not load the month'); }
 }
 
 /** "3 due, 1 overdue" for a day's tasks. @param {any[]} tasks */
@@ -75,8 +82,8 @@ function countWords(tasks) {
 }
 
 function renderGrid() {
-  const firstDow = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7; // Monday first
-  const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const firstDow = (utc(year, month, 1).getUTCDay() + 6) % 7; // Monday first
+  const days = utc(year, month + 1, 0).getUTCDate();
   const rows = [];
   let cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(el('td', { class: 'cal-blank' }));

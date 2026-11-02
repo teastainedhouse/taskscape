@@ -17,7 +17,7 @@ This branch (`claude/happy-cannon-8o54vh`) carries Phases 1–6 of the feature b
 | 9 @mentions | — | to do |
 | 10 Final checks, whole-repo review, draft PR | — | to do |
 
-No PR has been opened yet. `npm test` passes on SQLite (297) and on PostgreSQL 16.
+No PR has been opened yet. `npm test` passes on SQLite (299) and on PostgreSQL 16.
 
 ## How the earlier phases were built (reuse these)
 
@@ -146,8 +146,17 @@ Fixed:
 - general: the cap cut upcoming tasks first; the window starts 90 days back, nearest first. "Open" is now "not in a closed status", as documented (a renamed status still shows). Read-only accounts may make a feed link (it only reads). ?month= must be 01–12. public_url stored normalised. Seed: a feed link for alice (printed) and a task due next month.
 Dismissed / not done (budget): general's extra test gaps (DTEND across month/year ends, last_used_at throttling, a task in a trashed project in the feed, passwd on an enabled user's feed) — listed as follow-ups. upstream-check: none.
 
+Second review (one general pass over the Phase 6 commit, after the handoff):
+Fixed:
+- feed (medium): closed tasks were dropped after the row cap, so on a busy site they could push open tasks out of the calendar feed; the status rule is now in the query (`open: true`, internal to `tasks.list()`, not settable from a request) (test that fails on the old code).
+- calendar page: Previous/Next pressed quickly could draw an older month's answer under the newer title; a generation counter, like the Today page.
+- calendar page: years 0–99 (`?month=0050-02`) used Date.UTC (read as the 1900s) and an unpadded year the API refused; `setUTCFullYear` and a four-digit year.
+- tests: DTEND across month, year and leap-day ends; a task in a trashed project stays out of the feed.
+Not changed (decision to check): under the `headers` and `dev` providers there is no account to check, so a feed link keeps working after its owner leaves the identity provider until it is revoked on the profile page; MCP tokens behave the same.
+
 ## Not verified yet
 
 - A browser sweep of Phase 6 was done (calendar, profile, both themes, 375px, keyboard), but no screen reader was used anywhere; the checks were scripted (names, focus styles, overflow) plus screenshots.
 - No real calendar app was pointed at the `.ics` feed; it was checked against RFC 5545 by tests only.
-- Follow-up test gaps the Phase 6 general reviewer listed: DTEND across month and year ends, `last_used_at` throttling, a task in a trashed project in the feed, `passwd` stopping an enabled user's feed.
+- Follow-up test gap the Phase 6 general reviewer listed: `last_used_at` throttling (DTEND, the trashed project, and `passwd` on feeds are now covered).
+- The second-review fixes were not run on PostgreSQL (the `NOT IN` clause is the one `due=overdue` already uses there).

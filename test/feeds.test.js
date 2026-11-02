@@ -149,3 +149,27 @@ test('production needs an https public_url, so a feed link is never handed out f
   assert.throws(() => prepareConfig(base, { ...env, TASKSCAPE_PUBLIC_URL: 'http://tasks.example.test' }), /https/);
   assert.equal(prepareConfig(base, { ...env, TASKSCAPE_PUBLIC_URL: 'https://tasks.example.test/' }).public_url, 'https://tasks.example.test');
 });
+
+test('the calendar: closed tasks never use up the cap; a task in a trashed project is left out', async () => {
+  const { t, a, made } = await setup({ config: { limits: { max_page_size: 3 } } });
+  // three closed tasks due first, then an open one: the open one must still be in the feed
+  for (const d of ['2026-11-03', '2026-11-04', '2026-11-05']) await a.post('/api/tasks', { title: `Closed ${d}`, due_date: d, status: 'Done' });
+  await a.post('/api/tasks', { title: 'Still open', due_date: '2026-11-06' });
+  const p = (await a.post('/api/projects', { name: 'Binned' })).body;
+  await a.post('/api/tasks', { title: 'In a trashed project', due_date: '2026-11-07', project_id: p.id });
+  await a.delete(`/api/projects/${p.id}`, { version: p.version });
+  const ics = (await t.anon().get(`/api/feeds/${made.body.plaintext}/calendar.ics`)).text.replace(/\r\n /g, '');
+  assert.ok(ics.includes('SUMMARY:Still open'));
+  assert.equal(ics.includes('Closed 2026'), false);
+  assert.equal(ics.includes('In a trashed project'), false);
+  await t.close();
+});
+
+test('the calendar: an all-day event ends the next day across month, year and leap-day ends', () => {
+  const task = (id, due) => ({ id, title: id, status: 'To do', priority: null, project_name: null, due_date: due, updated_at: NOW });
+  const cal = renderCalendar({ name: 'X', base: 'https://x.test', stamp: NOW },
+    [task('a', '2026-01-31'), task('b', '2026-12-31'), task('c', '2028-02-28'), task('d', '2028-02-29'), task('e', '2027-02-28')]);
+  for (const [start, end] of [['20260131', '20260201'], ['20261231', '20270101'], ['20280228', '20280229'], ['20280229', '20280301'], ['20270228', '20270301']]) {
+    assert.ok(cal.includes(`DTSTART;VALUE=DATE:${start}\r\nDTEND;VALUE=DATE:${end}\r\n`), start);
+  }
+});

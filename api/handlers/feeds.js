@@ -60,13 +60,13 @@ export const routes = [
   { method: 'GET', path: '/api/feeds/:token/calendar.ics', auth: 'none', handler: async (req, ctx) => {
     const { user, scope } = await feedPrincipal(ctx);
     const { today } = await todayFor(ctx.db, ctx.config, user.id, ctx.now());
-    const closed = ctx.config.closed_statuses.task;
     // tasks not in a closed status (a renamed status still shows) with a due date from 90 days back on, not in the trash,
-    // that the feed's owner can see now; nearest first, so the cap cuts the far future, never this week
-    const items = (await tasks.list(ctx.db, user, {
-      owner: scope === 'mine' ? 'me' : undefined, due_after: addDays(today, -90),
+    // that the feed's owner can see now; nearest first, so the cap cuts the far future, never this week. The status rule
+    // is in the query, so closed tasks never use up the cap.
+    const items = await tasks.list(ctx.db, user, {
+      owner: scope === 'mine' ? 'me' : undefined, due_after: addDays(today, -90), open: true,
       include_trashed: 'false', sort: 'due_date', dir: 'ASC', limit: ctx.config.limits.max_page_size, offset: 0,
-    }, ctx.config)).filter((t) => !closed.includes(t.status));
+    }, ctx.config);
     const name = `${ctx.config.site_title || 'Taskscape'}: ${scope === 'mine' ? `${user.name}'s tasks` : `tasks ${user.name} can see`}`;
     return feedResponse(renderCalendar({ name, base: publicBase(req, ctx.config), stamp: ctx.now() }, items), 'text/calendar; charset=utf-8', 'taskscape.ics');
   } },
