@@ -64,7 +64,7 @@ Environment variables:
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |
 | `priorities` | Task priority names, highest first (shipped: `High`, `Medium`, `Low`); a task has one of these or none, and lists sort by it in this order. Same naming rules as statuses. An empty list turns priorities off |
-| `attention_statuses` | `task`: the statuses that need someone's attention (shipped: `Blocked`); the Today page lists them |
+| `attention_statuses` | `task`: the statuses that need someone's attention (`Blocked` in this repo's file); the Today page lists them, and leaves the section out when the key is missing |
 | `tag_palette` | `#rrggbb` colors handed to new tags in turn |
 | `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`, `checklist` as "3/5", `links` as a count) |
 | `default_views` | Named sort and filter presets; `tasks` is the one the task table opens with |

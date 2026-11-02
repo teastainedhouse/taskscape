@@ -142,7 +142,8 @@ async function targetProject(tx, user, projectId) {
 /**
  * @param {{project_id?: string, title: string, status?: string, priority?: string|null, owner_id?: string, owner_name?: string, private?: boolean, due_date?: string|null, notes?: string, tag_ids?: string[], links?: Array<{url: string, label: string|null}>, checklist?: Array<{text: string, done?: boolean}>}} input
  *   `links`, `checklist` and `closed_at` only from internal callers (the import and the duplicate), already validated;
- *   `closed_at` (null for unknown) is kept only when the task is created in a closed status
+ *   `closed_at` (null for unknown) is kept only when the task is created in a closed status; `id`, `recurred_from` and
+ *   `recurred_to` only from a recurring task's copy and the duplicate, which links a series within the copy
  */
 export async function create(db, user, input, config, now) {
   return db.transaction((tx) => createIn(tx, user, input, config, now));
@@ -161,7 +162,7 @@ export async function createIn(tx, user, input, config, now) {
   const projectId = input.project_id ?? config.catch_all_project.id;
   const row = {
     id, project_id: projectId, title: input.title, status: input.status ?? config.default_status.task, priority: input.priority ?? null,
-    recurrence: input.recurrence ?? null, recurred_from: input.recurred_from ?? null,
+    recurrence: input.recurrence ?? null, recurred_from: input.recurred_from ?? null, recurred_to: input.recurred_to ?? null,
     owner_id: ownerId, owner_name: user.name, private: input.private ?? config.privacy.default_private,
     due_date: input.due_date ?? null, notes: input.notes ?? '',
   };
@@ -175,9 +176,9 @@ export async function createIn(tx, user, input, config, now) {
     // when there is one, else the stored one): nobody chose a new owner, so a disabled account must not block a close.
     if (ownerId !== user.id) row.owner_name = input.copyOwnerName ?? await people.ownerNameFor(tx, config, ownerId, input.owner_name);
     await tx.query(
-      `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, recurred_from, closed_at, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-      [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, row.recurrence, row.recurred_from,
+      `INSERT INTO tasks (id, project_id, title, status, priority, owner_id, owner_name, private, due_date, notes, recurrence, recurred_from, recurred_to, closed_at, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [id, row.project_id, row.title, row.status, row.priority, row.owner_id, row.owner_name, row.private, row.due_date, row.notes, row.recurrence, row.recurred_from, row.recurred_to,
         config.closed_statuses.task.includes(row.status) ? (input.closed_at !== undefined ? input.closed_at : now) : null, now, now]);
     for (const tag of tagList) await tx.query('INSERT INTO task_tags (task_id, tag_id) VALUES (?, ?)', [id, tag.id]);
     const linkList = (input.links ?? []).slice(0, links.MAX_LINKS);
@@ -190,6 +191,7 @@ export async function createIn(tx, user, input, config, now) {
     if (linkList.length) changes.links = { to: linkList.map((l) => ({ url: l.url, label: l.label ?? null })) };
     if (checkList.length) changes.checklist = { to: checkList.map((c) => ({ text: c.text, done: c.done === true })) };
     if (row.recurred_from) changes.recurred_from = { to: row.recurred_from };
+    if (row.recurred_to) changes.recurred_to = { to: row.recurred_to };
     await record(tx, user, { item_type: 'task', item_id: id, action: 'create', changes }, now);
     return mustGet(tx, user, id);
   }

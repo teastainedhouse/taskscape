@@ -311,11 +311,61 @@ test('duplicate: leftover statuses and priorities, one series per series, and wh
   assert.deepEqual([copy.status, copy.priority], ['To do', null]);
   assert.ok(r.body.notes.some((x) => /no longer has/.test(x)));
   const rents = r.body.tasks.filter((x) => x.title === 'Pay rent');
-  assert.deepEqual(rents.map((x) => x.recurrence).sort(), ['monthly', null, null], 'only the newest keeps repeating');
+  assert.deepEqual(rents.map((x) => x.recurrence), ['monthly', 'monthly', 'monthly'], 'the series is copied as a series');
+  // the copies name each other by their new ids: first -> second -> newest, and nothing names the original
+  const ids = new Set(rents.map((x) => x.id));
+  const [first, second, newest] = rents;
+  assert.deepEqual([first.recurred_from, first.recurred_to, second.recurred_from, second.recurred_to, newest.recurred_from, newest.recurred_to],
+    [null, second.id, first.id, newest.id, second.id, null]);
+  assert.ok(rents.every((x) => !x.recurred_to || ids.has(x.recurred_to)));
   assert.deepEqual(rents.filter((x) => x.status === 'Done').map((x) => x.closed_at).sort(), closedAt.sort(), 'closed when the original was');
-  // with statuses reset there is still one series, and nothing looks finished
+  // with statuses reset there is still one series, and nothing looks finished: a reopened predecessor closes without a copy
   const reset = (await a.post(`/api/projects/${P.id}/duplicate`, { reset_statuses: true })).body;
-  assert.equal(reset.tasks.filter((x) => x.recurrence).length, 1);
   assert.equal(reset.tasks.filter((x) => x.closed_at).length, 0);
+  const again = reset.tasks.find((x) => x.title === 'Pay rent' && x.recurred_to);
+  const closedAgain = (await a.patch(`/api/tasks/${again.id}`, { version: again.version, status: 'Done' })).body;
+  assert.equal(closedAgain.recurred_to, again.recurred_to, 'no second series');
+  assert.equal((await a.get(`/api/tasks?project=${reset.project.id}`)).body.items.filter((x) => x.title === 'Pay rent').length, 3);
+  await t.close();
+});
+
+test('duplicate: a monthly series keeps its day of the month, and a task whose next copy is not copied stops repeating', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Month ends' })).body;
+  const jan = (await a.post('/api/tasks', { project_id: P.id, title: 'Close the books', recurrence: 'monthly', due_date: '2027-01-31' })).body;
+  const feb = (await a.get(`/api/tasks/${(await a.patch(`/api/tasks/${jan.id}`, { version: jan.version, status: 'Done' })).body.recurred_to}`)).body;
+  assert.equal(feb.due_date, '2027-02-28');
+  const copy = (await a.post(`/api/projects/${P.id}/duplicate`, {})).body;
+  const febCopy = copy.tasks.find((x) => x.status !== 'Done');
+  const closed = (await a.patch(`/api/tasks/${febCopy.id}`, { version: febCopy.version, status: 'Done' })).body;
+  assert.equal((await a.get(`/api/tasks/${closed.recurred_to}`)).body.due_date, '2027-03-31', 'the 31st comes back, as in the original');
+  // the newest copy goes to the trash: its predecessor has handed the series on to nothing that is copied
+  await a.delete(`/api/tasks/${feb.id}`, { version: feb.version });
+  const later = (await a.post(`/api/projects/${P.id}/duplicate`, {})).body;
+  assert.deepEqual(later.tasks.map((x) => [x.status, x.recurrence, x.recurred_to]), [['Done', null, null]]);
+  await t.close();
+});
+
+test('duplicate: a series pair half hidden from another reader names nothing they cannot see', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const b = t.as('bob');
+  const P = (await a.post('/api/projects', { name: 'Weekly' })).body;
+  const A = (await a.post('/api/tasks', { project_id: P.id, title: 'Water plants', recurrence: 'weekly', due_date: '2027-01-04' })).body;
+  const B = (await a.get(`/api/tasks/${(await a.patch(`/api/tasks/${A.id}`, { version: A.version, status: 'Done' })).body.recurred_to}`)).body;
+  await a.patch(`/api/tasks/${B.id}`, { version: B.version, private: true });
+  const copy = (await a.post(`/api/projects/${P.id}/duplicate`, {})).body;
+  const A2 = copy.tasks.find((x) => x.status === 'Done');
+  const B2 = copy.tasks.find((x) => x.status !== 'Done');
+  assert.equal(A2.recurred_to, B2.id, 'the caller sees the pair');
+  assert.equal((await b.get(`/api/tasks/${A2.id}`)).body.recurred_to, null);
+  const hidden = await b.get(`/api/tasks/${B2.id}`);
+  const missing = await b.get('/api/tasks/00000000-0000-4000-8000-000000000000');
+  assert.deepEqual([hidden.status, hidden.body], [missing.status, missing.body]);
+  const feed = (await b.get('/api/activity?limit=200')).body.items;
+  assert.ok(!JSON.stringify(feed).includes(B2.id), 'no hidden id in the activity');
+  const created = feed.find((e) => e.item_id === A2.id && e.action === 'create');
+  assert.ok(created && !('recurred_to' in created.changes), 'a create entry leaves the hidden link out instead of saying null');
   await t.close();
 });

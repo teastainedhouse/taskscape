@@ -97,7 +97,9 @@ export function renderProjectExport(project, tasks, meta, comments = {}) {
   } else {
     lines.push('| Title | Status | Priority | Owner | Due | Repeats | Tags | Private |', '| --- | --- | --- | --- | --- | --- | --- | --- |');
     for (const t of tasks) {
-      lines.push(`| ${mdCell(t.title)} | ${mdCell(t.status)} | ${mdCell(t.priority)} | ${mdCell(t.owner_name)} | ${t.due_date ?? ''} | ${mdCell(t.recurrence)} | ${mdCell(names(t.tags))} | ${yesno(t.private)} |`);
+      // a task that already made its next copy has handed its series on: Repeats only on the one still carrying it, so
+      // an import of this file starts one series, not one per closed predecessor
+      lines.push(`| ${mdCell(t.title)} | ${mdCell(t.status)} | ${mdCell(t.priority)} | ${mdCell(t.owner_name)} | ${t.due_date ?? ''} | ${mdCell(t.recurred_to ? null : t.recurrence)} | ${mdCell(names(t.tags))} | ${yesno(t.private)} |`);
     }
     lines.push('');
     for (const t of tasks) {

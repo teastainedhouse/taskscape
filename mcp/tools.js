@@ -107,7 +107,7 @@ export const TOOLS = [
         owner: { type: 'string', description: 'Owner id, or "me".' },
         tag: { type: 'string', description: 'Tag name(s), comma-separated = any of.' },
         q: { type: 'string', description: 'Case-insensitive substring on title, notes, link URLs and labels, and checklist item text.' },
-        due: { type: 'string', enum: ['overdue', 'today', 'week'], description: 'overdue (due before today, not in a closed status), today, or week (today and the next 6 days); "today" is in the user\'s own time zone, as the me tool reports it.' },
+        due: { type: 'string', enum: ['overdue', 'today', 'week'], description: 'overdue (due before today, not in a closed status), today, or week (today and the next 6 days), these two in any status, closed included; "today" is in the user\'s own time zone, as the me tool reports it.' },
         closed_since: { type: 'string', description: 'ISO 8601 UTC timestamp or YYYY-MM-DD: tasks that moved into a closed status since then.' },
         due_before: { type: 'string', description: 'YYYY-MM-DD, inclusive; excludes tasks without a due date.' },
         due_after: { type: 'string', description: 'YYYY-MM-DD, inclusive.' },

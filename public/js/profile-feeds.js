@@ -4,7 +4,7 @@
 // afterwards only its first characters are. Human-only (the API refuses a token).
 
 import { get, post, del } from './api.js';
-import { el, btn, setChildren, timeEl } from './dom.js';
+import { el, btn, setChildren, timeEl, oneLine } from './dom.js';
 import { say, sayError } from './page.js';
 
 const SCOPES = { mine: 'Mine (my tasks, For you)', all: 'Everything I can see' };
@@ -68,7 +68,7 @@ export function mountFeeds(host) {
 
   /** @param {any} f */
   async function revoke(f) {
-    if (!confirm(`Revoke the feed link "${f.label}"?\nCalendars and readers using it stop updating.`)) return;
+    if (!confirm(`Revoke the feed link "${oneLine(f.label)}"?\nCalendars and readers using it stop updating.`)) return;
     try {
       await del(`/api/feeds/${encodeURIComponent(f.id)}`);
       say('Feed link revoked.');

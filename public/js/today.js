@@ -9,7 +9,7 @@
 
 import { boot, sayError, attempt } from './page.js';
 import { get, patch, taskPath } from './api.js';
-import { el, setChildren, timeEl } from './dom.js';
+import { el, setChildren, timeEl, todayLocal } from './dom.js';
 import { redraw, focusEditable } from './inline-edit.js';
 import { taskColumns, columnsFor, taskCell, copyNote } from './task-columns.js';
 import { describeActivity, viaBadge } from './activity-words.js';
@@ -81,7 +81,7 @@ const SECTIONS = [
 
 /** The first of the last seven days, today included (six days back), as a date (the API reads it as that day's start, UTC). */
 function weekAgo() {
-  const d = new Date(`${me.today ?? new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const d = new Date(`${todayLocal()}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 6);
   return d.toISOString().slice(0, 10);
 }
@@ -110,7 +110,7 @@ function buildScope() {
 /** Load every section; the dates come from the server's today. */
 async function loadAll() {
   const mine = ++generation;
-  document.getElementById('today-date').textContent = me.today ?? '';
+  document.getElementById('today-date').textContent = todayLocal();
   shown.clear();
   const owner = scope === 'mine' ? { owner: 'me' } : {};
   const parts = [];

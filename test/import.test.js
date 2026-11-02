@@ -338,3 +338,22 @@ test('an imported closed task has no closed_at: a file does not say when it was 
   assert.deepEqual(r.body.tasks.map((x) => [x.status, x.closed_at]), [['Done', null]], 'so it never shows as finished this week');
   await t.close();
 });
+
+test('a series round-trips as one series: Repeats only on the task still carrying it', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Rent' })).body;
+  let rent = (await a.post('/api/tasks', { project_id: P.id, title: 'Pay rent', recurrence: 'monthly', due_date: '2027-01-31' })).body;
+  for (let i = 0; i < 2; i++) rent = (await a.get(`/api/tasks/${(await a.patch(`/api/tasks/${rent.id}`, { version: rent.version, status: 'Done' })).body.recurred_to}`)).body;
+  const md = (await a.get(`/api/projects/${P.id}/export.md`)).text;
+  assert.deepEqual(md.split('\n').filter((l) => l.startsWith('| Pay rent')).map((l) => l.split('|')[6].trim()), ['', '', 'monthly']);
+  const r = await a.post('/api/projects/import', md, MD);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks.map((x) => [x.status, x.due_date, x.recurrence]),
+    [['Done', '2027-01-31', null], ['Done', '2027-02-28', null], ['To do', '2027-03-31', 'monthly']]);
+  // a closed task reopened and closed again makes no second series
+  const done = r.body.tasks[1];
+  const reopened = (await a.patch(`/api/tasks/${done.id}`, { version: done.version, status: 'To do' })).body;
+  assert.equal((await a.patch(`/api/tasks/${reopened.id}`, { version: reopened.version, status: 'Done' })).body.recurred_to, null);
+  await t.close();
+});

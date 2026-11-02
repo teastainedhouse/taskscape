@@ -8,12 +8,13 @@
 
 import { boot, sayError } from './page.js';
 import { get } from './api.js';
-import { el, btn, setChildren, taskLink, projectLink, padlock } from './dom.js';
+import { el, btn, setChildren, taskLink, projectLink, padlock, todayLocal } from './dom.js';
 import { isOverdue } from './overdue.js';
 import { recurrenceMark } from './task-columns.js';
 
 const { config, me } = await boot({ title: 'Calendar' });
-const today = me.today ?? new Date().toISOString().slice(0, 10);
+/** The server's today, moved on if the page stays open past midnight (each load reads it again). */
+let today = todayLocal();
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 /** A UTC date; setUTCFullYear, since Date.UTC reads years 0-99 as 1900-1999. */
 function utc(y, m, d) { const t = new Date(0); t.setUTCFullYear(y, m - 1, d); return t; }
@@ -43,7 +44,7 @@ mine.addEventListener('change', () => {
 });
 document.getElementById('cal-prev').addEventListener('click', () => move(-1));
 document.getElementById('cal-next').addEventListener('click', () => move(1));
-document.getElementById('cal-today').addEventListener('click', () => { [year, month] = today.slice(0, 7).split('-').map(Number); selected = today; load(); });
+document.getElementById('cal-today').addEventListener('click', () => { today = todayLocal(); [year, month] = today.slice(0, 7).split('-').map(Number); selected = today; load(); });
 
 /** @param {number} delta months */
 function move(delta) {
@@ -54,6 +55,7 @@ function move(delta) {
 }
 
 async function load() {
+  today = todayLocal();
   const ym = `${String(year).padStart(4, '0')}-${pad(month)}`;
   const first = `${ym}-01`;
   const last = `${ym}-${pad(utc(year, month + 1, 0).getUTCDate())}`;
@@ -88,7 +90,7 @@ function renderGrid() {
   let cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(el('td', { class: 'cal-blank' }));
   for (let d = 1; d <= days; d++) {
-    const date = `${year}-${pad(month)}-${pad(d)}`;
+    const date = `${String(year).padStart(4, '0')}-${pad(month)}-${pad(d)}`;
     const tasks = byDay.get(date) ?? [];
     const late = tasks.some((t) => isOverdue(t, config, today));
     const label = el('span', { class: 'cal-num' }, String(d), date === today ? el('span', { class: 'cal-today-word' }, ' today') : null);

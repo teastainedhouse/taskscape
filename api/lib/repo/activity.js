@@ -34,7 +34,8 @@ export function decodeCursor(cursor) {
 
 /**
  * A recurring task's entries name the other task of the pair (recurred_to on the close, recurred_from on the copy's
- * create). Replace an id the user cannot see with null, as hideInvisibleProjectIds() does for projects.
+ * create; both on a duplicate's create). Replace an id the user cannot see with null on a close, as hideInvisibleProjectIds()
+ * does for projects, and leave it out of a create.
  * @param {import('../db/index.js').Db} db
  * @param {import('../auth/index.js').Principal} user
  * @param {Array<Record<string, {from?: unknown, to?: unknown}>>} changesList
@@ -49,7 +50,15 @@ async function hideInvisibleTaskIds(db, user, changesList) {
     `SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id IN (${list.map(() => '?').join(', ')}) AND ${vis.sql}`,
     [...list, ...vis.params]);
   const visible = new Set(rows.map((r) => r.id));
-  for (const c of changesList) for (const k of ['recurred_to', 'recurred_from']) if (typeof c?.[k]?.to === 'string' && !visible.has(c[k].to)) c[k].to = null;
+  for (const c of changesList) {
+    for (const k of ['recurred_to', 'recurred_from']) {
+      if (typeof c?.[k]?.to !== 'string' || visible.has(c[k].to)) continue;
+      // a create entry (no `from`) loses the key, so it reads like one that names no task: a null there would still say
+      // that a hidden task is linked; a close keeps it as null, since its entry is about that link
+      if ('from' in c[k]) c[k].to = null;
+      else delete c[k];
+    }
+  }
 }
 
 /**

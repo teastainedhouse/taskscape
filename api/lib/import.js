@@ -15,6 +15,7 @@
 import { parseProjectExport, ImportParseError } from './markdown-import.js';
 import { validateItem, validateTag, cleanLinkUrl, LINK_LABEL_MAX, UNSAFE_LABEL_CHARS, CHECKLIST_TEXT_MAX } from './validate.js';
 import { addDays } from './recurrence.js';
+import { newId } from './ids.js';
 import { MAX_LINKS } from './repo/links.js';
 import { MAX_ITEMS } from './repo/checklist.js';
 import { ApiError, validationFailed, forbidden, invalidState } from './errors.js';
@@ -205,7 +206,9 @@ async function planParsed(db, user, parsed, config, { makePrivate = false, dupli
       return { text, done: c.done };
     });
     // closed_at: a duplicate's own; a file says nothing of when a task was closed, so an import leaves it unknown
-    plannedTasks.push({ ...fields, links, checklist, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, recurrence: fields.recurrence ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), closed_at: t.closed_at ?? null, line: t.line });
+    // a duplicate's series links: its own new ids, made in planDuplicate(), never a file's
+    const series = duplicate ? { id: t.id, recurred_from: t.recurred_from, recurred_to: t.recurred_to } : {};
+    plannedTasks.push({ ...fields, ...series, links, checklist, owner_name: owner.name, private: isPrivate, priority: fields.priority ?? null, recurrence: fields.recurrence ?? null, due_date: fields.due_date ?? null, notes: fields.notes ?? '', tags: tagNames(t.tags, t.line), closed_at: t.closed_at ?? null, line: t.line });
   }
 
   const privateCount = (projectPrivate ? 1 : 0) + plannedTasks.filter((t) => t.private).length;
@@ -284,6 +287,7 @@ export async function planDuplicate(db, user, projectId, opts, config) {
     leftovers++;
     return null;
   };
+  const newIds = new Map(items.map((t) => [t.id, newId()]));
   const parsed = {
     project: {
       name: opts.name ?? copyName(source.name), description: source.description ?? '',
@@ -293,9 +297,11 @@ export async function planDuplicate(db, user, projectId, opts, config) {
     lines: {},
     tasks: items.map((t) => ({
       title: t.title, status: statusFor('task', t.status), priority: priorityFor(t.priority ?? null),
-      // a task that already made its next copy has handed the series on: only the newest of a series keeps repeating,
-      // so a copy (above all with statuses reset) is one series, not one per closed predecessor
-      recurrence: t.recurred_to ? null : t.recurrence ?? null, owner_id: t.owner_id, owner_name: t.owner_name, private: t.private,
+      // a series stays one series: the copies name each other by their new ids (as far as the caller sees the pair), so
+      // the next copy keeps the series' day of the month and a copied task that already made its next one makes no
+      // other; a task whose next copy is not in the copy (trashed, elsewhere) hands nothing on and stops repeating
+      id: newIds.get(t.id), recurred_from: newIds.get(t.recurred_from) ?? null, recurred_to: newIds.get(t.recurred_to) ?? null,
+      recurrence: t.recurred_to && !newIds.has(t.recurred_to) ? null : t.recurrence ?? null, owner_id: t.owner_id, owner_name: t.owner_name, private: t.private,
       // when it was closed, if it still is: a copy of last June's work is not "finished this week"
       closed_at: t.closed_at ?? null,
       due_date: dueFor(t.due_date), notes: t.notes ?? '', tags: (t.tags ?? []).map((x) => x.name),
@@ -359,6 +365,8 @@ export async function runImport(db, user, plan, config, now) {
       const { tags: taskTags, line, ...input } = t;
       created.push(await tasks.createIn(tx, user, { ...input, project_id: project.id, tag_ids: await idsFor(taskTags) }, config, next()));
     }
+    // a duplicate's task may name a copy made after it: read those again, so the answer shows the pair
+    for (let i = 0; i < created.length; i++) if (plan.tasks[i].recurred_to) created[i] = await tasks.mustGet(tx, user, created[i].id);
     return { project, tasks: created };
   });
 }
