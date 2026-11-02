@@ -525,7 +525,7 @@ kbd { background: var(--chrome); color: var(--ink); border-color: var(--lo); }
 .login-elsewhere p { margin: 0 0 14px; font-size: 14px; }
 .login-elsewhere p:last-child { margin: 0; text-align: right; }
 
-/* Change password, on the tokens page. */
+/* Change password, on the profile page. */
 .password-form { margin-top: 8px; }
 
 /* Phone width: the window fills the screen and the toolbar wraps onto two rows. */
