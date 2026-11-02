@@ -1,7 +1,8 @@
 // activity-words.js — turn an activity entry into words and a link.
 // Values inside entries (titles, names, notes) are rendered as text only.
 
-import { el, projectLink } from './dom.js';
+import { el, projectLink, taskLink } from './dom.js';
+import { commentWords } from './guestbook.js';
 
 /** Labels for the `via` field. */
 const VIA = { ui: 'UI', mcp: 'Claude' };
@@ -19,10 +20,11 @@ const show = (v) => (v == null || v === '' ? 'none' : Array.isArray(v) ? (v.leng
 /**
  * Describe an entry.
  * @param {any} a  activity entry from /api/activity
- * @param {{projectNames?: Map<string, string>}} [ctx]  known project names, for moves
+ * @param {{projectNames?: Map<string, string>, words?: ReturnType<typeof commentWords>}} [ctx]  known project names, for moves; the comments vocabulary
  * @returns {{via: string, what: string, link: HTMLElement|null}}
  */
 export function describeActivity(a, ctx = {}) {
+  const words = ctx.words ?? commentWords('Comments');
   const via = VIA[a.via] ?? String(a.via ?? '');
   const type = a.item_type;
   const title = a.item_title ?? '';
@@ -34,8 +36,7 @@ export function describeActivity(a, ctx = {}) {
   if (type === 'comment') {
     // the entry names the parent, never the text
     const where = title ? `${on?.type ?? 'item'} "${title}"` : `(${on?.type ?? 'item'} no longer visible)`;
-    what = { create: `signed the guestbook of ${where}`, trash: `trashed a guestbook entry on ${where}`,
-      restore: `restored a guestbook entry on ${where}` }[a.action] ?? `${a.action} a guestbook entry on ${where}`;
+    what = { create: words.signed(where), trash: words.trashedOn(where), restore: words.restoredOn(where) }[a.action] ?? words.otherOn(a.action, where);
   } else switch (a.action) {
     case 'create':
       what = `created ${type} ${quoted}`;
@@ -74,9 +75,9 @@ export function describeActivity(a, ctx = {}) {
 
   let link = null;
   if (type === 'project' && a.item_id) link = projectLink(a.item_id, 'Open project');
-  else if (type === 'task' && a.project_id) link = projectLink(a.project_id, 'Open task', `task-${a.item_id}`);
-  else if (type === 'comment' && a.project_id) {
-    link = on?.type === 'task' ? projectLink(a.project_id, 'Open task', `task-${on.id}`) : projectLink(a.project_id, 'Open project');
+  else if (type === 'task' && a.item_id) link = taskLink(a.item_id, 'Open task');
+  else if (type === 'comment' && on?.id) {
+    link = on.type === 'task' ? taskLink(on.id, 'Open task') : projectLink(on.id, 'Open project');
   }
   return { via, what, link };
 }

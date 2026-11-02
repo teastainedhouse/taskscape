@@ -14,14 +14,14 @@
     <header class="site-header">
       <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> |
-        <a href="mine.html">My tasks</a> |
-        <a href="whats-new.html">What's New?</a> |
-        <a href="trash.html">Trash</a> |
-        <a href="tokens.html">My tokens</a>
+        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
+        <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
+        <a href="profile.html">Profile</a>
       </nav>
-      <span id="whoami" class="muted"></span>
       <button type="button" id="sign-out" class="sign-out" hidden>Sign out</button>
+      <a href="profile.html" class="avatar" id="avatar" aria-label="Your profile"></a>
     </header>
 
     <div id="marquee" hidden></div>
@@ -52,7 +52,11 @@
             <tbody></tbody>
           </table>
         </div>
-        <p id="projects-empty" hidden>No projects match.</p>
+        <p id="projects-empty" class="empty" hidden>No projects match these filters. Clear them to see every project.</p>
+        <div id="first-run" class="under-construction empty" hidden>
+          <img src="img/under-construction.svg" alt="" width="320" height="120">
+          <p id="first-run-text">Just <a id="first-run-general" href="project.html?id=general">General</a> so far.<span data-needs-edit> Create your first project below, import one from Markdown, or ask Claude to set things up.</span></p>
+        </div>
         <p><button type="button" id="projects-more" hidden>Load more</button></p>
       </section>
 
@@ -65,6 +69,18 @@
           <div class="field"><label><input type="checkbox" id="np-private" name="private"> Private (only you can see it)</label></div>
           <button type="submit">Create project</button>
         </form>
+      </section>
+
+      <section aria-labelledby="import-h" data-needs-edit>
+        <h2 id="import-h">Import from Markdown</h2>
+        <p class="muted">Paste or choose a file in the format "Save as markdown" produces. You see what would be created before anything is.</p>
+        <form id="import-form">
+          <div class="field"><label for="import-file">File</label><input type="file" id="import-file" name="file" accept=".md,text/markdown,text/plain"></div>
+          <div class="field"><label for="import-text">Or paste the Markdown</label><textarea id="import-text" name="text" rows="6" spellcheck="false"></textarea></div>
+          <div class="field"><label><input type="checkbox" id="import-private" name="private"> Make everything private to me</label></div>
+          <button type="submit">Preview</button>
+        </form>
+        <div id="import-preview" aria-live="polite"></div>
       </section>
 
       <section aria-labelledby="wn-h">

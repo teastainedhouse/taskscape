@@ -4,11 +4,13 @@
 
 import { boot, sayError } from './page.js';
 import { get } from './api.js';
-import { el, clear, timeEl, text } from './dom.js';
+import { el, btn, clear, timeEl, text, setChildren } from './dom.js';
 import { describeActivity, viaBadge } from './activity-words.js';
+import { commentWords } from './guestbook.js';
 import { readSeen, markSeen } from './for-you.js';
 
-const { me } = await boot({ title: "What's New?" });
+const { config, me } = await boot({ title: "What's New?" });
+const words = commentWords(me.preferences.comments_label);
 
 const tbody = document.querySelector('#feed tbody');
 const more = document.getElementById('load-more');
@@ -26,7 +28,7 @@ const state = {
 forSel.value = state.forMe ? 'me' : '';
 
 try {
-  const res = await get('/api/projects', { limit: 1000 });
+  const res = await get('/api/projects', { limit: config.limits?.max_page_size });
   for (const p of res.items ?? []) state.projectNames.set(p.id, p.name);
 } catch { /* names are a nicety; the feed still renders */ }
 
@@ -60,6 +62,7 @@ async function load() {
     state.cursor = res.next_cursor ?? null;
     more.hidden = !state.cursor;
     empty.hidden = state.count > 0;
+    if (!state.count) showEmpty();
     // The newest For you entry is on the first unfiltered page; showing it marks everything up to it seen.
     if (state.forMe && first && !state.via) markSeen(me, res.items?.[0]?.created_at);
   } catch (err) {
@@ -69,9 +72,22 @@ async function load() {
   }
 }
 
+/** The right empty message for the view: nothing at all, nothing for you, or nothing through this door. */
+function showEmpty() {
+  const forYou = state.forMe ? ' for you' : '';
+  const allSources = btn('See every source', () => { viaSel.value = ''; state.via = ''; reset(); });
+  const items = state.via === 'mcp' ? [el('p', null, `Nothing${forYou} from Claude yet. Changes made through the MCP server show up here.`), el('p', null, allSources)]
+    : state.via === 'ui' ? [el('p', null, `Nothing${forYou} from the browser yet.`), el('p', null, allSources)]
+    : state.forMe ? [el('p', null, 'Nothing for you yet. When someone else changes a project or task you own, it shows up here.'),
+      el('p', null, el('a', { href: 'whats-new.html' }, 'See everything instead'))]
+    : [el('p', null, 'Nothing has happened yet. Every change to a project, task, tag or comment is listed here, newest first.'),
+      me.can_edit ? el('p', null, el('a', { href: 'index.html', class: 'button' }, 'Create a project')) : null];
+  setChildren(empty, items);
+}
+
 /** @param {any} a */
 function row(a) {
-  const d = describeActivity(a, { projectNames: state.projectNames });
+  const d = describeActivity(a, { projectNames: state.projectNames, words });
   const fresh = state.forMe && a.created_at > state.seenBefore;
   return el('tr', { class: fresh ? 'activity-new' : null },
     el('td', null, timeEl(a.created_at), fresh ? [' ', el('b', { class: 'new-mark' }, 'New')] : null),

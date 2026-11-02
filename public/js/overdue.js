@@ -5,7 +5,7 @@
 // a CSS animation that base.css stops under reduced motion, and a Stop button
 // beside it for everyone else.
 
-import { el, projectLink, setChildren, todayLocal } from './dom.js';
+import { el, taskLink, setChildren, todayLocal } from './dom.js';
 import { get } from './api.js';
 
 /**
@@ -86,7 +86,7 @@ function renderLine(host, tasks, o) {
   const parts = [el('b', null, `${tasks.length}${o.plus} overdue:`), ' '];
   tasks.slice(0, LINE_LIMIT).forEach((t, i) => {
     if (i) parts.push('; ');
-    parts.push(projectLink(t.project_id, t.title, `task-${t.id}`), ` (due ${t.due_date}${o.showProject && t.project_name ? `, ${t.project_name}` : ''})`);
+    parts.push(taskLink(t.id, t.title), ` (due ${t.due_date}${o.showProject && t.project_name ? `, ${t.project_name}` : ''})`);
   });
   if (tasks.length > LINE_LIMIT) parts.push(`; and ${tasks.length - LINE_LIMIT}${o.plus} more`);
   setChildren(host, parts);

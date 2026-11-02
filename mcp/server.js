@@ -18,10 +18,11 @@ const NAME = 'taskscape';
 const VERSION = '0.1.0';
 
 const INSTRUCTIONS = [
-  'Taskscape is a small work tracker: projects contain tasks; both can carry tags and guestbook comments, and be marked private.',
+  'Taskscape is a small work tracker: projects contain tasks; both can carry tags and comments, and be marked private.',
+  'Call me first when dates matter: it gives the user\'s time zone and today\'s date in it, so "today", "tomorrow" and "overdue" mean what they mean to them.',
   'You act as the person who owns the token, and you only see what they can see.',
   'Read with list_projects, list_tasks and get. Every write (update, delete, restore, tag) needs the record\'s current "version" from the latest get or list; a conflict returns the current record so you can retry with its version.',
-  'delete moves ONE item to the trash (restore undoes it), including a guestbook comment the user wrote; never trash several items without the user confirming each one.',
+  'delete moves ONE item to the trash (restore undoes it), including a comment the user wrote; never trash several items without the user confirming each one.',
   DATA_NOTICE,
 ].join(' ');
 
@@ -34,7 +35,7 @@ function die(line) {
 const baseUrl = (process.env.TASKSCAPE_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.TASKSCAPE_TOKEN ?? '').trim();
 if (!baseUrl) die('taskscape-mcp: TASKSCAPE_URL is not set (the API origin, e.g. http://localhost:3000).');
-if (!token) die('taskscape-mcp: TASKSCAPE_TOKEN is not set (a personal token from the "My MCP tokens" page).');
+if (!token) die('taskscape-mcp: TASKSCAPE_TOKEN is not set (a personal token from the profile page).');
 if (!/^https?:\/\//i.test(baseUrl)) die('taskscape-mcp: TASKSCAPE_URL must start with http:// or https://.');
 
 const sessionId = randomUUID();

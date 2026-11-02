@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const NAV = ['index.html', 'mine.html', 'whats-new.html', 'trash.html', 'tokens.html'];
+const NAV = ['index.html', 'mine.html', 'whats-new.html', 'trash.html', 'profile.html'];
 
 /** The hrefs inside <nav aria-label="Main">, or null when the page has none. */
 function navLinks(html) {
@@ -38,7 +38,7 @@ test('sign-in can send people back to every toolbar page and the project page', 
   const m = /const PAGES = new Set\(\[([^\]]*)\]\)/.exec(login);
   assert.ok(m, 'login.js has a PAGES allowlist');
   const pages = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
-  for (const page of [...NAV, 'project.html']) assert.ok(pages.includes(page), `login.js PAGES lacks ${page}`);
+  for (const page of [...NAV, 'project.html', 'task.html']) assert.ok(pages.includes(page), `login.js PAGES lacks ${page}`);
 });
 
 test('the overdue marquee is never the only overdue signal', () => {
@@ -67,6 +67,29 @@ test('browser storage is only ever touched inside try, so blocked storage costs 
       assert.match(line, /\btry\s*\{/, `${file}:${i + 1} reaches storage outside a one-line try`);
     });
   }
+});
+
+test('every toolbar page has the avatar link to the profile page, and no page says who is signed in in the header', () => {
+  for (const page of readdirSync(PUBLIC).filter((f) => f.endsWith('.html'))) {
+    const html = readFileSync(path.join(PUBLIC, page), 'utf8');
+    if (page === 'login.html') { assert.match(html, /class="avatar" aria-hidden="true"/, 'the sign-in page shows the mark as decoration'); continue; }
+    assert.match(html, /<a href="profile.html" class="avatar" id="avatar" aria-label="Your profile"><\/a>/, `${page} lacks the avatar link`);
+    assert.match(html, /id="sign-out"/, `${page} lacks the Sign out button`);
+    assert.doesNotMatch(html, /whoami/, `${page} still has the "Signed in as" span`);
+  }
+  const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
+  assert.match(page, /mountAvatar\(document\.getElementById\('avatar'\), me\)/);
+});
+
+test('keyboard shortcuts ride on boot(), are gated by the preference, and can never trash or restore', () => {
+  const page = readFileSync(path.join(PUBLIC, 'js', 'page.js'), 'utf8');
+  assert.match(page, /mountShortcuts\(!!prefs\.shortcuts\)/, 'the preference switches them');
+  const shortcuts = readFileSync(path.join(PUBLIC, 'js', 'shortcuts.js'), 'utf8');
+  assert.doesNotMatch(shortcuts, /from '\.\/api\.js'/, 'the shortcuts module never calls the API');
+  assert.doesNotMatch(shortcuts, /\b(fetch|del|post|patch|put)\(|\.click\(|requestSubmit|\.submit\(/, 'no shortcut writes, clicks, or submits anything, so none can trash or restore');
+  assert.match(shortcuts, /ev\.ctrlKey \|\| ev\.altKey \|\| ev\.metaKey/, 'modifier combinations are left alone');
+  assert.match(shortcuts, /input, textarea, select, \[contenteditable\]/, 'typing never triggers a shortcut');
+  assert.match(shortcuts, /aria-keyshortcuts/);
 });
 
 test('the What\'s New toolbar entry carries the For you badge from every page', () => {

@@ -14,6 +14,12 @@ function requirePasswordProvider(ctx) {
   if (ctx.config.auth.provider !== 'password') throw notFound();
 }
 
+/** @param {import('../lib/router.js').Ctx} ctx  the session routes exist only for a password session (a token has no session; another provider has no rows) */
+function requirePasswordSession(ctx) {
+  requirePasswordProvider(ctx);
+  if (ctx.user.auth !== 'password' || !ctx.user.login_session_id) throw notFound();
+}
+
 /**
  * Count an attempt against `lockout`, then check the password. A 503 from the
  * scrypt limit takes the attempt back: the password was never checked.
@@ -43,7 +49,7 @@ const empty = (status, headers = {}) => new Response(null, { status, headers });
 export const routes = [
   // The one unauthenticated way for a signed-out page to learn the title and whether to show a sign-in form.
   { method: 'GET', path: '/api/login', auth: 'none', handler: async (_req, ctx) =>
-    json({ provider: ctx.config.auth.provider, site_title: ctx.config.site_title }) },
+    json({ provider: ctx.config.auth.provider, site_title: ctx.config.site_title, theme: ctx.config.theme }) },
 
   { method: 'POST', path: '/api/login', auth: 'none', sameOrigin: true, handler: async (req, ctx) => {
     requirePasswordProvider(ctx);
@@ -62,7 +68,7 @@ export const routes = [
     /** @type {import('../lib/auth/index.js').Principal} */
     const user = { id: cred.user.id, name: cred.user.name, email: cred.user.email ?? undefined, groups: cred.user.groups,
       via: 'ui', auth: 'password', login_session_id: session.id };
-    return json(meBody(ctx.config, user), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
+    return json(await meBody(ctx.db, ctx.config, user), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
   } },
 
   // Unauthenticated so an expired or unknown cookie can still be cleared.
@@ -72,6 +78,29 @@ export const routes = [
     const value = sessionCookieValue(req, cfg);
     if (value) await sessions.removeByToken(ctx.db, value);
     return empty(204, { 'Set-Cookie': clearSessionCookie(cfg) });
+  } },
+
+  // Active sign-ins (docs/API.md §6 "Password sign-in"): the caller's own live sessions, the current one marked.
+  // Human-only and self-scoped, like tokens; a token principal has no session to list.
+  { method: 'GET', path: '/api/me/sessions', auth: 'human', handler: async (_req, ctx) => {
+    requirePasswordSession(ctx);
+    const items = (await sessions.listForUser(ctx.db, ctx.user.id, ctx.now())).map((s) => ({ ...s, current: s.id === ctx.user.login_session_id }));
+    return json({ items });
+  } },
+  // Sign out everywhere else: ends every other session of the caller, keeps this one.
+  { method: 'DELETE', path: '/api/me/sessions', auth: 'human', edit: false, handler: async (_req, ctx) => {
+    requirePasswordSession(ctx);
+    await sessions.removeExpired(ctx.db, ctx.now()); // so the count names only sessions the list showed
+    const ended = await sessions.removeForUser(ctx.db, ctx.user.id, ctx.user.login_session_id);
+    return json({ ended });
+  } },
+  // End one session of the caller's own. Someone else's, or an unknown id, is the generic 404.
+  // Ending the current one is a sign-out, so the cookie is cleared too.
+  { method: 'DELETE', path: '/api/me/sessions/:id', auth: 'human', edit: false, handler: async (_req, ctx) => {
+    requirePasswordSession(ctx);
+    if (!(await sessions.removeOwn(ctx.db, ctx.user.id, ctx.params.id, ctx.now()))) throw notFound();
+    const current = ctx.params.id === ctx.user.login_session_id;
+    return empty(204, current ? { 'Set-Cookie': clearSessionCookie(ctx.config.auth.password) } : {});
   } },
 
   // Self-scoped, so a read-only account can still change its own password.

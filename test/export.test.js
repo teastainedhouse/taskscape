@@ -39,3 +39,17 @@ test('export of an empty project and of a private project', async () => {
   assert.equal((await t.as('bob').get(`/api/projects/${p.id}/export.md`)).status, 404);
   await t.close();
 });
+
+test('a trashed project exports the tasks that went with it, not those trashed on their own', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const p = (await a.post('/api/projects', { name: 'Gone' })).body;
+  await a.post('/api/tasks', { title: 'Went with it', project_id: p.id });
+  const own = (await a.post('/api/tasks', { title: 'Own trash', project_id: p.id })).body;
+  await a.delete(`/api/tasks/${own.id}`, { version: own.version });
+  await a.delete(`/api/projects/${p.id}`, { version: p.version });
+  const md = (await a.get(`/api/projects/${p.id}/export.md`)).text;
+  assert.ok(md.includes('| Went with it |'));
+  assert.equal(md.includes('Own trash'), false);
+  await t.close();
+});

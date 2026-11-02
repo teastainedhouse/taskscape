@@ -31,7 +31,7 @@ export function el(tag, attrs, ...children) {
   if (attrs) {
     for (const [k, v] of Object.entries(attrs)) {
       if (v == null || v === false) continue;
-      if (k.startsWith('on')) throw new Error('event handlers go through addEventListener');
+      if (/^on/i.test(k)) throw new Error('event handlers go through addEventListener');
       if (k === 'class') node.className = v;
       else if (k === 'text') node.textContent = String(v);
       else if (PROPS.has(k)) node[k] = v;
@@ -55,6 +55,40 @@ export function append(parent, children) {
     else if (c instanceof Node) parent.appendChild(c);
     else parent.appendChild(document.createTextNode(String(c)));
   }
+}
+
+/** The only SVG we draw: shapes. No links, scripts, foreign content, or animation. */
+const SVG_TAGS = new Set(['svg', 'g', 'rect', 'title']);
+const SVG_ATTRS = new Set(['viewBox', 'width', 'height', 'x', 'y', 'fill', 'shape-rendering', 'aria-hidden', 'focusable', 'class', 'role']);
+
+/**
+ * An SVG element (createElementNS), from a short allowlist of tags and
+ * attributes, so no caller can build a link, a script, or an animation out of it.
+ * @param {string} tag
+ * @param {Record<string, string>} [attrs]
+ * @param {...(Node|null|undefined)} children
+ */
+export function svg(tag, attrs, ...children) {
+  if (!SVG_TAGS.has(tag)) throw new Error('SVG tag not allowed');
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs ?? {})) {
+    if (v == null) continue;
+    if (!SVG_ATTRS.has(k)) throw new Error('SVG attribute not allowed');
+    node.setAttribute(k, String(v));
+  }
+  for (const c of children) if (c) node.appendChild(c);
+  return node;
+}
+
+/**
+ * User text made safe for a confirm() dialog: one line, no control or
+ * bidirectional override characters (which could rewrite what the dialog
+ * appears to say), cut to `max` characters.
+ * @param {unknown} s @param {number} [max]
+ */
+export function oneLine(s, max = 80) {
+  const t = String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
+  return [...t].length > max ? [...t].slice(0, max - 1).join('') + '…' : t;
 }
 
 /** Remove every child of a node. @param {Node} node */
@@ -95,19 +129,6 @@ export function option(value, label, selected) {
   return el('option', { value, selected: !!selected }, label ?? value);
 }
 
-/**
- * A <select> with a label.
- * @param {{id: string, label: string, options: Array<{value: string, label?: string}>, value?: string, blank?: string}} spec
- * @returns {{wrap: HTMLElement, select: HTMLSelectElement}}
- */
-export function labeledSelect(spec) {
-  const select = el('select', { id: spec.id, name: spec.id });
-  if (spec.blank != null) select.appendChild(option('', spec.blank));
-  for (const o of spec.options) select.appendChild(option(o.value, o.label ?? o.value, o.value === spec.value));
-  const wrap = el('div', { class: 'field' }, el('label', { for: spec.id }, spec.label), select);
-  return { wrap, select };
-}
-
 /** Private marker: a padlock icon. */
 export function padlock() {
   return el('span', { class: 'padlock', title: 'Private: only you can see this' },
@@ -118,10 +139,18 @@ export function padlock() {
  * Link to a project page (ids are URL-encoded).
  * @param {string} id
  * @param {string} label
- * @param {string} [hash]
  */
-export function projectLink(id, label, hash) {
-  return el('a', { href: `project.html?id=${encodeURIComponent(id)}${hash ? '#' + encodeURIComponent(hash) : ''}` }, label);
+export function projectLink(id, label) {
+  return el('a', { href: `project.html?id=${encodeURIComponent(id)}` }, label);
+}
+
+/**
+ * Link to a task page.
+ * @param {string} id
+ * @param {string} label
+ */
+export function taskLink(id, label) {
+  return el('a', { href: `task.html?id=${encodeURIComponent(id)}` }, label);
 }
 
 /**
@@ -145,15 +174,27 @@ function luminance(hex) {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
+/** The person's preferred IANA time zone (page.js sets it from /api/me); null means the device's. */
+let zone = null;
+
+/** Use this time zone for every date shown and for "today". @param {string|null|undefined} tz */
+export function setTimeZone(tz) {
+  zone = typeof tz === 'string' && tz ? tz : null;
+}
+
 /**
- * Format an ISO timestamp for humans in the viewer's locale.
+ * Format an ISO timestamp for humans in the viewer's locale, in their preferred time zone.
  * @param {string|null} iso
  */
 export function fmtWhen(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  try {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: zone ?? undefined });
+  } catch {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
 }
 
 /** A <time> element. @param {string|null} iso */
@@ -161,9 +202,16 @@ export function timeEl(iso) {
   return iso ? el('time', { datetime: iso }, fmtWhen(iso)) : text('');
 }
 
-/** Today's date in the viewer's local time zone as YYYY-MM-DD. */
+/** Today's date as YYYY-MM-DD in the preferred time zone (else the device's). */
 export function todayLocal() {
   const d = new Date();
+  if (zone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+      const get = (type) => parts.find((x) => x.type === type)?.value ?? '';
+      return `${get('year')}-${get('month')}-${get('day')}`;
+    } catch { /* an unknown zone: fall back to the device's */ }
+  }
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

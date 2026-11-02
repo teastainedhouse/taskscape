@@ -36,8 +36,19 @@ export async function getByName(db, name) {
  * @returns {Promise<{tag: object, created: boolean}>}
  */
 export async function create(db, user, input, config, now) {
+  return db.transaction((tx) => createIn(tx, user, input, config, now));
+}
+
+/**
+ * Must run inside db.transaction(): the activity entry, the row locks and the visible read-back all
+ * assume it (pass the `tx` the transaction hands you, never `db`).
+ * create() inside a transaction the caller holds.
+ * @param {import('../db/index.js').Db} tx
+ */
+export async function createIn(tx, user, input, config, now) {
+  if (!tx.inTransaction) throw new Error('createIn must run inside db.transaction()');
   const name = normalizeTagName(input.name);
-  return db.transaction(async (tx) => {
+  {
     const existing = await getByName(tx, name);
     if (existing) return { tag: existing, created: false };
     let color = input.color;
@@ -47,10 +58,12 @@ export async function create(db, user, input, config, now) {
       color = palette[Number(rows[0].n) % palette.length];
     }
     const id = newId();
-    await tx.query('INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?)', [id, name, color, now]);
+    // two transactions can both find no row (PostgreSQL); the loser of the unique name reads the winner's tag
+    const { changes } = await tx.query('INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (name) DO NOTHING', [id, name, color, now]);
+    if (!changes) return { tag: await getByName(tx, name), created: false };
     await record(tx, user, { item_type: 'tag', item_id: id, action: 'create', changes: { name: { to: name }, color: { to: color } } }, now);
     return { tag: { id, name, color, created_at: now }, created: true };
-  });
+  }
 }
 
 /** Resolve a tag id inside a transaction or throw the generic 404. */

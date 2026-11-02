@@ -53,7 +53,8 @@ export function qs(query) {
  * Call the API.
  * @param {'GET'|'POST'|'PATCH'|'PUT'|'DELETE'} method
  * @param {string} path  starts with /api/
- * @param {{body?: any, query?: Record<string, any>, noExpiry?: boolean}} [opts]
+ * @param {{body?: any, text?: string, contentType?: string, query?: Record<string, any>, noExpiry?: boolean}} [opts]
+ *   text + contentType: send a raw text body of that type instead of JSON (the Markdown import)
  *   noExpiry: skip the session-expired event (the sign-in page, where a 401 is a wrong password or simply signed out)
  * @returns {Promise<any>} parsed JSON body
  * @throws {ApiError}
@@ -61,7 +62,11 @@ export function qs(query) {
 export async function api(method, path, opts = {}) {
   const headers = { Accept: 'application/json' };
   const init = { method, headers, credentials: 'same-origin', cache: 'no-store' };
-  if (opts.body !== undefined) {
+  if (opts.text !== undefined) {
+    if (!opts.contentType) throw new Error('a text body needs its content type'); // text/plain is refused by the API: a form can send it
+    headers['Content-Type'] = opts.contentType;
+    init.body = opts.text;
+  } else if (opts.body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(opts.body);
   }

@@ -151,7 +151,7 @@ export async function create(db, user, type, parentId, body, now) {
 /** Refuse a write that would put the guestbook over MAX_PER_GUESTBOOK live comments; the parent is locked and visible. */
 async function full(tx, type, parentId) {
   const { rows } = await tx.query('SELECT COUNT(*) AS n FROM comments WHERE item_type = ? AND item_id = ? AND deleted_at IS NULL', [type, parentId]);
-  if (Number(rows[0].n) >= MAX_PER_GUESTBOOK) throw invalidState('This guestbook is full.');
+  if (Number(rows[0].n) >= MAX_PER_GUESTBOOK) throw invalidState('This item has as many comments as it can hold.');
 }
 
 /**

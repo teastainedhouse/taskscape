@@ -70,6 +70,33 @@ export async function removeForUser(db, userId, keepId) {
   return changes;
 }
 
+/**
+ * A user's live sessions, newest first, for the profile page. Never the token hash.
+ * @param {import('../db/index.js').Db} db
+ * @param {string} userId
+ * @param {string} now
+ * @returns {Promise<Array<{id: string, created_at: string, last_seen_at: string, expires_at: string}>>}
+ */
+export async function listForUser(db, userId, now) {
+  const { rows } = await db.query(
+    'SELECT id, created_at, last_seen_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC, id DESC',
+    [userId, now]);
+  return rows.map((r) => ({ id: String(r.id), created_at: String(r.created_at), last_seen_at: String(r.last_seen_at), expires_at: String(r.expires_at) }));
+}
+
+/**
+ * End one of a user's own live sessions. Someone else's id, an unknown one, or an
+ * expired one (which the list no longer shows) ends nothing.
+ * @param {import('../db/index.js').Db} db
+ * @param {string} userId
+ * @param {string} sessionId
+ * @param {string} now
+ * @returns {Promise<boolean>} whether a row went
+ */
+export async function removeOwn(db, userId, sessionId, now) {
+  return (await db.query('DELETE FROM sessions WHERE id = ? AND user_id = ? AND expires_at > ?', [sessionId, userId, now])).changes > 0;
+}
+
 /** @param {import('../db/index.js').Db} db @param {string} now  drop expired rows */
 export async function removeExpired(db, now) {
   return (await db.query('DELETE FROM sessions WHERE expires_at <= ?', [now])).changes;

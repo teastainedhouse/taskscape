@@ -38,7 +38,7 @@ export async function createTestApp(opts = {}) {
   const config = prepareConfig(raw, { TASKSCAPE_ENV: 'test', ...(opts.env ?? {}) });
   const db = await openDb(PG_URL || 'sqlite::memory:');
   await db.migrate(MIGRATIONS);
-  if (PG_URL) await db.exec('TRUNCATE comments, activity, task_tags, project_tags, tasks, mcp_tokens, projects, tags, sessions, users');
+  if (PG_URL) await db.exec('TRUNCATE comments, activity, task_tags, project_tags, tasks, mcp_tokens, projects, tags, sessions, users, preferences');
   await ensureCatchAll(db, config, opts.now?.()); // same clock as the app, so General is never newer than a test's rows
   const errors = [];
   const app = createApp({ config, db, now: opts.now, log: (e) => errors.push(e) });
@@ -47,7 +47,8 @@ export async function createTestApp(opts = {}) {
     const send = (method) => async (path, body, extraHeaders = {}) => {
       const init = { method, headers: { ...headers, ...extraHeaders } };
       if (body !== undefined) {
-        init.headers['content-type'] = 'application/json';
+        // JSON unless the test names another type (the Markdown import sends text/markdown)
+        if (!Object.keys(init.headers).some((h) => h.toLowerCase() === 'content-type')) init.headers['content-type'] = 'application/json';
         init.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
       const res = await app.fetch(new Request('http://test' + path, init));

@@ -47,7 +47,7 @@ test('renderProjectExport keeps guestbook text quoted and names escaped, even wi
     body: 'hi\r# Injected\r[docs]: https://example.invalid/phish' };
   const md = renderProjectExport(project, [], { userName: 'Mallory [x](https://example.invalid)', date: '2026-01-02' }, { project: [comment] });
   const lines = md.split('\n');
-  assert.deepEqual(lines.filter((l) => l.startsWith('#')), ['# P', '## Tasks', '## Guestbook']);
+  assert.deepEqual(lines.filter((l) => l.startsWith('#')), ['# P', '## Tasks', '## Comments']);
   assert.ok(lines.includes('> \\[docs]: https://example.invalid/phish'));
   assert.ok(lines.includes('**Eve\\*\\* \\[re-download\\]\\(https://example.invalid\\) \\*\\***, 2026-01-01:'));
   assert.ok(md.includes('by Mallory \\[x\\]\\(https://example.invalid\\).'));

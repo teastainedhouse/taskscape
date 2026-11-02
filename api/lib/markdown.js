@@ -1,7 +1,7 @@
 /**
  * Markdown export. The export is for humans and is never rendered by
  * Taskscape, so description and notes are emitted raw; table cells and
- * headings are kept on one line with pipes escaped. Guestbook comments are
+ * headings are kept on one line with pipes escaped. Comments are
  * other people's words on the item, so they stay inside quote blocks and
  * their authors' names are escaped. A bare \r counts as a line break, as it
  * does in CommonMark.
@@ -44,7 +44,7 @@ function mdQuote(text) {
 }
 
 /** @param {Array<{author_name: string, created_at: string, body: string}>} list @returns {string[]} */
-function guestbookLines(list) {
+function commentLines(list) {
   const out = [];
   for (const c of list) out.push(`**${mdText(c.author_name)}**, ${c.created_at.slice(0, 10)}:`, '', ...mdQuote(c.body), '');
   return out;
@@ -54,10 +54,10 @@ function guestbookLines(list) {
  * @param {object} project
  * @param {object[]} tasks  already filtered to what the caller may see
  * @param {{userName: string, date: string}} meta
- * @param {{project?: object[], tasks?: Map<string, object[]>}} [guestbook]  live comments the caller may see, oldest first
+ * @param {{project?: object[], tasks?: Map<string, object[]>}} [comments]  live comments the caller may see, oldest first
  * @returns {string}
  */
-export function renderProjectExport(project, tasks, meta, guestbook = {}) {
+export function renderProjectExport(project, tasks, meta, comments = {}) {
   const yesno = (b) => (b ? 'yes' : 'no');
   const names = (tags) => tags.map((t) => t.name).join(', ');
   const lines = [
@@ -85,14 +85,14 @@ export function renderProjectExport(project, tasks, meta, guestbook = {}) {
     }
     lines.push('');
     for (const t of tasks) {
-      const comments = guestbook.tasks?.get(t.id) ?? [];
-      if (!t.notes && !comments.length) continue;
+      const list = comments.tasks?.get(t.id) ?? [];
+      if (!t.notes && !list.length) continue;
       lines.push(`### ${mdInline(t.title)}`, '');
       if (t.notes) lines.push(t.notes.trimEnd(), '');
-      if (comments.length) lines.push('Guestbook:', '', ...guestbookLines(comments));
+      if (list.length) lines.push('Comments:', '', ...commentLines(list));
     }
   }
-  if (guestbook.project?.length) lines.push('## Guestbook', '', ...guestbookLines(guestbook.project));
+  if (comments.project?.length) lines.push('## Comments', '', ...commentLines(comments.project));
   lines.push('---', `Exported from Taskscape on ${meta.date} by ${mdText(meta.userName)}.`, '');
   return lines.join('\n');
 }

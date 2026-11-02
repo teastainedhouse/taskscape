@@ -1,15 +1,27 @@
 // page.js — shared bootstrap for every page: load /api/config and /api/me,
-// fill in the site title, mount the dev banner and nav state, wire the status
-// region and the "session expired" notice, hide edit controls for viewers.
+// fill in the site title, mount the dev banner, the avatar (the header's
+// link to the profile page) and nav state, wire the status region and the
+// "session expired" notice, hide edit controls for viewers.
 // Under the password provider: send signed-out visitors to login.html,
 // link the expiry notice to it, and show the Sign out button.
 
 import { get, post, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
-import { el, setChildren } from './dom.js';
+import { el, setChildren, setTimeZone } from './dom.js';
 import { mountDevBanner } from './dev-user.js';
+import { mountAvatar } from './avatar.js';
 import { refreshBadge } from './for-you.js';
+import { applyTheme, applyRememberedTheme, forgetTheme } from './theme.js';
+import { mountShortcuts } from './shortcuts.js';
 
-/** @typedef {{config: any, me: {id: string, name: string, auth: string, can_edit: boolean}}} PageContext */
+/**
+ * @typedef {{theme: string, comments_label: 'Comments'|'Guestbook', shortcuts: boolean, time_zone: string, chosen: Record<string, boolean>}} Preferences
+ * @typedef {{config: any, me: {id: string, name: string, auth: string, can_edit: boolean, preferences: Preferences}}} PageContext
+ */
+
+// The theme this browser wore last time goes on before the first request, so a page
+// rarely flashes the default; boot() puts the real preference on once /api/me answers.
+// Not on the sign-in page: nobody is signed in there, so it wears the site default.
+if (!document.body.classList.contains('login-page')) applyRememberedTheme();
 
 let statusEl = null;
 let statusTimer = null;
@@ -100,6 +112,7 @@ function mountSignOut(me) {
     button.disabled = true;
     try {
       await post('/api/logout');
+      forgetTheme();
       location.replace('login.html');
     } catch (err) {
       button.disabled = false;
@@ -132,6 +145,9 @@ export async function boot(opts) {
   }
   ready = true;
   passwordSession = me.auth === 'password';
+  /** Pages built before preferences existed still work: every key has a site default. */
+  me.preferences = { theme: config.theme, comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: {}, ...(config.preference_defaults ?? {}), ...(me.preferences ?? {}) };
+  applyPreferences(config, me.preferences);
 
   applySiteTitle(config.site_title, opts?.title);
 
@@ -146,11 +162,23 @@ export async function boot(opts) {
   // Edit permission: anything marked data-needs-edit is for editors only.
   if (!me.can_edit) for (const n of document.querySelectorAll('[data-needs-edit]')) n.hidden = true;
 
-  const who = document.getElementById('whoami');
-  if (who) setChildren(who, ['Signed in as ', el('b', null, me.name)]);
+  mountAvatar(document.getElementById('avatar'), me);
   mountSignOut(me);
   refreshBadge(me).catch(() => {}); // the badge is a nicety; What's New itself still works
   return { config, me };
+}
+
+/**
+ * Put a set of preferences into effect on this page: the theme and the time zone.
+ * The profile page calls it again after a save.
+ * @param {any} config @param {Preferences} prefs
+ */
+export function applyPreferences(config, prefs) {
+  applyTheme(prefs.theme, config.themes ?? [config.theme], { fallback: config.theme });
+  // a zone the person chose follows them everywhere; otherwise this device's zone decides "today", as it always did
+  // (Claude, which has no device, follows the site default through the MCP me tool)
+  setTimeZone(prefs.chosen?.time_zone ? prefs.time_zone : null);
+  mountShortcuts(!!prefs.shortcuts);
 }
 
 /**

@@ -47,6 +47,7 @@
   --icon-tasks: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='1' y='1' width='10' height='11' fill='%23000'/%3E%3Crect x='2' y='2' width='8' height='9' fill='%23e8b830'/%3E%3Crect x='3' y='3' width='6' height='7' fill='%23fff'/%3E%3Crect x='4' y='0' width='4' height='1' fill='%23000'/%3E%3Crect x='5' y='1' width='2' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='6' width='1' height='1' fill='%23007c80'/%3E%3Crect x='4' y='7' width='1' height='1' fill='%23007c80'/%3E%3Crect x='5' y='8' width='1' height='1' fill='%23007c80'/%3E%3Crect x='6' y='7' width='1' height='1' fill='%23007c80'/%3E%3Crect x='7' y='6' width='1' height='1' fill='%23007c80'/%3E%3Crect x='8' y='5' width='1' height='1' fill='%23007c80'/%3E%3C/svg%3E");
   --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='4' y='0' width='4' height='1' fill='%23000'/%3E%3Crect x='0' y='1' width='5' height='1' fill='%23000'/%3E%3Crect x='5' y='1' width='2' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='1' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='2' width='10' height='1' fill='%23d4d4d4'/%3E%3Crect x='11' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='3' width='12' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='4' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='4' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='5' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='5' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='6' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='6' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='7' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='8' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='8' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='3' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='4' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='5' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='6' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='7' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='8' y='9' width='1' height='1' fill='%23d4d4d4'/%3E%3Crect x='9' y='9' width='1' height='1' fill='%237b7b7b'/%3E%3Crect x='10' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='10' width='8' height='1' fill='%23000'/%3E%3C/svg%3E");
   --icon-key: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='2' y='2' width='4' height='1' fill='%23000'/%3E%3Crect x='1' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='3' width='3' height='1' fill='%23ffe58a'/%3E%3Crect x='5' y='3' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='6' y='3' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='4' width='1' height='1' fill='%23ffe58a'/%3E%3Crect x='2' y='4' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='5' y='4' width='2' height='1' fill='%23e8b830'/%3E%3Crect x='7' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='0' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='5' width='1' height='1' fill='%23ffe58a'/%3E%3Crect x='2' y='5' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='5' y='5' width='2' height='1' fill='%23e8b830'/%3E%3Crect x='7' y='5' width='5' height='1' fill='%23000'/%3E%3Crect x='0' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='6' width='10' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='1' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='7' width='4' height='1' fill='%23e8b830'/%3E%3Crect x='6' y='7' width='2' height='1' fill='%23000'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='9' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='10' y='7' width='1' height='1' fill='%23e8b830'/%3E%3Crect x='11' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='8' width='4' height='1' fill='%23000'/%3E%3Crect x='7' y='8' width='2' height='1' fill='%23000'/%3E%3Crect x='10' y='8' width='1' height='1' fill='%23000'/%3E%3C/svg%3E");
+  --icon-person: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='4' y='0' width='4' height='1' fill='%23000'/%3E%3Crect x='3' y='1' width='1' height='4' fill='%23000'/%3E%3Crect x='8' y='1' width='1' height='4' fill='%23000'/%3E%3Crect x='4' y='1' width='4' height='4' fill='%23f3c9a0'/%3E%3Crect x='4' y='1' width='4' height='1' fill='%235a3a1e'/%3E%3Crect x='5' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='7' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='5' width='4' height='1' fill='%23000'/%3E%3Crect x='5' y='6' width='2' height='1' fill='%23f3c9a0'/%3E%3Crect x='2' y='7' width='8' height='1' fill='%23000'/%3E%3Crect x='1' y='8' width='1' height='3' fill='%23000'/%3E%3Crect x='10' y='8' width='1' height='3' fill='%23000'/%3E%3Crect x='2' y='8' width='8' height='3' fill='%23007c80'/%3E%3Crect x='5' y='8' width='2' height='1' fill='%23fff'/%3E%3Crect x='1' y='11' width='10' height='1' fill='%23000'/%3E%3C/svg%3E");
   --icon-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='1' y='1' width='10' height='1' fill='%23fff'/%3E%3Crect x='1' y='2' width='10' height='1' fill='%23fff'/%3E%3Crect x='11' y='2' width='1' height='1' fill='%23000'/%3E%3Crect x='2' y='3' width='2' height='1' fill='%23000'/%3E%3Crect x='4' y='3' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='3' width='4' height='1' fill='%23000'/%3E%3Crect x='4' y='4' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='4' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='5' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='5' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='6' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='6' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='7' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='7' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='8' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='8' width='1' height='1' fill='%23000'/%3E%3Crect x='4' y='9' width='4' height='1' fill='%23fff'/%3E%3Crect x='8' y='9' width='1' height='1' fill='%23000'/%3E%3Crect x='5' y='10' width='4' height='1' fill='%23000'/%3E%3C/svg%3E");
   --icon-meteor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' shape-rendering='crispEdges'%3E%3Crect x='2' y='2' width='1' height='1' fill='%232f4fa8'/%3E%3Crect x='3' y='3' width='1' height='1' fill='%232f4fa8'/%3E%3Crect x='4' y='3' width='1' height='1' fill='%236f8ff0'/%3E%3Crect x='4' y='4' width='2' height='1' fill='%236f8ff0'/%3E%3Crect x='5' y='5' width='1' height='1' fill='%236f8ff0'/%3E%3Crect x='6' y='5' width='1' height='1' fill='%23b9cbff'/%3E%3Crect x='6' y='6' width='2' height='1' fill='%23b9cbff'/%3E%3Crect x='7' y='7' width='1' height='1' fill='%23b9cbff'/%3E%3Crect x='8' y='7' width='2' height='1' fill='%23fff'/%3E%3Crect x='8' y='8' width='3' height='1' fill='%23fff'/%3E%3Crect x='8' y='9' width='2' height='1' fill='%23fff'/%3E%3C/svg%3E");
 }
@@ -179,7 +180,7 @@ nav a[href="index.html"] { --icon: var(--icon-folder); }
 nav a[href="mine.html"] { --icon: var(--icon-tasks); }
 nav a[href="whats-new.html"] { --icon: var(--icon-news); }
 nav a[href="trash.html"] { --icon: var(--icon-trash); }
-nav a[href="tokens.html"] { --icon: var(--icon-key); }
+nav a[href="profile.html"] { --icon: var(--icon-person); }
 nav a:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
 /* Unread "For you" entries: a pixel-cornered counter over the icon's corner. */
 nav a { position: relative; }
@@ -203,12 +204,17 @@ nav a[aria-current="page"] {
   font-weight: 700;
 }
 
-#whoami { margin-left: auto; padding: 0 10px; font-size: 12px; }
-.sign-out { margin-right: 6px; padding: 2px 8px; font-size: 12px; }
+.sign-out { margin-left: auto; margin-right: 6px; padding: 2px 8px; font-size: 12px; }
+.avatar { margin-left: auto; }
+.sign-out:not([hidden]) + .avatar { margin-left: 4px; }
 
-/* The throbber: a pixel monogram over the starfield, drifting slowly. */
-.site-header::after {
-  content: "";
+/* The throbber is the avatar: the signed-in person's initial (js/avatar.js) as pixels over the
+   starfield, drifting slowly, linking to the profile page. Empty (before boot, and on the sign-in
+   page) it shows the site mark instead. */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
   width: 48px;
   height: 48px;
@@ -217,30 +223,33 @@ nav a[aria-current="page"] {
   outline: 1px solid var(--edge);
   outline-offset: -3px;
   background:
-    var(--icon-mark) center / 24px 24px no-repeat,
     var(--icon-meteor) -4px -24px / 24px 24px no-repeat,
     url("../img/stars.png") 0 0 / 192px 192px repeat,
     radial-gradient(circle at 70% 25%, #2a4fb0, #0a1440 55%, #000010);
-  background-blend-mode: normal, normal, screen, normal;
+  background-blend-mode: normal, screen, normal;
   image-rendering: pixelated;
   animation: throbber-drift 40s linear infinite;
 }
-/* Layers: monogram, meteor, stars, sky. The stars drift one tile per loop (1.92px per 1%).
-   Twice a loop a meteor crosses in 1.2s, once past the top right of the monogram and once
-   past the bottom left; between passes it moves only along edges outside the box. */
+.avatar:empty::after { content: ""; width: 24px; height: 24px; background: var(--icon-mark) center / 24px 24px no-repeat; image-rendering: pixelated; }
+.avatar svg { display: block; width: 24px; height: 24px; }
+a.avatar:hover { border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+a.avatar:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Layers: meteor, stars, sky (the letter is an SVG on top). The stars drift one tile per loop
+   (1.92px per 1%). Twice a loop a meteor crosses in 1.2s, once past the top right of the letter
+   and once past the bottom left; between passes it moves only along edges outside the box. */
 @keyframes throbber-drift {
-  0%    { background-position: center, -4px -24px, 0 0, 0 0; }
-  12%   { background-position: center, -4px -24px, -23.04px 23.04px, 0 0; }
-  15%   { background-position: center, 44px 24px, -28.8px 28.8px, 0 0; }
-  16%   { background-position: center, 44px -24px, -30.72px 30.72px, 0 0; }
-  17%   { background-position: center, -24px -24px, -32.64px 32.64px, 0 0; }
-  17.5% { background-position: center, -24px -8px, -33.6px 33.6px, 0 0; }
-  62%   { background-position: center, -24px -8px, -119.04px 119.04px, 0 0; }
-  65%   { background-position: center, 28px 44px, -124.8px 124.8px, 0 0; }
-  66%   { background-position: center, -24px 44px, -126.72px 126.72px, 0 0; }
-  67%   { background-position: center, -24px -24px, -128.64px 128.64px, 0 0; }
-  67.5% { background-position: center, -4px -24px, -129.6px 129.6px, 0 0; }
-  100%  { background-position: center, -4px -24px, -192px 192px, 0 0; }
+  0%    { background-position: -4px -24px, 0 0, 0 0; }
+  12%   { background-position: -4px -24px, -23.04px 23.04px, 0 0; }
+  15%   { background-position: 44px 24px, -28.8px 28.8px, 0 0; }
+  16%   { background-position: 44px -24px, -30.72px 30.72px, 0 0; }
+  17%   { background-position: -24px -24px, -32.64px 32.64px, 0 0; }
+  17.5% { background-position: -24px -8px, -33.6px 33.6px, 0 0; }
+  62%   { background-position: -24px -8px, -119.04px 119.04px, 0 0; }
+  65%   { background-position: 28px 44px, -124.8px 124.8px, 0 0; }
+  66%   { background-position: -24px 44px, -126.72px 126.72px, 0 0; }
+  67%   { background-position: -24px -24px, -128.64px 128.64px, 0 0; }
+  67.5% { background-position: -4px -24px, -129.6px 129.6px, 0 0; }
+  100%  { background-position: -4px -24px, -192px 192px, 0 0; }
 }
 
 /* Overdue tasks: a second toolbar holding an inset ticker field. */
@@ -293,7 +302,7 @@ button, .button {
 }
 .button:visited { color: var(--ink); }
 button:hover, .button:hover { background: var(--chrome-hover); }
-button:active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); box-shadow: none; transform: translate(1px, 1px); }
+button:not(.editable__value):active, .button:active { border-color: var(--lo) var(--hi) var(--hi) var(--lo); box-shadow: none; transform: translate(1px, 1px); }
 button:disabled { color: var(--ink-muted); cursor: default; }
 button.danger { color: var(--danger); }
 
@@ -308,7 +317,7 @@ input[type="text"], input[type="search"], input[type="date"], input[type="url"],
 }
 input[readonly] { background: var(--zebra); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-.field label, .field .field-label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.field label { margin-bottom: 3px; font-size: 13px; font-weight: 600; }
 .field { margin: 10px 0; }
 .filters .field { margin: 0; }
 
@@ -334,14 +343,19 @@ td input[type="date"] { min-width: 9em; }
 tr.overdue td.col-due_date { color: var(--overdue); font-weight: 700; }
 tr.overdue td.col-due_date::after { content: "(overdue)"; display: block; font-weight: 400; }
 tr.trashed td { color: var(--ink-muted); font-style: italic; }
-tr.editing td, tbody tr.editing:nth-child(even) td { background: color-mix(in srgb, var(--accent) 14%, var(--view)); }
-tr.editing td.row-actions { white-space: normal; }
 tr.overdue td.col-due { color: var(--overdue); font-weight: 700; }
+tr.filtered-out td { font-style: italic; }
+/* Click to edit: a dotted underline on hover, a pencil when focused or hovered. */
+button.editable__value { color: inherit; background: none; border-radius: 0; box-shadow: none; }
+button.editable__value:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); border-bottom-color: var(--ink-muted); }
+button.editable__value:hover::after, button.editable__value:focus-visible::after { content: " \270E"; color: var(--ink-muted); font-size: 0.85em; }
+.editable--block button.editable__value { padding: 2px 4px; margin: 0 -4px; }
+.overdue-mark { color: var(--overdue); }
+.activity-list li { font-size: 14px; }
 .overdue-line { margin: 0 0 12px; padding: 6px 10px; border-left: 4px solid var(--overdue); background: color-mix(in srgb, var(--overdue) 8%, var(--view)); }
 .overdue-line b { color: var(--overdue); }
 .new-mark { padding: 0 4px; border: 1px solid currentColor; color: var(--overdue); font-size: 11px; }
 .overdue-line--none { border-left-color: var(--rule); background: none; }
-.notes-row td { background: var(--zebra); }
 
 /* Guestbook: signatures on ruled paper, the pen-and-ink kind every homepage had. */
 .guestbook-entry { background: var(--field); border: 1px solid var(--rule); border-left: 4px double var(--accent); }
@@ -385,6 +399,21 @@ table.meta tr:hover td { background: none; }
 /* Tag chips keep the colour their tag was given. */
 .tag-chip { padding: 0 6px; background: var(--chrome); border-color: var(--edge); border-radius: 0; box-shadow: 1px 1px 0 var(--edge); font-size: 12px; line-height: 1.6; }
 .tag-chip button { padding: 0 4px; box-shadow: none; font-size: 11px; }
+
+/* Profile: the big initial beside the name. */
+.who { display: flex; align-items: center; gap: 16px; margin: 0 0 8px; }
+.who__initial { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 72px; height: 72px; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); outline: 1px solid var(--edge); outline-offset: -3px;
+  background: url("../img/stars.png") 0 0 / 192px 192px repeat, radial-gradient(circle at 70% 25%, #2a4fb0, #0a1440 55%, #000010); background-blend-mode: screen, normal; image-rendering: pixelated; }
+.who__initial svg { width: 48px; height: 48px; }
+.who__text p { margin: 2px 0; }
+.who__name { font-size: 1.2rem; }
+tr.current-session td { font-weight: 600; }
+details summary { cursor: pointer; font-weight: 600; }
+
+/* Shortcuts help: a small window. */
+dialog.shortcuts-help { background: var(--view); color: var(--ink); border: 2px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 6px 6px 0 rgb(0 0 0 / 0.3); }
+dialog.shortcuts-help th, dialog.shortcuts-help td, dialog.shortcuts-help tr:hover td { border: 0; background: none; }
+kbd { background: var(--chrome); color: var(--ink); border-color: var(--lo); }
 
 /* A new MCP token. */
 .token-box { margin: 12px 0; padding: 10px 14px; background: var(--notice); border: 1px solid var(--notice-edge); }
@@ -433,7 +462,6 @@ table.meta tr:hover td { background: none; }
 /* Sign-in: the old "Username and Password Required" dialog, drawn in the page
    rather than popped up by the browser. A title bar, a bevelled grey panel with
    the key icon at 4x, labelled fields, OK (the default, ringed in black) and Cancel. */
-.login-page .site-header::after { margin-left: auto; }
 .login-page main.panel { display: flex; align-items: center; justify-content: center; padding: 48px 16px; }
 .login-dialog {
   width: 100%;
@@ -497,7 +525,7 @@ table.meta tr:hover td { background: none; }
 .login-elsewhere p { margin: 0 0 14px; font-size: 14px; }
 .login-elsewhere p:last-child { margin: 0; text-align: right; }
 
-/* Change password, on the tokens page. */
+/* Change password, on the profile page. */
 .password-form { margin-top: 8px; }
 
 /* Phone width: the window fills the screen and the toolbar wraps onto two rows. */
@@ -507,8 +535,8 @@ table.meta tr:hover td { background: none; }
   .dev-banner { margin: 0; border-width: 0 0 1px; }
   .site-header::before, #marquee:not([hidden])::before { display: none; }
   .site-header { padding: 4px 6px; }
-  .site-header::after { order: 2; width: 40px; height: 40px; }
-  #whoami, .sign-out { order: 1; }
+  .avatar { order: 2; width: 40px; height: 40px; }
+  .sign-out { order: 1; }
   nav { order: 3; flex-basis: 100%; }
   nav a, nav a:visited { flex: 1; min-width: 0; padding: 4px 2px 3px; }
   main.panel { padding: 16px; }
