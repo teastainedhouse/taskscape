@@ -1,3 +1,4 @@
+import * as feeds from './feeds.js';
 import * as sessions from './sessions.js';
 import * as tokens from './tokens.js';
 
@@ -29,6 +30,23 @@ export async function get(db, id) {
 export async function listEnabled(db) {
   const { rows } = await db.query("SELECT id, name FROM users WHERE disabled_at IS NULL AND id <> 'system' ORDER BY id");
   return rows.map((r) => ({ id: String(r.id), name: String(r.name) }));
+}
+
+/**
+ * The names of those of `ids` that are enabled users, in one query per 500 ids (mention resolution). No version, no
+ * activity; names only.
+ * @param {import('../db/index.js').Db} db @param {string[]} ids
+ * @returns {Promise<Map<string, string>>}
+ */
+export async function enabledNames(db, ids) {
+  const out = new Map();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const { rows } = await db.query(
+      `SELECT id, name FROM users WHERE disabled_at IS NULL AND id <> 'system' AND id IN (${chunk.map(() => '?').join(', ')})`, chunk);
+    for (const r of rows) out.set(String(r.id), String(r.name));
+  }
+  return out;
 }
 
 /**
@@ -69,15 +87,18 @@ export async function existingFootprint(db, id) {
             (SELECT COUNT(*) FROM activity WHERE actor_id = ?) AS activity,
             (SELECT COUNT(*) FROM mcp_tokens WHERE user_id = ?) AS tokens,
             (SELECT COUNT(*) FROM mcp_tokens WHERE user_id = ? AND revoked_at IS NULL) AS live_tokens,
-            (SELECT COUNT(*) FROM preferences WHERE user_id = ?) AS preferences`,
-    [id, id, id, id, id, id]);
+            (SELECT COUNT(*) FROM preferences WHERE user_id = ?) AS preferences,
+            (SELECT COUNT(*) FROM feed_tokens WHERE user_id = ?) AS feeds,
+            (SELECT COUNT(*) FROM feed_tokens WHERE user_id = ? AND revoked_at IS NULL) AS live_feeds`,
+    [id, id, id, id, id, id, id, id]);
   return { projects: Number(r.projects), tasks: Number(r.tasks), activity: Number(r.activity),
-    tokens: Number(r.tokens), live_tokens: Number(r.live_tokens), preferences: Number(r.preferences) };
+    tokens: Number(r.tokens), live_tokens: Number(r.live_tokens), preferences: Number(r.preferences),
+    feeds: Number(r.feeds), live_feeds: Number(r.live_feeds) };
 }
 
 /**
  * Add a user. An id that already owns projects or tasks, acted in the activity
- * log, or has ever held an MCP token is refused unless `claimExisting` is set: the
+ * log, or has ever held an MCP token or a feed link is refused unless `claimExisting` is set: the
  * new account would become that person, items, history, and tokens included.
  * @param {import('../db/index.js').Db} db
  * @param {{id: string, name: string, email?: string|null, groups?: string[]}} u  already validated
@@ -91,7 +112,8 @@ export async function create(db, u, passwordHash, now, opts = {}) {
   return db.transaction(async (tx) => {
     if ((await tx.query('SELECT id FROM users WHERE id = ?', [u.id])).rows[0]) return { status: 'exists' };
     const claimed = await existingFootprint(tx, u.id);
-    const inUse = claimed.projects + claimed.tasks + claimed.activity + claimed.tokens + claimed.preferences > 0;
+    // feed links count too: one made before this account existed would otherwise start reading as it
+    const inUse = claimed.projects + claimed.tasks + claimed.activity + claimed.tokens + claimed.preferences + claimed.feeds > 0;
     if (inUse && !opts.claimExisting) return { status: 'in_use', claimed };
     await tx.query(
       'INSERT INTO users (id, name, email, groups, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -118,12 +140,13 @@ export async function setPassword(db, id, passwordHash, now, opts = {}) {
     return {
       sessions: await sessions.removeForUser(tx, id, opts.keepSessionId),
       tokens: opts.revokeTokens ? await tokens.revokeAllForUser(tx, id, now) : 0,
+      feeds: opts.revokeTokens ? await feeds.revokeAllForUser(tx, id, now) : 0,
     };
   });
 }
 
 /**
- * Disable a user: no new sign-ins, every session ended, every MCP token revoked.
+ * Disable a user: no new sign-ins, every session ended, every MCP token and feed link revoked.
  * Works for an id with no users row too (someone known only from a token, say):
  * the sweep still runs and `found` says whether a row was disabled.
  * Repeating it is harmless and sweeps again.
@@ -136,7 +159,7 @@ export async function disable(db, id, now) {
   return db.transaction(async (tx) => {
     const found = Boolean((await tx.query('SELECT id FROM users WHERE id = ?', [id])).rows[0]);
     if (found) await tx.query('UPDATE users SET disabled_at = ?, updated_at = ? WHERE id = ? AND disabled_at IS NULL', [now, now, id]);
-    return { found, sessions: await sessions.removeForUser(tx, id), tokens: await tokens.revokeAllForUser(tx, id, now) };
+    return { found, sessions: await sessions.removeForUser(tx, id), tokens: await tokens.revokeAllForUser(tx, id, now), feeds: await feeds.revokeAllForUser(tx, id, now) };
   });
 }
 /**

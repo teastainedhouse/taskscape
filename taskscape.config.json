@@ -12,8 +12,10 @@
     "project": "Planned",
     "task": "To do"
   },
+  "priorities": ["High", "Medium", "Low"],
+  "attention_statuses": { "task": ["Blocked"] },
   "tag_palette": ["#000080", "#008000", "#800000", "#808000", "#800080", "#008080", "#ff0000", "#0000ff"],
-  "task_fields": ["title", "status", "owner", "due_date", "tags", "private"],
+  "task_fields": ["title", "status", "priority", "checklist", "owner", "due_date", "tags", "private"],
   "default_views": {
     "tasks": { "sort": "due_date", "dir": "asc" }
   },

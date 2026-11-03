@@ -9,7 +9,7 @@ import { parseProjectExport, splitCells, ImportParseError } from '../api/lib/mar
 const project = { name: 'Site | refresh', status: 'Active', owner_name: 'Alice Lin', private: false, hit_count: 12, tags: [{ name: 'web' }, { name: 'q4' }],
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', description: 'Line one\n\n  indented two\n' };
 const tasks = [
-  { id: 't1', title: 'Fix | GIFs', status: 'To do', owner_name: 'Alice Lin', due_date: '2026-11-05', tags: [{ name: 'bug' }], private: false, notes: 'Notes **bold**\n\nsecond paragraph' },
+  { id: 't1', title: 'Fix | GIFs', status: 'To do', priority: 'High', recurrence: 'monthly', owner_name: 'Alice Lin', due_date: '2026-11-05', tags: [{ name: 'bug' }], private: false, notes: 'Notes **bold**\n\nsecond paragraph' },
   { id: 't2', title: 'Plain', status: 'Done', owner_name: 'Bob Ortiz', due_date: null, tags: [], private: true, notes: 'first Plain' },
   { id: 't3', title: 'Plain', status: 'Doing', owner_name: 'Carol Nkemelu', due_date: null, tags: [], private: false, notes: 'second Plain has notes' },
   { id: 't4', title: 'Commented only', status: 'To do', owner_name: 'Alice Lin', due_date: null, tags: [], private: false, notes: '' },
@@ -32,6 +32,8 @@ test('what renderProjectExport writes, parseProjectExport reads back', () => {
     ['Plain', 'Doing', 'Carol Nkemelu', null, [], false, 'second Plain has notes'],
     ['Commented only', 'To do', 'Alice Lin', null, [], false, ''],
   ]);
+  assert.deepEqual(out.tasks.map((t) => t.priority), ['High', null, null, null]);
+  assert.deepEqual(out.tasks.map((t) => t.recurrence), ['monthly', null, null, null]);
   assert.ok(out.tasks.every((t) => Number.isInteger(t.line) && t.line > 1));
   assert.equal(out.comments_skipped, 4, 'one on the project, three on tasks: counted, never kept');
   assert.equal(JSON.stringify(out).includes('On the task'), false);
@@ -66,4 +68,16 @@ test('a hand-written file works too, and problems name field and line only', () 
     assert.equal(e.line, 7);
     assert.equal(e.message.includes('SECRET'), false);
   }
+});
+
+test('a file of many same-title rows and sections parses in linear time, and stops at the task cap', () => {
+  const n = 26_000; // fits in the 256 KB body limit
+  const text = `# P\n\n## Tasks\n\n| Title |\n| --- |\n${'| a |\n'.repeat(n)}\n${'### a\n\n'.repeat(n)}`;
+  let t0 = performance.now();
+  const parsed = parseProjectExport(text);
+  assert.equal(parsed.tasks.length, n);
+  assert.ok(performance.now() - t0 < 5_000, 'was a minute (a per-task scan of every task)');
+  t0 = performance.now();
+  assert.throws(() => parseProjectExport(text, { maxTasks: 1000 }), (e) => e.field === 'tasks' && e.line === 1007);
+  assert.ok(performance.now() - t0 < 1_000);
 });

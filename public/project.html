@@ -12,10 +12,12 @@
   <div id="dev-banner"></div>
   <div class="wrap">
     <header class="site-header">
-      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
+      <p class="site-title"><a href="today.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="today.html">Today</a> <span aria-hidden="true">|</span>
+        <a href="projects.html">Projects</a> <span aria-hidden="true">|</span>
         <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="calendar.html">Calendar</a> <span aria-hidden="true">|</span>
         <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
         <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
         <a href="profile.html">Profile</a>
@@ -28,10 +30,11 @@
     <p id="status" class="status" role="status" aria-live="polite"></p>
 
     <main class="panel">
-      <p><a href="index.html">&laquo; All projects</a></p>
+      <p><a href="projects.html">&laquo; All projects</a></p>
       <section id="project">
         <h1 id="project-name">Loading&hellip;</h1>
       </section>
+      <div id="duplicate-host"></div>
 
       <section id="tasks-section" aria-labelledby="tasks-h" hidden>
         <h2 id="tasks-h" tabindex="-1">Tasks</h2>
@@ -55,6 +58,7 @@
           <h3>Add a task</h3>
           <div class="field"><label for="nt-title">Title</label><input type="text" id="nt-title" name="title" required maxlength="200" size="40"></div>
           <div class="field"><label for="nt-status">Status</label><select id="nt-status" name="status"></select></div>
+          <div class="field"><label for="nt-priority">Priority</label><select id="nt-priority" name="priority"></select></div>
           <div class="field"><label for="nt-owner">Owner</label><select id="nt-owner" name="owner"></select></div>
           <div class="field"><label for="nt-due">Due date</label><input type="date" id="nt-due" name="due_date"></div>
           <div class="field"><label for="nt-notes">Notes</label><textarea id="nt-notes" name="notes" rows="2"></textarea></div>

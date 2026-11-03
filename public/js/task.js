@@ -5,8 +5,11 @@
 // the same generic not-found page.
 
 import { boot, say, sayError, attempt } from './page.js';
-import { get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
-import { el, btn, setChildren, padlock, projectLink, timeEl, oneLine } from './dom.js';
+import { api, get, post, patch, del, taskPath, projectPath, ApiError } from './api.js';
+import { linksList, linkForm } from './task-links.js';
+import { checklistList, checklistForm } from './task-checklist.js';
+import { RECURRENCE_WORDS, recurrenceMark } from './task-columns.js';
+import { el, btn, setChildren, padlock, projectLink, taskLink, timeEl, oneLine } from './dom.js';
 import { inlineEdit, selectFor, focusEditable, redraw } from './inline-edit.js';
 import { isOverdue } from './overdue.js';
 import { tagEditor } from './tags.js';
@@ -30,6 +33,14 @@ const state = {
 
 const host = document.getElementById('task');
 const notesSection = document.getElementById('notes-section');
+const linksSection = document.getElementById('links-section');
+const linksHost = document.getElementById('links');
+const linkFormHost = document.getElementById('link-form-host');
+/** @type {HTMLElement|null} */ let linkFormEl = null;
+const checklistSection = document.getElementById('checklist-section');
+const checklistHost = document.getElementById('checklist');
+const checklistFormHost = document.getElementById('checklist-form-host');
+/** @type {HTMLElement|null} */ let checklistFormEl = null;
 const notesHost = document.getElementById('notes');
 const actions = document.getElementById('task-actions');
 const activitySection = document.getElementById('activity-section');
@@ -45,7 +56,7 @@ function notFound() {
   document.title = `Not found - ${config.site_title || 'Taskscape'}`;
   activitySection.hidden = true;
   setChildren(host, [el('h1', null, 'Not found'),
-    el('p', null, 'This task does not exist, or it is private to someone else. ', el('a', { href: 'index.html' }, 'Back to the projects'))]);
+    el('p', null, 'This task does not exist, or it is private to someone else. ', el('a', { href: 'projects.html' }, 'Back to the projects'))]);
   document.getElementById('crumbs').hidden = true;
 }
 
@@ -86,7 +97,7 @@ function render() {
   const crumbs = document.getElementById('crumbs');
   if (crumbs.dataset.project !== t.project_id) { // redrawn only on a move, so a focused crumb link stays put
     crumbs.dataset.project = t.project_id;
-    setChildren(crumbs, [el('a', { href: 'index.html' }, '« All projects'), ' / ', projectLink(t.project_id, t.project_name ?? 'Project')]);
+    setChildren(crumbs, [el('a', { href: 'projects.html' }, '« All projects'), ' / ', projectLink(t.project_id, t.project_name ?? 'Project')]);
   }
 
   const parts = [];
@@ -122,7 +133,16 @@ function render() {
 
   row('Status', inlineEdit({ key: 'task-status', label: 'Status', allowed: canEdit, value: t.status,
     control: (v) => selectFor(config.statuses.task.map((s) => ({ value: s })), v),
-    save: (v) => patchTask({ status: v }, t.version) }));
+    save: async (v) => {
+      const rec = await patchTask({ status: v }, t.version);
+      return rec && (rec.recurred_to && !t.recurred_to ? { note: 'It repeats, so the next one was created: see "Next one" below.' } : rec);
+    } }));
+
+  if ((config.priorities ?? []).length || t.priority) {
+    row('Priority', inlineEdit({ key: 'task-priority', label: 'Priority', allowed: canEdit, value: t.priority, empty: 'none',
+      control: (v) => selectFor([{ value: '', label: 'None' }, ...(config.priorities ?? []).map((p) => ({ value: p }))], v),
+      save: (v) => patchTask({ priority: v || null }, t.version) }));
+  }
 
   row('Owner', inlineEdit({ key: 'task-owner', label: 'Owner', allowed: canEdit && (!t.private || owns()), value: t.owner_id,
     format: (id) => personName(id),
@@ -140,6 +160,14 @@ function render() {
     save: (v) => patchTask({ due_date: v || null }, t.version) });
   row('Due', due, isOverdue(t, config) ? el('b', { class: 'overdue-mark' }, ' (overdue)') : null);
 
+  row('Repeats', inlineEdit({ key: 'task-recurrence', label: 'Repeats', allowed: canEdit, value: t.recurrence, empty: 'does not repeat',
+    format: (v) => (v ? RECURRENCE_WORDS[v] ?? v : el('span', { class: 'muted' }, 'does not repeat')),
+    control: (v) => selectFor([{ value: '', label: 'Does not repeat' }, ...Object.entries(RECURRENCE_WORDS).map(([value, label]) => ({ value, label: `Every ${label.slice(6)}` }))], v),
+    save: (v) => patchTask({ recurrence: v || null }, t.version) }),
+    t.recurrence && !t.recurred_to && !config.closed_statuses.task.includes(t.status) && !state.project?.deleted_at ? el('span', { class: 'muted' }, ' (closing it creates the next one, once)') : null);
+  if (t.recurred_to) row('Next one', taskLink(t.recurred_to, 'Open the next one'));
+  if (t.recurred_from) row('Came from', taskLink(t.recurred_from, 'Open the one before'));
+
   const inPrivateProject = !!state.projects?.find((p) => p.id === t.project_id)?.private;
   const privacy = [t.private ? [padlock(), 'Private: only you can see this task'] : inPrivateProject ? 'Public, but inside your private project, so only you can see it' : 'Public'];
   if (owns() && canEdit) privacy.push(' ', btn(t.private ? 'Make public' : 'Make private', togglePrivacy, { class: 'privacy-toggle' }));
@@ -150,6 +178,16 @@ function render() {
   row('Updated', timeEl(t.updated_at));
   parts.push(el('div', { class: 'table-wrap' }, meta));
   redraw(host, parts); // an open editor, and focus, survive the redraw
+
+  checklistSection.hidden = false;
+  redraw(checklistHost, checklistList({ task: t, canEdit, write: writeChild, taskPath: taskPath(t.id) }));
+  if (canEdit && !checklistFormEl) { checklistFormEl = checklistForm({ write: writeChild, taskPath: taskPath(t.id), version: () => state.task.version }); checklistFormHost.append(checklistFormEl); }
+  if (checklistFormEl) checklistFormEl.hidden = !canEdit;
+
+  linksSection.hidden = false;
+  redraw(linksHost, [linksList({ task: t, canEdit, write: writeChild, taskPath: taskPath(t.id) })]);
+  if (canEdit && !linkFormEl) { linkFormEl = linkForm({ write: writeChild, taskPath: taskPath(t.id), version: () => state.task.version }); linkFormHost.append(linkFormEl); }
+  if (linkFormEl) linkFormEl.hidden = !canEdit;
 
   notesSection.hidden = false;
   redraw(notesHost, [inlineEdit({ key: 'task-notes', label: 'Notes', allowed: canEdit, value: t.notes ?? '', block: true,
@@ -191,6 +229,20 @@ async function patchTask(fields, version) {
   if (rec.project_id !== t.project_id) state.project = state.projects?.find((p) => p.id === rec.project_id) ?? null; // moved: the target was offered from the live list
   render();
   loadActivity(true); // the edit is an entry now
+  return rec;
+}
+
+/**
+ * One write to something on the task (a link, a checklist item): the task comes back and the page redraws from it, or from
+ * `current` on a 409. Resolves with the task, or null.
+ * @param {string} method @param {string} path @param {object} body
+ */
+async function writeChild(method, path, body) {
+  const rec = await attempt(() => api(method, path, { body }), (current) => { state.task = current; render(); });
+  if (!rec) return null;
+  state.task = rec;
+  render();
+  loadActivity(true);
   return rec;
 }
 

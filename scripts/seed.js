@@ -11,6 +11,8 @@ import * as projects from '../api/lib/repo/projects.js';
 import * as tasks from '../api/lib/repo/tasks.js';
 import * as tags from '../api/lib/repo/tags.js';
 import * as comments from '../api/lib/repo/comments.js';
+import * as links from '../api/lib/repo/links.js';
+import * as checklist from '../api/lib/repo/checklist.js';
 import { daysFromNow } from '../api/lib/time.js';
 
 try { process.loadEnvFile('.env'); } catch { /* optional */ }
@@ -36,7 +38,7 @@ if (Number(n) > 0) {
     db = await openDb(url);
     await db.migrate(MIGRATIONS);
   } else {
-    for (const table of ['comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
+    for (const table of ['feed_tokens', 'task_checklist_items', 'task_links', 'comment_mentions', 'comments', 'activity', 'task_tags', 'project_tags', 'tasks', 'mcp_tokens', 'sessions', 'preferences', 'users', 'projects', 'tags']) {
       await db.query(`DELETE FROM ${table}`);
     }
   }
@@ -63,16 +65,16 @@ P.reorg = await projects.create(db, carol, { id: 'reorg-notes', name: 'Reorg not
 P.party = await projects.create(db, alice, { id: 'holiday-party-1997', name: 'Holiday party 1997', status: 'Planned' }, config, tick());
 
 const T = {};
-T.gifs = await tasks.create(db, alice, { id: 'fix-broken-gifs', project_id: P.web.id, title: 'Fix broken GIFs', due_date: daysFromNow(-1), tag_ids: [tag.bug.id],
+T.gifs = await tasks.create(db, alice, { id: 'fix-broken-gifs', project_id: P.web.id, title: 'Fix broken GIFs', priority: 'High', due_date: daysFromNow(-1), tag_ids: [tag.bug.id],
   notes: 'The dancing baby is a broken image on the home page.' }, config, tick());
-T.copy = await tasks.create(db, bob, { id: 'write-homepage-copy', project_id: P.web.id, title: 'Write homepage copy', status: 'To do', due_date: daysFromNow(7) }, config, tick());
+T.copy = await tasks.create(db, bob, { id: 'write-homepage-copy', project_id: P.web.id, title: 'Write homepage copy', status: 'To do', priority: 'Medium', due_date: daysFromNow(7) }, config, tick());
 T.midi = await tasks.create(db, carol, { id: 'choose-midi-track', project_id: P.web.id, title: 'Choose MIDI background track', status: 'Done', due_date: daysFromNow(-3) }, config, tick());
 T.checklist = await tasks.create(db, alice, { id: 'alice-launch-checklist', project_id: P.web.id, title: "Alice's launch checklist", private: true,
   notes: 'Only I can see this. Do not forget the <blink> tag.' }, config, tick());
-T.chairs = await tasks.create(db, bob, { id: 'count-chairs', project_id: P.office.id, title: 'Count chairs', status: 'Blocked', due_date: daysFromNow(3), tag_ids: [tag.ops.id] }, config, tick());
+T.chairs = await tasks.create(db, bob, { id: 'count-chairs', project_id: P.office.id, title: 'Count chairs', status: 'Blocked', priority: 'Low', due_date: daysFromNow(3), tag_ids: [tag.ops.id] }, config, tick());
 T.lease = await tasks.create(db, bob, { id: 'negotiate-lease', project_id: P.office.id, title: 'Negotiate lease', private: true, notes: 'Numbers are not for sharing yet.' }, config, tick());
 T.orgchart = await tasks.create(db, carol, { id: 'draft-org-chart', project_id: P.reorg.id, title: 'Draft org chart', status: 'Doing', due_date: daysFromNow(10) }, config, tick());
-T.comp = await tasks.create(db, alice, { id: 'review-comp-bands', project_id: P.reorg.id, title: 'Review comp bands', due_date: daysFromNow(2) }, config, tick());
+T.comp = await tasks.create(db, alice, { id: 'review-comp-bands', project_id: P.reorg.id, title: 'Review comp bands', priority: 'High', due_date: daysFromNow(2) }, config, tick());
 
 // carol makes Reorg notes private: alice's task moves to the catch-all and alice sees why in What's New
 const flipped = await projects.update(db, carol, P.reorg.id, { version: P.reorg.version, private: true }, config, tick());
@@ -83,12 +85,45 @@ await tasks.update(db, mcp('carol', 'seed-session-0001'), T.orgchart.id, { versi
 const trashed = await tasks.trash(db, alice, T.midi.id, T.midi.version, tick());
 await tasks.restore(db, alice, T.midi.id, trashed.version, tick());
 
+// links on tasks: one added in the browser, one by Claude, one on a private task
+let gifs = await links.add(db, alice, T.gifs.id, (await tasks.get(db, alice, T.gifs.id)).version, { url: 'https://example.test/dancing-baby.gif', label: 'The broken GIF' }, tick());
+gifs = await links.add(db, mcp('alice', 'seed-session-0002'), T.gifs.id, gifs.version, { url: 'https://example.test/style-guide#images', label: null }, tick());
+await links.add(db, alice, T.checklist.id, T.checklist.version, { url: 'https://example.test/launch-plan', label: 'Launch plan (draft)' }, tick());
+
+// checklists: progress on a public task (one ticked by Claude), and a private one
+let steps = await checklist.add(db, alice, T.gifs.id, gifs.version, { text: 'Find the original GIF' }, tick());
+for (const text of ['Re-export at 256 colors', 'Upload and check the home page']) steps = await checklist.add(db, alice, T.gifs.id, steps.version, { text }, tick());
+steps = await checklist.update(db, mcp('alice', 'seed-session-0002'), T.gifs.id, steps.checklist[0].id, steps.version, { done: true }, tick());
+let launch = await tasks.get(db, alice, T.checklist.id);
+for (const text of ['Test in two browsers', 'Turn on the counter', 'Announce on the webring']) launch = await checklist.add(db, alice, T.checklist.id, launch.version, { text }, tick());
+
+// a weekly task that Claude closed once, so the next one exists and points back
+const plant = await tasks.create(db, bob, { id: 'water-the-plant', project_id: P.office.id, title: 'Water the office plant', recurrence: 'weekly', due_date: daysFromNow(-2) }, config, tick());
+await tasks.update(db, mcp('bob', 'seed-session-0003'), plant.id, { version: plant.version, status: 'Done' }, config, tick());
+await tasks.create(db, alice, { id: 'monthly-report', project_id: P.web.id, title: 'Send the monthly traffic report', recurrence: 'monthly', priority: 'Medium', due_date: daysFromNow(12) }, config, tick());
+
+// one task finished yesterday, so the Today page's "Finished in the last 7 days" has something to show
+const banner = await tasks.create(db, alice, { id: 'order-the-banner', project_id: P.party.id, title: 'Order the party banner', due_date: daysFromNow(-1) }, config, tick());
+await tasks.update(db, alice, banner.id, { version: banner.version, status: 'Done' }, config, new Date(Date.now() - 86_400_000).toISOString());
+
+// a task due next month, so the calendar has something past this month; and a feed link for alice (calendar and Atom, printed below)
+await tasks.create(db, alice, { id: 'plan-the-spring-sale', project_id: P.web.id, title: 'Plan the spring sale page', due_date: daysFromNow(35) }, config, tick());
+const { issue: issueFeed } = await import('../api/lib/repo/feeds.js');
+const aliceFeed = await issueFeed(db, alice, { label: 'Seeded calendar', scope: 'mine' }, tick());
+
+// a duplicate: next year's party from this one, statuses reset and dates 365 days on
+const { planDuplicate, runImport } = await import('../api/lib/import.js');
+const nextParty = await runImport(db, alice, await planDuplicate(db, alice, P.party.id,
+  { name: 'Holiday party 1998', reset_statuses: true, due_dates: 'shift', days: 365 }, config), config, tick());
+
 // guestbooks: public ones, one on a private task (only alice sees it), one in carol's private project, and one taken back
-await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick());
-await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick());
-await comments.create(db, alice, 'task', T.checklist.id, 'Note to self: check the counter before launch.', tick());
-await comments.create(db, carol, 'project', P.reorg.id, 'Draft only, nothing is decided.', tick());
-const regret = await comments.create(db, bob, 'project', P.web.id, 'First!', tick());
+await comments.create(db, bob, 'project', P.web.id, 'Cool site! Signed, Bob.', tick(), config);
+await comments.create(db, carol, 'task', T.gifs.id, 'The dancing baby GIF is the important one.', tick(), config);
+await comments.create(db, alice, 'task', T.checklist.id, 'Note to self: check the counter before launch.', tick(), config);
+await comments.create(db, carol, 'project', P.reorg.id, 'Draft only, nothing is decided.', tick(), config);
+const regret = await comments.create(db, bob, 'project', P.web.id, 'First!', tick(), config);
+// mentions: alice owns the GIF task (For you twice over); carol can see it too
+await comments.create(db, bob, 'task', T.gifs.id, '@carol agreed. @alice can you swap it in before launch?', tick(), config);
 await comments.trash(db, bob, regret.id, regret.version, tick());
 
 for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], [P.party.id, 0], [config.catch_all_project.id, 3]]) {
@@ -96,8 +131,10 @@ for (const [id, hits] of [[P.web.id, 1337], [P.office.id, 42], [P.reorg.id, 7], 
 }
 
 console.log(`seeded ${url}`);
-console.log(`  projects: ${Object.keys(P).length + 1} (incl. ${config.catch_all_project.name}), tasks: ${Object.keys(T).length}, tags: ${Object.keys(tag).length}`);
-console.log(`  guestbook comments: 5 (one trashed)`);
+console.log(`  projects: ${Object.keys(P).length + 2} (incl. ${config.catch_all_project.name} and a duplicate), tasks: ${Object.keys(T).length + 5 + nextParty.tasks.length}, tags: ${Object.keys(tag).length}`);
+console.log(`  comments: 6 (one trashed, one with mentions); priorities on 4 tasks; 3 links; 2 checklists; 2 repeating tasks (one closed, with its next copy)`);
 console.log(`  "${P.reorg.name}" went private; moved ${flipped.moved_tasks} task(s) to ${config.catch_all_project.name}`);
+console.log(`  alice's calendar feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/calendar.ics`);
+console.log(`  alice's For you Atom feed (dev server): http://localhost:${process.env.PORT || 3000}/api/feeds/${aliceFeed.plaintext}/activity.atom`);
 console.log(`  dev users: ${Object.keys(users).join(', ')}`);
 await db.close();

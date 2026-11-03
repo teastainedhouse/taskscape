@@ -9,7 +9,7 @@ const guestbook = (type) => [
     json({ items: await comments.listFor(ctx.db, ctx.user, type, ctx.params.id) }) },
   { method: 'POST', path: `/api/${type}s/:id/comments`, handler: async (req, ctx) => {
     const { body: text } = validateComment(await body(req, ctx));
-    return json(await comments.create(ctx.db, ctx.user, type, ctx.params.id, text, ctx.now()), 201);
+    return json(await comments.create(ctx.db, ctx.user, type, ctx.params.id, text, ctx.now(), ctx.config), 201);
   } },
 ];
 

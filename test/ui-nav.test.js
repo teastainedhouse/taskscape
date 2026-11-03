@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const NAV = ['index.html', 'mine.html', 'whats-new.html', 'trash.html', 'profile.html'];
+const NAV = ['today.html', 'projects.html', 'mine.html', 'calendar.html', 'whats-new.html', 'trash.html', 'profile.html'];
 
 /** The hrefs inside <nav aria-label="Main">, or null when the page has none. */
 function navLinks(html) {

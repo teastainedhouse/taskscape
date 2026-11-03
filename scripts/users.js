@@ -1,7 +1,7 @@
 // Manage users for the built-in password provider (auth.provider = "password").
 // Usage: npm run users -- add <id> --name "<name>" [--email <e>] [--groups a,b] [--claim-existing]
-//        npm run users -- passwd <id>     new password; ends that user's sessions and revokes their MCP tokens
-//        npm run users -- disable <id>    no sign-in; ends sessions, revokes MCP tokens (also for an id with no users row)
+//        npm run users -- passwd <id>     new password; ends that user's sessions and revokes their MCP tokens and feed links
+//        npm run users -- disable <id>    no sign-in; ends sessions, revokes MCP tokens and feed links (also for an id with no users row)
 //        npm run users -- enable <id>
 //        npm run users -- list
 // Passwords are read from the terminal without echo (asked twice), or as one line
@@ -127,8 +127,8 @@ try {
       const claim = flags['claim-existing'] === true;
       if (await users.get(db, u.id)) die('a user with that id already exists');
       const footprint = await users.existingFootprint(db, u.id);
-      const describe = (f) => `${f.projects} project(s), ${f.tasks} task(s), ${f.activity} activity entr(ies), ${f.tokens} MCP token(s) (${f.live_tokens} not revoked), ${f.preferences} preference row(s)`;
-      const inUse = footprint.projects + footprint.tasks + footprint.activity + footprint.tokens + footprint.preferences > 0;
+      const describe = (f) => `${f.projects} project(s), ${f.tasks} task(s), ${f.activity} activity entr(ies), ${f.tokens} MCP token(s) (${f.live_tokens} not revoked), ${f.feeds} feed link(s) (${f.live_feeds} not revoked), ${f.preferences} preference row(s)`;
+      const inUse = footprint.projects + footprint.tasks + footprint.activity + footprint.tokens + footprint.preferences + footprint.feeds > 0;
       if (inUse && !claim) {
         die(`that id is already in use: ${describe(footprint)}.\nIf this account is that person, run again with --claim-existing.`);
       }
@@ -147,13 +147,13 @@ try {
       if (!(await users.get(db, id))) die('no such user');
       const swept = await users.setPassword(db, id, await hashPassword(await askPassword()), now, { revokeTokens: true });
       if (!swept) die('no such user');
-      console.log(`password changed for ${id}; ended ${swept.sessions} session(s), revoked ${swept.tokens} MCP token(s)`);
+      console.log(`password changed for ${id}; ended ${swept.sessions} session(s), revoked ${swept.tokens} MCP token(s) and ${swept.feeds} feed link(s)`);
       break;
     }
     case 'disable': {
       const swept = await users.disable(db, requireId(id), now);
       const what = swept.found ? `disabled ${id}` : `no users row for ${id}; nothing to disable, swept anyway`;
-      console.log(`${what}; ended ${swept.sessions} session(s), revoked ${swept.tokens} MCP token(s)`);
+      console.log(`${what}; ended ${swept.sessions} session(s), revoked ${swept.tokens} MCP token(s) and ${swept.feeds} feed link(s)`);
       break;
     }
     case 'enable': {

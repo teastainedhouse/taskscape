@@ -9,6 +9,7 @@
 import { get, post, del, itemPath, ApiError } from './api.js';
 import { el, btn, setChildren, timeEl } from './dom.js';
 import { say, sayError, attempt } from './page.js';
+import { mentionPicker, mentionText } from './mentions.js';
 
 /** Matches COMMENT_MAX in api/lib/validate.js. */
 const MAX = 2000;
@@ -40,6 +41,7 @@ export function commentWords(label) {
     restoreLabel: gb ? 'Restore your guestbook entry' : 'Restore your comment',
     /** activity wording; `where` is 'task "Title"' or '(task no longer visible)' */
     signed: (where) => (gb ? `signed the guestbook of ${where}` : `commented on ${where}`),
+    mentioned: (where) => (gb ? `mentioned you in the guestbook of ${where}` : `mentioned you in a comment on ${where}`),
     trashedOn: (where) => (gb ? `trashed a guestbook entry on ${where}` : `trashed a comment on ${where}`),
     restoredOn: (where) => (gb ? `restored a guestbook entry on ${where}` : `restored a comment on ${where}`),
     otherOn: (action, where) => (gb ? `${action} a guestbook entry on ${where}` : `${action} a comment on ${where}`),
@@ -57,8 +59,10 @@ export function guestbook({ type, id, label, heading, me, canSign, words = comme
   const list = el('ol', { class: 'guestbook-list' });
   const empty = el('p', { class: 'muted empty' }, words.loading);
   const textarea = el('textarea', { id: `guestbook-${type}-${id}-body`, rows: '3', maxlength: String(MAX), required: true });
+  // the people list is loaded once, on the first "@"
+  const picker = mentionPicker(textarea, { me, loadPeople: async () => (await get('/api/people')).items ?? [] });
   const form = el('form', { class: 'guestbook-sign' },
-    el('label', { for: textarea.id }, words.sign), textarea, ' ', el('button', { type: 'submit' }, words.button));
+    el('label', { for: textarea.id }, words.sign), textarea, ' ', el('button', { type: 'submit' }, words.button), picker);
   const forWhom = el('span', { class: 'visually-hidden' }, ` for ${label}`);
   const section = /** @type {HTMLElement & {refresh: () => void}} */ (el('section', { class: 'guestbook', 'aria-labelledby': headingId },
     el(heading, { id: headingId }, words.label, forWhom), empty, list, form));
@@ -79,7 +83,7 @@ export function guestbook({ type, id, label, heading, me, canSign, words = comme
   function entry(c) {
     const mine = c.author_id === me.id;
     const trashed = !!c.deleted_at;
-    const body = el('p', { class: 'guestbook-body' }, c.body);
+    const body = el('p', { class: 'guestbook-body' }, mentionText(c.body, c.mentions));
     const actions = [];
     // the author can always take an entry back; bringing one back needs an open guestbook and edit rights
     if (mine && !trashed) actions.push(btn('Trash', () => change(c, 'trash'), { 'aria-label': words.trashLabel }));

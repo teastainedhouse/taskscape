@@ -202,9 +202,32 @@ export function timeEl(iso) {
   return iso ? el('time', { datetime: iso }, fmtWhen(iso)) : text('');
 }
 
-/** Today's date as YYYY-MM-DD in the preferred time zone (else the device's). */
+/** The server's today for this person (GET /api/me `today`), the one rule for overdue; page.js sets it. */
+let serverToday = null;
+/** When it arrived, so a page left open past midnight moves on with the clock. */
+let serverTodayAt = null;
+/** @param {string|null|undefined} d YYYY-MM-DD */
+export function setToday(d) {
+  serverToday = typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  serverTodayAt = new Date();
+}
+
+/**
+ * Today's date as YYYY-MM-DD: the server's for this person when known (moved on by the days that have passed since it
+ * arrived, in the preferred time zone), else in the preferred time zone (else the device's).
+ */
 export function todayLocal() {
-  const d = new Date();
+  const now = new Date();
+  if (!serverToday) return dateIn(now);
+  const days = Math.round((Date.parse(`${dateIn(now)}T00:00:00Z`) - Date.parse(`${dateIn(serverTodayAt)}T00:00:00Z`)) / 86400000);
+  if (!days) return serverToday;
+  const d = new Date(`${serverToday}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** A moment's date as YYYY-MM-DD in the preferred time zone, else the device's. @param {Date} d */
+function dateIn(d) {
   if (zone) {
     try {
       const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
@@ -213,5 +236,5 @@ export function todayLocal() {
     } catch { /* an unknown zone: fall back to the device's */ }
   }
   const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${String(d.getFullYear()).padStart(4, '0')}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

@@ -27,7 +27,7 @@ test('config: TASKSCAPE_ENV=production with dev provider throws at load', () => 
   assert.throws(() => prepareConfig(raw, { TASKSCAPE_ENV: 'production' }), /production/);
   assert.doesNotThrow(() => prepareConfig(raw, { TASKSCAPE_ENV: 'development' }));
   // env override of the provider
-  const c = prepareConfig({ ...raw, auth: { ...raw.auth, headers: {} } }, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'headers' });
+  const c = prepareConfig({ ...raw, auth: { ...raw.auth, headers: {} } }, { TASKSCAPE_ENV: 'production', TASKSCAPE_AUTH_PROVIDER: 'headers', TASKSCAPE_PUBLIC_URL: 'https://tasks.example.test' });
   assert.equal(c.auth.provider, 'headers');
 });
 
@@ -38,7 +38,7 @@ test('headers provider: plain headers', async () => {
     'x-forwarded-groups': 'editors, staff',
   }).get('/api/me');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { id: 'u-123', name: 'Dana Fox', email: 'dana@example.test', auth: 'headers', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } } });
+  assert.deepEqual(r.body, { id: 'u-123', name: 'Dana Fox', email: 'dana@example.test', auth: 'headers', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } }, today: new Date().toISOString().slice(0, 10) });
   const anon = await t.withHeaders({}).get('/api/me');
   assert.equal(anon.status, 401);
   const noId = await t.withHeaders({ 'x-forwarded-preferred-username': 'Ghost' }).get('/api/me');
@@ -59,7 +59,7 @@ test('headers provider: base64 principal document with claims flattening', async
   };
   const r = await t.withHeaders({ 'x-sso-principal': Buffer.from(JSON.stringify(doc)).toString('base64') }).get('/api/me');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.body, { id: 'u-777', name: 'Eve Park', email: 'eve@example.test', auth: 'headers', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } } });
+  assert.deepEqual(r.body, { id: 'u-777', name: 'Eve Park', email: 'eve@example.test', auth: 'headers', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: { theme: false, comments_label: false, shortcuts: false, time_zone: false } }, today: new Date().toISOString().slice(0, 10) });
   // garbage principal, no plain headers: 401
   assert.equal((await t.withHeaders({ 'x-sso-principal': '!!!' }).get('/api/me')).status, 401);
   // with a principal document configured, a client-supplied plain header is ignored

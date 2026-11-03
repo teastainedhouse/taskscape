@@ -1,4 +1,4 @@
-// projects.js — the project list (index.html): sort, filter, search,
+// projects.js — the project list (projects.html): sort, filter, search,
 // new project, overdue line and marquee, What's New preview. Trashing a
 // project happens on its own page.
 
@@ -203,8 +203,9 @@ function setupImport() {
         location.href = `project.html?id=${encodeURIComponent(made.project.id)}`;
       } catch (err) { sayError(err, 'Could not import'); confirmBtn.disabled = false; }
     });
-    const rows = plan.tasks.map((t) => el('li', null, t.private ? padlock() : null, t.title, ` — ${t.status}, ${t.owner_name}`, t.due_date ? `, due ${t.due_date}` : null,
-      t.tags.length ? `, tags: ${t.tags.join(', ')}` : null, t.notes ? `, notes (${t.notes.length} characters)` : null, t.private ? ', private to you' : null));
+    const rows = plan.tasks.map((t) => el('li', null, t.private ? padlock() : null, t.title, ` — ${t.status}${t.priority ? `, ${t.priority} priority` : ''}, ${t.owner_name}`, t.due_date ? `, due ${t.due_date}` : null,
+      t.tags.length ? `, tags: ${t.tags.join(', ')}` : null,
+      t.checklist?.length ? `, checklist of ${t.checklist.length}` : null, t.links?.length ? `, ${t.links.length} link${t.links.length === 1 ? '' : 's'}` : null, t.notes ? `, notes (${t.notes.length} characters)` : null, t.private ? ', private to you' : null));
     setChildren(preview, [
       el('h3', { tabindex: '-1', id: 'import-plan-h' }, 'What would be created'),
       el('p', null, plan.project.private ? padlock() : null, el('b', null, plan.project.name), ` — ${plan.project.status}, ${plan.project.owner_name}, ${plan.project.private ? 'private to you' : 'public'}`,

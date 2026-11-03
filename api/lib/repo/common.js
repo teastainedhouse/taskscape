@@ -30,11 +30,17 @@ export function rowToTask(r, tags = []) {
     project_name: r.project_name ?? null,
     title: r.title,
     status: r.status,
+    priority: r.priority ?? null,
     owner_id: r.owner_id,
     owner_name: r.owner_name,
     private: bool(r.private),
     due_date: r.due_date ?? null,
     notes: r.notes ?? '',
+    recurrence: r.recurrence ?? null,
+    // only the visible-reference columns (tasks.js select()): a raw id could name a task the reader cannot see
+    recurred_from: r.recurred_from_ref ?? null,
+    recurred_to: r.recurred_to_ref ?? null,
+    closed_at: r.closed_at ?? null,
     version: Number(r.version),
     created_at: r.created_at,
     updated_at: r.updated_at,
@@ -74,7 +80,8 @@ export async function tagsFor(db, kind, ids) {
 
 /** @param {string[]} order @param {string} col @returns {{sql: string, params: string[]}} */
 export function statusOrder(order, col) {
-  if (order.length === 0) return { sql: '0', params: [] };
+  // nothing to order by: an expression that is always 0 (a bare integer would name a column position, and PostgreSQL refuses a constant)
+  if (order.length === 0) return { sql: `(CASE WHEN ${col} IS NULL THEN 0 ELSE 0 END)`, params: [] };
   const whens = order.map((_, i) => `WHEN ? THEN ${i}`).join(' ');
   return { sql: `CASE ${col} ${whens} ELSE ${order.length} END`, params: [...order] };
 }

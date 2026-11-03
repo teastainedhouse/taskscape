@@ -79,7 +79,7 @@ textarea { width: 100%; min-height: 4em; }
 
 /* Task table: titles wrap; every other cell is a value you click to edit. */
 #tasks td.col-title, #mine td.col-title { overflow-wrap: anywhere; min-width: 8em; }
-#tasks td.col-due_date, #mine td.col-due { white-space: nowrap; }
+#tasks td.col-due_date, #mine td.col-due_date { white-space: nowrap; }
 
 /* Click to edit (js/inline-edit.js): the value is a button that reads as text. */
 button.editable__value {
@@ -110,17 +110,66 @@ tr.filtered-out td { opacity: 0.6; }
 @media (max-width: 600px) {
   .filters { gap: 6px 10px; }
   .row-actions { white-space: normal; }
-  /* The task table stacks: one block per task, each cell labelled; the header keeps only its sort buttons. */
-  #tasks, #tasks tbody, #tasks tr, #tasks td { display: block; }
+  /* The task tables stack: one block per task, each cell labelled; the project table's header keeps only its sort buttons. */
+  #tasks, #tasks tbody, #tasks tr, #tasks td, #mine, #mine tbody, #mine tr, #mine td { display: block; }
   #tasks thead tr { display: flex; flex-wrap: wrap; gap: 4px; }
   #tasks thead th { display: block; }
   #tasks thead th:not(:has(button)) { display: none; } /* only the sort buttons are worth a header here */
-  #tasks tbody td.col-title { font-weight: 600; }
-  #tasks tbody tr { border-bottom: 2px solid; padding: 4px 0; }
-  #tasks tbody td { border: 0; }
-  #tasks tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
-  #tasks tbody td.col-title::before { content: none; }
-  #tasks tbody td.col-title { font-weight: 600; }
+  #mine thead { display: none; } /* every cell carries its label */
+  #tasks tbody tr, #mine tbody tr { border-bottom: 2px solid; padding: 4px 0; }
+  #tasks tbody td, #mine tbody td { border: 0; }
+  #tasks tbody td[data-label]::before, #mine tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
+  #tasks tbody td.col-title::before, #mine tbody td.col-title::before { content: none; }
+  #tasks tbody td.col-title, #mine tbody td.col-title { font-weight: 600; }
+}
+
+/* Links on the task page (js/task-links.js): the link reads first; its edit controls sit under it. */
+.task-links { padding-left: 1.5em; }
+.task-links li { margin: 0 0 6px; overflow-wrap: anywhere; }
+.task-links .link-edit { font-size: 0.9em; }
+.new-link, .new-check { margin-top: 8px; }
+/* The checklist (js/task-checklist.js): a ticked item is struck through; its checkbox, labelled by the item, says ticked or not. */
+.checklist { list-style: none; padding-left: 0; }
+.checklist li { margin: 0 0 6px; overflow-wrap: anywhere; }
+.checklist__item--done .editable__value, .checklist__item--done .editable__text { text-decoration: line-through; }
+.checklist-progress { margin: 0 0 6px; }
+.recur-mark { white-space: nowrap; }
+/* The Today page (js/today.js): sections read at a glance; each table stacks at phone width like My tasks. */
+.today-scope { border: 0; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.today-scope legend { float: left; font-weight: 600; margin-right: 8px; padding: 0; }
+.today-section { margin-top: 18px; }
+/* Duplicate a project (js/tasks.js): the due-date choice reads as one line, wrapping at phone width. */
+.duplicate-form { margin: 12px 0 18px; }
+.field.dup-dates { border: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.field.dup-dates legend { float: left; font-weight: 600; margin-right: 8px; padding: 0; }
+.field.dup-dates label { display: inline; font-weight: normal; font-size: inherit; margin: 0; }
+.dup-shift { white-space: nowrap; }
+.today-table td.col-title { overflow-wrap: anywhere; min-width: 8em; }
+.empty-line { font-style: italic; }
+/* The calendar (js/calendar.js): a month table on wide screens, a list of days at phone width. */
+.cal-grid { table-layout: fixed; width: 100%; }
+.cal-grid td { vertical-align: top; height: 4.5em; }
+.cal-num { font-weight: 600; }
+.cal-today-word { font-weight: 400; font-style: italic; }
+.cal-day--today { outline: 2px solid currentColor; outline-offset: -2px; }
+.cal-day--late .cal-count { font-weight: 700; }
+.cal-count { font-size: 0.85em; padding: 1px 4px; white-space: normal; text-align: left; }
+.cal-list { display: none; padding-left: 0; list-style: none; }
+.cal-list h3 { margin: 12px 0 4px; font-size: 1em; }
+.cal-tasks { margin: 0; padding-left: 1.2em; }
+.cal-tasks li { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .cal-wrap, .cal-day-panel { display: none; }
+  .cal-list { display: block; }
+}
+@media (max-width: 600px) {
+  .today-table, .today-table tbody, .today-table tr, .today-table td { display: block; }
+  .today-table thead { display: none; }
+  .today-table tbody tr { border-bottom: 2px solid; padding: 4px 0; }
+  .today-table tbody td { border: 0; }
+  .today-table tbody td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; }
+  .today-table tbody td.col-title::before { content: none; }
+  .today-table tbody td.col-title { font-weight: 600; }
 }
 
 .tag-chip { display: inline-block; padding: 0 5px; margin: 0 3px 2px 0; border: 1px solid #000; white-space: nowrap; }
@@ -137,6 +186,11 @@ tr.filtered-out td { opacity: 0.6; }
 .guestbook-sign { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; max-width: 40em; }
 .guestbook-sign label { flex-basis: 100%; }
 .guestbook-sign textarea { flex: 1 1 16em; min-height: 4em; }
+/* @mentions (js/mentions.js): the suggestions under the comment box, and a mentioned name in a comment. */
+.mention-list { flex-basis: 100%; order: 1; list-style: none; margin: 0; padding: 2px; max-width: 24em; background: var(--field); color: var(--ink); border: 1px solid var(--ink-muted); }
+.mention-option { padding: 3px 6px; cursor: pointer; }
+.mention-option[aria-selected="true"] { background: var(--zebra); outline: 2px solid var(--focus); outline-offset: -2px; font-weight: 600; }
+.mention { background: var(--notice); color: var(--ink); padding: 0 2px; border-radius: 2px; font-weight: 600; }
 .activity-what { max-width: 36em; }
 .plaintext { width: 100%; font-family: monospace; }
 pre { overflow-x: auto; }

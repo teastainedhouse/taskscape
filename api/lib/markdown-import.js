@@ -14,7 +14,9 @@
  * where this one says "Comments"; both are accepted.
  */
 
-/** @typedef {{title: string, status: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, line: number}} ParsedTask */
+/** @typedef {{url: string, label: string|null, line: number}} ParsedLink */
+/** @typedef {{text: string, done: boolean, line: number}} ParsedCheckItem */
+/** @typedef {{title: string, status: string|null, priority: string|null, recurrence: string|null, owner_name: string|null, due_date: string|null, tags: string[], private: boolean|null, notes: string, links: ParsedLink[], checklist: ParsedCheckItem[], line: number}} ParsedTask */
 /**
  * @typedef {Object} ParsedExport
  * @property {{name: string, description: string, status: string|null, owner_name: string|null, private: boolean|null, tags: string[]}} project
@@ -30,6 +32,12 @@ const MAX_LINE = 20_000;
 const COMMENTS_HEADING = /^## (Comments|Guestbook)\s*$/;
 const COMMENTS_LABEL = /^(Comments|Guestbook):\s*$/;
 const COMMENT_SIGNATURE = /^\*\*.*\*\*, \d{4}-\d{2}-\d{2}:$/;
+/** `- [label](<url>)` or `- <url>`, as the export writes a task's links. */
+const LINK_LINE = /^- (?:\[((?:\\.|[^\\\]])*)\]\(<([^<>\s]+)>\)|<([^<>\s]+)>)\s*$/;
+/** `- [ ] text` or `- [x] text`, as the export writes a checklist item. */
+const CHECK_LINE = /^- \[([ xX])\] (.*\S)\s*$/;
+/** Undo the export's backslash escapes in a label. @param {string} s */
+const unescapeText = (s) => s.replace(/\\([!-/:-@[-`{-~])/g, '$1');
 
 /** An error naming the field and the line, never the value. */
 export class ImportParseError extends Error {
@@ -84,10 +92,12 @@ const orNull = (v) => (v === '' ? null : v);
 
 /**
  * @param {string} text
+ * @param {{maxTasks?: number}} [opts]  stop at the first table row past this many, so the work done on a file is
+ *   bounded by what an import accepts, not by what fits in the body limit
  * @returns {ParsedExport}
  * @throws {ImportParseError}
  */
-export function parseProjectExport(text) {
+export function parseProjectExport(text, { maxTasks = Infinity } = {}) {
   const lines = String(text ?? '').split(LINE_BREAK);
   const n = lines.length;
   let i = 0;
@@ -155,9 +165,10 @@ export function parseProjectExport(text) {
       const cell = (want) => (col(want) >= 0 ? cells[col(want)] ?? '' : '');
       const title = cell('title');
       if (!title) throw new ImportParseError('title', 'must not be empty', at());
+      if (tasks.length >= maxTasks) throw new ImportParseError('tasks', `at most ${maxTasks} tasks per import`, at());
       tasks.push({
-        title, status: orNull(cell('status')), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
-        tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', line: at(),
+        title, status: orNull(cell('status')), priority: orNull(cell('priority')), recurrence: orNull(cell('repeats').toLowerCase()), owner_name: orNull(cell('owner')), due_date: orNull(cell('due')),
+        tags: tagList(cell('tags')), private: yesNo(cell('private'), 'private', at()), notes: '', links: [], checklist: [], line: at(),
       });
       i++;
     }
@@ -186,6 +197,25 @@ export function parseProjectExport(text) {
       const key = titleKey(line.slice(4));
       pending.set(key, pending.get(key) - 1);
       i++;
+      // structured blocks come first, each at most once and in this order, a label line followed by its items
+      // ("_None._" for an empty one, written when the notes themselves start with a label line): "Links:", then "Checklist:"
+      const block = (label, itemRe) => {
+        let k = i;
+        while (k < n && lines[k].trim() === '') k++;
+        if (k >= n || !label.test(lines[k])) return null;
+        let j = k + 1;
+        while (j < n && lines[j].trim() === '') j++;
+        if (j < n && /^_None\._\s*$/.test(lines[j])) { i = j + 1; return []; }
+        if (j >= n || !itemRe.test(lines[j])) return null;
+        const found = [];
+        while (j < n && itemRe.test(lines[j])) { found.push({ m: lines[j].match(itemRe), line: j + 1 }); j++; }
+        i = j;
+        return found;
+      };
+      const linkList = (block(/^Links:\s*$/, LINK_LINE) ?? [])
+        .map(({ m, line: at }) => ({ url: m[2] ?? m[3], label: m[1] === undefined ? null : unescapeText(m[1]), line: at }));
+      const checkList = (block(/^Checklist:\s*$/, CHECK_LINE) ?? [])
+        .map(({ m, line: at }) => ({ text: unescapeText(m[2]), done: m[1] !== ' ', line: at }));
       const body = [];
       while (i < n && !endsSection(i)) {
         if (COMMENTS_LABEL.test(lines[i]) && startsComments(i)) { // the task's comments: count signatures, skip to the next section
@@ -197,7 +227,7 @@ export function parseProjectExport(text) {
         i++;
       }
       const list = notesFor.get(key) ?? [];
-      list.push(trimBlank(body).join('\n'));
+      list.push({ notes: trimBlank(body).join('\n'), links: linkList, checklist: checkList });
       notesFor.set(key, list);
       continue;
     }
@@ -215,14 +245,16 @@ export function parseProjectExport(text) {
   // for a task with notes or comments, so two tasks with one title and notes on only one cannot be told apart;
   // the caller is told how many were attached by order)
   const used = new Map();
+  const count = new Map(); // title key -> tasks with that title, counted once (a per-task scan was quadratic)
+  for (const k of titleKeys) count.set(k, (count.get(k) ?? 0) + 1);
   let ambiguous = 0;
   for (const t of tasks) {
     const key = titleKey(t.title);
     const list = notesFor.get(key);
     if (!list) continue;
     const k = used.get(key) ?? 0;
-    if (k < list.length) { t.notes = list[k]; used.set(key, k + 1); }
-    if (pending.get(key) !== 0 || titleKeys.filter((x) => x === key).length > list.length) ambiguous++;
+    if (k < list.length) { t.notes = list[k].notes; t.links = list[k].links; t.checklist = list[k].checklist; used.set(key, k + 1); }
+    if (pending.get(key) !== 0 || count.get(key) > list.length) ambiguous++;
   }
 
   return {

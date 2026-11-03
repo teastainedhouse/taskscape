@@ -16,10 +16,16 @@ async function seeded(t) {
   const a = t.as('alice');
   const web = (await a.post('/api/tags', { name: 'web' })).body;
   const p = (await a.post('/api/projects', { name: 'Site | refresh', description: 'Line one\n\n  indented two', status: 'Active', tag_ids: [web.id] })).body;
-  const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'Fix | GIFs', due_date: '2026-11-05', notes: 'Notes **bold**\n\nsecond paragraph', tag_ids: [web.id] })).body;
+  const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'Fix | GIFs', priority: 'Medium', due_date: '2026-11-05', notes: 'Notes **bold**\n\nsecond paragraph', tag_ids: [web.id] })).body;
   // distinct due dates: the export orders by due date, and undated tasks would tie
-  await a.post('/api/tasks', { project_id: p.id, title: 'Bob does this', owner_id: 'bob', status: 'Doing', due_date: '2026-11-06' });
+  await a.post('/api/tasks', { project_id: p.id, title: 'Bob does this', owner_id: 'bob', status: 'Doing', recurrence: 'weekly', due_date: '2026-11-06' });
   await a.post('/api/tasks', { project_id: p.id, title: 'Carol does that', owner_id: 'carol', status: 'Done', due_date: '2026-11-07' });
+  let v = t1.version;
+  v = (await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/spec?a=1&b=2#top', label: 'Spec [v2] \\ (draft) *x* <b>' })).body.version;
+  v = (await a.post(`/api/tasks/${t1.id}/links`, { version: v, url: 'https://example.test/plain' })).body.version;
+  v = (await a.post(`/api/tasks/${t1.id}/checklist`, { version: v, text: 'Find the [old] GIF *now*' })).body.version;
+  const item = (await a.post(`/api/tasks/${t1.id}/checklist`, { version: v, text: '- [x] looks done but is text' })).body;
+  await a.patch(`/api/tasks/${t1.id}/checklist/${item.checklist[0].id}`, { version: item.version, done: true });
   await a.post(`/api/projects/${p.id}/comments`, { body: 'Project comment' });
   await t.as('bob').post(`/api/tasks/${t1.id}/comments`, { body: 'Task comment' });
   return { a, p };
@@ -47,6 +53,15 @@ test('round trip: export, import, export again; same text apart from ids, dates 
   assert.equal(byTitle['Carol does that'].owner_id, 'carol');
   assert.equal(byTitle['Fix | GIFs'].notes, 'Notes **bold**\n\nsecond paragraph');
   assert.equal(byTitle['Fix | GIFs'].tags[0].name, 'web');
+  assert.equal(byTitle['Fix | GIFs'].priority, 'Medium');
+  assert.deepEqual(byTitle['Fix | GIFs'].links.map((l) => [l.url, l.label, l.position]), [
+    ['https://example.test/spec?a=1&b=2#top', 'Spec [v2] \\ (draft) *x* <b>', 0], ['https://example.test/plain', null, 1]]);
+  assert.deepEqual(byTitle['Fix | GIFs'].checklist.map((c) => [c.text, c.done]), [['Find the [old] GIF *now*', true], ['- [x] looks done but is text', false]]);
+  assert.ok(first.includes('Checklist:\n\n- [x] Find the \\[old\\] GIF \\*now\\*\n- [ ] - \\[x\\] looks done but is text\n'), first);
+  assert.ok(first.includes('Links:\n\n- [Spec \\[v2\\] \\\\ \\(draft\\) \\*x\\* \\<b\\>](<https://example.test/spec?a=1&b=2#top>)\n- <https://example.test/plain>\n'), first);
+  assert.equal(byTitle['Bob does this'].priority, null);
+  assert.equal(byTitle['Bob does this'].recurrence, 'weekly');
+  assert.equal(byTitle['Bob does this'].recurred_from, null, 'an import starts a new series');
   assert.equal(copies.length, 3);
   assert.equal((await a.get('/api/tags')).body.items.length, 1, 'no second "web" tag');
   // one activity entry per created item, by the importer
@@ -238,5 +253,107 @@ test('a tag cell with thousands of commas is refused quickly, not regrouped slow
   assert.equal(r.status, 400);
   assert.match(r.body.error.details.fields.tags, /at most 20 tags/);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+  await t.close();
+});
+
+test('import: an unknown priority names the field and the line; an empty cell is none', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const md = '# P\n\n## Tasks\n\n| Title | Status | Priority |\n| --- | --- | --- |\n| One | To do | Whenever |\n';
+  let r = await a.post('/api/projects/import?dry_run=true', md, MD);
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.priority, 'must be one of the configured priorities or null (line 7)');
+  r = await a.post('/api/projects/import?dry_run=true', md.replace('Whenever', ''), MD);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.tasks[0].priority, null);
+  r = await a.post('/api/projects/import?dry_run=true', md.replace('Whenever', 'Low'), MD);
+  assert.equal(r.body.tasks[0].priority, 'Low');
+  await t.close();
+});
+
+test('import: links must be http(s), named with their line; a "Links:" line deep in the notes stays notes', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const head = '# P\n\n## Tasks\n\n| Title | Status |\n| --- | --- |\n| One | To do |\n\n### One\n\n';
+  let r = await a.post('/api/projects/import?dry_run=true', head + 'Links:\n\n- [x](<javascript:alert(1)>)\n', MD);
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.links, 'must be http or https URLs without a user name or password (line 13)');
+  assert.equal(JSON.stringify(r.body).includes('alert'), false);
+  r = await a.post('/api/projects/import?dry_run=true', head + 'Links:\n\n- <https://example.test/a>\n- [B](<https://example.test/b>)\n\nSome notes.\n\nLinks:\n\n- <https://example.test/not-a-link>\n', MD);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks[0].links, [{ url: 'https://example.test/a', label: null }, { url: 'https://example.test/b', label: 'B' }]);
+  assert.equal(r.body.tasks[0].notes, 'Some notes.\n\nLinks:\n\n- <https://example.test/not-a-link>', 'only the block before the notes is structure');
+  await t.close();
+});
+
+test('import: notes that start like a Links block stay notes through a round trip; one block only', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const p = (await a.post('/api/projects', { name: 'P' })).body;
+  const sneaky = 'Links:\n\n- [Click](<https://evil.test/>)\n\nreal notes';
+  const t1 = (await a.post('/api/tasks', { project_id: p.id, title: 'No links', notes: sneaky })).body;
+  const t2 = (await a.post('/api/tasks', { project_id: p.id, title: 'Has links', notes: sneaky })).body;
+  await a.post(`/api/tasks/${t2.id}/links`, { version: t2.version, url: 'https://example.test/real\\path?q=a\\b' });
+  const md = (await a.get(`/api/projects/${p.id}/export.md`)).text;
+  assert.ok(md.includes('### No links\n\nLinks:\n\n_None._\n\nChecklist:\n\n_None._\n\nLinks:\n\n- [Click]'), 'empty blocks shield the notes');
+  assert.ok(md.includes('(<https://example.test/real/path?q=a%5Cb>)') || md.includes('- <https://example.test/real/path?q=a%5Cb>'), 'a backslash is encoded');
+  const r = await a.post('/api/projects/import', md, MD);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const byTitle = Object.fromEntries(r.body.tasks.map((x) => [x.title, x]));
+  assert.equal(byTitle['No links'].notes, sneaky);
+  assert.deepEqual(byTitle['No links'].links, []);
+  assert.equal(byTitle['Has links'].notes, sneaky);
+  assert.deepEqual(byTitle['Has links'].links.map((l) => l.url), ['https://example.test/real/path?q=a%5Cb']);
+  // a hand-written second Links block is notes, not more links
+  const two = '# Q\n\n## Tasks\n\n| Title |\n| --- |\n| One |\n\n### One\n\nLinks:\n\n- <https://example.test/a>\n\nLinks:\n\n- <https://example.test/b>\n';
+  const r2 = await a.post('/api/projects/import?dry_run=true', two, MD);
+  assert.deepEqual(r2.body.tasks[0].links.map((l) => l.url), ['https://example.test/a']);
+  assert.equal(r2.body.tasks[0].notes, 'Links:\n\n- <https://example.test/b>');
+  await t.close();
+});
+
+test('import: checklist items must be one line within the limit; a "Checklist:" deeper in the notes stays notes', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const head = '# P\n\n## Tasks\n\n| Title | Status |\n| --- | --- |\n| One | To do |\n\n### One\n\n';
+  let r = await a.post('/api/projects/import?dry_run=true', head + 'Checklist:\n\n- [ ] ' + 'x'.repeat(501) + '\n', MD);
+  assert.equal(r.status, 400);
+  assert.equal(r.body.error.details.fields.checklist, 'items must be one line of 1 to 500 characters (line 13)');
+  r = await a.post('/api/projects/import?dry_run=true', head + 'Links:\n\n- <https://example.test/a>\n\nChecklist:\n\n- [x] Done thing\n- [ ] Open thing\n\nNotes here.\n\nChecklist:\n\n- [ ] not an item\n', MD);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks[0].checklist, [{ text: 'Done thing', done: true }, { text: 'Open thing', done: false }]);
+  assert.equal(r.body.tasks[0].links.length, 1);
+  assert.equal(r.body.tasks[0].notes, 'Notes here.\n\nChecklist:\n\n- [ ] not an item');
+  await t.close();
+});
+
+test('an imported closed task has no closed_at: a file does not say when it was closed', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Done things' })).body;
+  await a.post('/api/tasks', { project_id: P.id, title: 'Finished', status: 'Done' });
+  const md = (await a.get(`/api/projects/${P.id}/export.md`)).text;
+  const r = await a.post('/api/projects/import', md, MD);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks.map((x) => [x.status, x.closed_at]), [['Done', null]], 'so it never shows as finished this week');
+  await t.close();
+});
+
+test('a series round-trips as one series: Repeats only on the task still carrying it', async () => {
+  const t = await createTestApp();
+  const a = t.as('alice');
+  const P = (await a.post('/api/projects', { name: 'Rent' })).body;
+  let rent = (await a.post('/api/tasks', { project_id: P.id, title: 'Pay rent', recurrence: 'monthly', due_date: '2027-01-31' })).body;
+  for (let i = 0; i < 2; i++) rent = (await a.get(`/api/tasks/${(await a.patch(`/api/tasks/${rent.id}`, { version: rent.version, status: 'Done' })).body.recurred_to}`)).body;
+  const md = (await a.get(`/api/projects/${P.id}/export.md`)).text;
+  assert.deepEqual(md.split('\n').filter((l) => l.startsWith('| Pay rent')).map((l) => l.split('|')[6].trim()), ['', '', 'monthly']);
+  const r = await a.post('/api/projects/import', md, MD);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual(r.body.tasks.map((x) => [x.status, x.due_date, x.recurrence]),
+    [['Done', '2027-01-31', null], ['Done', '2027-02-28', null], ['To do', '2027-03-31', 'monthly']]);
+  // a closed task reopened and closed again makes no second series
+  const done = r.body.tasks[1];
+  const reopened = (await a.patch(`/api/tasks/${done.id}`, { version: done.version, status: 'To do' })).body;
+  assert.equal((await a.patch(`/api/tasks/${reopened.id}`, { version: reopened.version, status: 'Done' })).body.recurred_to, null);
   await t.close();
 });

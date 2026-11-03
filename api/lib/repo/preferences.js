@@ -4,6 +4,8 @@
 // the site default, so a fork can change a default and everyone who never
 // chose follows it.
 
+import { dateInZone } from '../recurrence.js';
+
 /** The preference names, in the order the API and the profile page show them. */
 export const PREFERENCE_KEYS = ['theme', 'comments_label', 'shortcuts', 'time_zone'];
 
@@ -60,4 +62,18 @@ export async function set(db, userId, fields, now) {
       [userId, ...keys.map(asStored), now]);
   }
   return get(db, userId);
+}
+
+/**
+ * Today's date for a person: the calendar day of `now` in their time zone (their preference, else the site default).
+ * The one rule for "today" on the server: overdue, the due filters, the Today page and a recurring task's next date.
+ * @param {import('../db/index.js').Db} db
+ * @param {import('../config.js').Config} config
+ * @param {string} userId
+ * @param {string} now  ISO timestamp
+ * @returns {Promise<{today: string, time_zone: string}>}
+ */
+export async function todayFor(db, config, userId, now) {
+  const time_zone = effective(config, await get(db, userId)).time_zone;
+  return { today: dateInZone(new Date(now), time_zone), time_zone };
 }

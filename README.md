@@ -50,6 +50,7 @@ Environment variables:
 | `TASKSCAPE_CONFIG` | `./taskscape.config.json` | path to the config file |
 | `PORT` | `3000` | dev server port |
 | `HOST` | `127.0.0.1` | dev server bind address; behind a reverse proxy keep it on loopback so the proxy is the only way in |
+| `TASKSCAPE_PUBLIC_URL` | — | The site's public address for feed links (required, https, in production); overrides `public_url` in the config. Without either, feed links use the address each request came in on, which is wrong behind a proxy that rewrites the host |
 | `TASKSCAPE_URL`, `TASKSCAPE_TOKEN` | — | MCP server only; see [MCP setup](#mcp-setup) |
 
 ## The config file
@@ -59,15 +60,18 @@ Environment variables:
 | Key | What it does |
 | --- | --- |
 | `site_title` | Shown in page titles and headers |
-| `statuses` | Allowed status names for `project` and `task`, in display and sort order |
+| `statuses` | Allowed status names for `project` and `task`, in display and sort order (no commas, no spaces at either end: the list filters split on commas) |
 | `closed_statuses` | Which statuses count as done (a task in one is never overdue) |
 | `default_status` | Status a new project or task gets when none is sent |
+| `priorities` | Task priority names, highest first (shipped: `High`, `Medium`, `Low`); a task has one of these or none, and lists sort by it in this order. Same naming rules as statuses. An empty list turns priorities off |
+| `attention_statuses` | `task`: the statuses that need someone's attention (`Blocked` in this repo's file); the Today page lists them, and leaves the section out when the key is missing |
 | `tag_palette` | `#rrggbb` colors handed to new tags in turn |
-| `task_fields` | Which task columns the task table shows, in order |
+| `task_fields` | Which task columns a project's task table shows, in order; My tasks also shows the summary columns listed here (`priority`, `checklist` as "3/5", `links` as a count) |
 | `default_views` | Named sort and filter presets; `tasks` is the one the task table opens with |
 | `privacy` | `default_private`: whether new items start private (shipped: `false`) |
 | `permissions` | `edit`: `everyone`, or `group` with `groups` listing the SSO groups that may write |
 | `webring` | `[{ "name", "url" }]` of other teams' Taskscape copies; hidden until someone clicks the hit counter three times |
+| `public_url` | The site's public address (`https://…`), for feed links and the links inside feeds; `TASKSCAPE_PUBLIC_URL` overrides it. Required, and https, when `TASKSCAPE_ENV=production` |
 | `limits` | `page_size` (default list size, 500), `max_page_size` (1000), `body_bytes` (256 KB) |
 | `catch_all_project` | `id`, `name`, `description` of the project that receives tasks with no project (shipped id: `general`) |
 | `theme`, `themes` | The default look and the looks people may pick on their profile page; each name is `public/css/theme-<name>.css` (shipped: `toolbar` and `netscape`). A fork adds a theme by dropping in a CSS file and a name here; startup refuses a name without a file |
@@ -100,7 +104,7 @@ Taskscape is host-neutral on purpose. Upstream has no host adapter, no vendor na
 
 5. **Wire the host.** Three pieces:
 
-   - **Static files:** serve `public/` as-is at the site root. `/` is `public/index.html`. Send the HTML pages with the headers the dev server sends (`Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` and `X-Content-Type-Options: nosniff`), so no other site can frame a page or run a script in one; this matters most under `headers`, whose sign-on cookie may not be `SameSite=Strict`.
+   - **Static files:** serve `public/` as-is at the site root. `/` is `public/today.html` (the home page; set it as the directory index). Send the HTML pages with the headers the dev server sends (`Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` and `X-Content-Type-Options: nosniff`), so no other site can frame a page or run a script in one; this matters most under `headers`, whose sign-on cookie may not be `SameSite=Strict`.
    - **The API:** route `/api/*` to one function that calls `app.fetch(request)`. The adapter is a thin file under `host/<your-host>/`; the shape depends on what your host hands you:
 
      *Fetch-style host* (receives a Web `Request`, returns a `Response`):
@@ -254,6 +258,16 @@ Restore:
 
 Test a restore once, before you need it.
 
+## Duplicates and templates
+
+**Duplicate** on a project page makes a new project of yours from it: the tasks in it you can see, with their owners, tags, links, checklists (unticked), priorities and repeats, but never its comments. You can rename the copy, put the project and its tasks back in the default status, and keep the due dates, move them all by some days, or clear them. Claude can do the same with the MCP `duplicate` tool. On a site where new items are private by default, a copy is private too, and every task in it yours.
+
+**A template is just an exported file.** Set up a project the way you like it, press "Save as markdown" on its page, and keep the `.md` file (edit it as text if you like). To start from it, use "Import from Markdown" on the project list: you see what would be created before anything is. One file can seed any number of projects, on this site or another.
+
+## Calendar and feed links
+
+Your profile page makes **feed links**: secret URLs a calendar app subscribes to (`…/calendar.ics`, your open tasks with a due date as all-day events) and a feed reader follows (`…/activity.atom`, What's New as Atom, the newest 50 changes). Each link shows either your own work (in the calendar, your tasks; in the Atom feed, For you: changes others made to what you own) or everything you can see, and only what you can see now. A feed link can read its feeds and nothing else; it cannot sign in, call another route, or change anything. It is shown once when made; revoke it on the profile page if it leaks. Under the `password` provider a link stops working while the account is disabled, and `npm run users -- passwd` or `disable` revoke all of a user's links. Under `headers` and `dev` there is no account to check: a link keeps reading as its user id after the person leaves the identity provider, and only its owner can revoke it on the profile page, so when someone leaves, revoke theirs in the database (`UPDATE feed_tokens SET revoked_at = <now> WHERE user_id = '<id>'`, and the same on `mcp_tokens`, which behave alike). The Atom feed carries what What's New shows, including checklist text, link labels and tag names, so a hosted feed reader holds a copy of it. Set `public_url` (or `TASKSCAPE_PUBLIC_URL`) so the links inside a feed point at the real site.
+
 ## MCP setup
 
 Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which calls the same HTTP API as the browser, with a personal token. It follows the same privacy rules: a session sees a private item only when the token belongs to that item's owner.
@@ -287,11 +301,11 @@ Claude talks to Taskscape through a local MCP server, `mcp/server.js`, which cal
 
    `TASKSCAPE_URL` is the origin of your Taskscape (the deployed site, or the dev server). `${TASKSCAPE_TOKEN}` is expanded from your shell environment by the client; never write the token itself into `.mcp.json`, and never commit one. The repo ships `.mcp.example.json` as a starting point. The server exits with one line on stderr if either variable is missing.
 
-The server exposes ten tools:
+The server exposes thirteen tools:
 
 | Tool | Does |
 | --- | --- |
-| `me` | Who the token acts as, their time zone, and today's date in it; call it before working with dates |
+| `me` | Who the token acts as, their time zone, and today's date in it, plus the site's statuses and priorities; call it before working with dates |
 | `list_projects` | `GET /api/projects` with the same filters |
 | `list_tasks` | `GET /api/tasks` with the same filters |
 | `get` | One project or task by `type` and `id`, with its newest 50 comments |
@@ -300,7 +314,10 @@ The server exposes ten tools:
 | `delete` | Moves ONE item to the trash: a project, a task, or a comment you wrote. Takes a single id and refuses arrays; it will not bulk-delete |
 | `restore` | Brings one item back from the trash (a comment: only your own) |
 | `comment` | Comments on one project or task |
+| `link` | Adds, changes, moves, or removes one web link on a task (http or https only; Taskscape never fetches it) |
+| `checklist` | Adds, renames, ticks, unticks, moves, or removes one checklist item on a task |
 | `tag` | Adds and removes tags by name on one item |
+| `duplicate` | Copies one project into a new one of yours (tasks you can see, tags, links, unticked checklists, priorities, repeats; never comments), with the same options as the Duplicate button |
 
 Every write records the session id (a random id per server process, sent as `X-Taskscape-Session`) and `via: "mcp"`, so "What's New?" shows which Claude session did what. Reading a project through MCP does not bump its hit counter.
 

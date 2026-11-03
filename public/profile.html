@@ -12,10 +12,12 @@
   <div id="dev-banner"></div>
   <div class="wrap">
     <header class="site-header">
-      <p class="site-title"><a href="index.html" data-site-title>Taskscape</a></p>
+      <p class="site-title"><a href="today.html" data-site-title>Taskscape</a></p>
       <nav aria-label="Main">
-        <a href="index.html">Projects</a> <span aria-hidden="true">|</span>
+        <a href="today.html">Today</a> <span aria-hidden="true">|</span>
+        <a href="projects.html">Projects</a> <span aria-hidden="true">|</span>
         <a href="mine.html">My tasks</a> <span aria-hidden="true">|</span>
+        <a href="calendar.html">Calendar</a> <span aria-hidden="true">|</span>
         <a href="whats-new.html">What's New?</a> <span aria-hidden="true">|</span>
         <a href="trash.html">Trash</a> <span aria-hidden="true">|</span>
         <a href="profile.html">Profile</a>
@@ -37,14 +39,14 @@
 
       <section aria-labelledby="password-h" id="password-section" hidden>
         <h2 id="password-h">Change your password</h2>
-        <p id="password-hint">At least 10 characters. Changing it signs you out everywhere else; this browser stays signed in. Your MCP tokens keep working unless you tick the box below.</p>
+        <p id="password-hint">At least 10 characters. Changing it signs you out everywhere else; this browser stays signed in. Your MCP tokens and feed links keep working unless you tick the box below.</p>
         <form id="password-form" class="password-form" method="post" action="profile.html">
           <!-- For password managers: which account this password belongs to. -->
           <input type="text" id="pw-username" name="username" autocomplete="username" hidden>
           <div class="field"><label for="pw-current">Current password</label><input type="password" id="pw-current" name="current_password" autocomplete="current-password" required maxlength="200" size="30"></div>
           <div class="field"><label for="pw-new">New password</label><input type="password" id="pw-new" name="new_password" autocomplete="new-password" required minlength="10" maxlength="200" size="30" aria-describedby="password-hint"></div>
           <div class="field"><label for="pw-confirm">New password again</label><input type="password" id="pw-confirm" name="confirm_password" autocomplete="new-password" required minlength="10" maxlength="200" size="30"></div>
-          <div class="field"><label><input type="checkbox" id="pw-revoke-tokens" name="revoke_tokens"> Also revoke all my MCP tokens (do this if you think someone else knows your password)</label></div>
+          <div class="field"><label><input type="checkbox" id="pw-revoke-tokens" name="revoke_tokens"> Also revoke all my MCP tokens and feed links (do this if you think someone else knows your password)</label></div>
           <button type="submit">Change password</button>
         </form>
       </section>
@@ -60,6 +62,11 @@
           </table>
         </div>
         <p><button type="button" id="sign-out-others" class="danger" hidden>Sign out of other sessions</button></p>
+      </section>
+
+      <section aria-labelledby="feeds-h" id="feeds-section">
+        <h2 id="feeds-h" tabindex="-1">Calendar and feed links</h2>
+        <div id="feeds-host"></div>
       </section>
 
       <section aria-labelledby="tokens-h">

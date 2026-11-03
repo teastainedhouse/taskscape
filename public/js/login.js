@@ -1,14 +1,14 @@
 // login.js — the sign-in page for the password provider. Learns the site
 // title and provider from GET /api/login (the one call that works
 // signed out), posts the form to /api/login, then goes to `next` if it names
-// one of the app's pages, else index.html. Cancel clears the form.
+// one of the app's pages, else today.html. Cancel clears the form.
 
 import { applySiteTitle, say, sayError } from './page.js';
 import { api, get, ApiError } from './api.js';
 import { applyTheme } from './theme.js';
 
 /** The pages `next` may name. login.html itself is not one of them. */
-const PAGES = new Set(['index.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
+const PAGES = new Set(['today.html', 'projects.html', 'calendar.html', 'mine.html', 'project.html', 'task.html', 'whats-new.html', 'trash.html', 'profile.html']);
 
 const form = document.getElementById('login-form');
 const username = document.getElementById('login-username');
@@ -30,7 +30,7 @@ await start();
  * @returns {string}
  */
 function safeNext(raw) {
-  const fallback = 'index.html';
+  const fallback = 'today.html';
   if (typeof raw !== 'string' || raw.length > 2000) return fallback;
   if (/[\s\\\u0000-\u001f\u007f]/.test(raw)) return fallback;
   const m = /^\/?([a-z-]+\.html)(?:[?#].*)?$/.exec(raw);

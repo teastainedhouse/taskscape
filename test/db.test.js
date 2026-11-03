@@ -30,11 +30,11 @@ test('placeholders: read statements are detected', () => {
 test('sqlite: migrate applies the shipped migrations once and is idempotent', async () => {
   const db = await openDb('sqlite::memory:');
   const first = await db.migrate(MIGRATIONS);
-  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences']);
+  assert.deepEqual(first.applied, ['001_init', '002_password_auth', '003_comments', '004_activity_comment_type', '005_preferences', '006_task_priority', '007_task_links', '008_task_checklist', '009_task_recurrence', '010_task_closed_at', '011_feed_tokens', '012_comment_mentions']);
   const second = await db.migrate(MIGRATIONS);
   assert.deepEqual(second.applied, []);
   const { rows } = await db.query('SELECT id, name FROM schema_migrations ORDER BY id');
-  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }]);
+  assert.deepEqual(rows, [{ id: 1, name: 'init' }, { id: 2, name: 'password_auth' }, { id: 3, name: 'comments' }, { id: 4, name: 'activity_comment_type' }, { id: 5, name: 'preferences' }, { id: 6, name: 'task_priority' }, { id: 7, name: 'task_links' }, { id: 8, name: 'task_checklist' }, { id: 9, name: 'task_recurrence' }, { id: 10, name: 'task_closed_at' }, { id: 11, name: 'feed_tokens' }, { id: 12, name: 'comment_mentions' }]);
   await db.close();
 });
 
@@ -42,7 +42,7 @@ test('sqlite: 004 widens the activity item_type CHECK and keeps every row and in
   const dir = await mkdtemp(path.join(os.tmpdir(), 'tsk-mig-'));
   try {
     const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith('.sql'));
-    for (const f of files.filter((f) => !f.startsWith('004_') && !f.startsWith('005_'))) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
+    for (const f of files.filter((f) => Number.parseInt(f, 10) < 4)) await copyFile(path.join(MIGRATIONS, f), path.join(dir, f));
     const db = await openDb('sqlite::memory:');
     await db.migrate(dir);
     const row = (id, type, session) => db.query(

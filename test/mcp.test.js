@@ -53,8 +53,8 @@ function makeClient(route) {
 const text = (result) => result.content[0].text;
 const parsed = (result) => JSON.parse(text(result));
 
-test('tool definitions: exactly the ten tools, plain JSON Schema, data-not-instructions sentence', () => {
-  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'tag']);
+test('tool definitions: exactly the thirteen tools, plain JSON Schema, data-not-instructions sentence', () => {
+  assert.deepEqual(TOOLS.map((t) => t.name), ['me', 'list_projects', 'list_tasks', 'get', 'create', 'update', 'delete', 'restore', 'comment', 'link', 'checklist', 'tag', 'duplicate']);
   for (const t of TOOLS) {
     assert.ok(t.description.endsWith(DATA_NOTICE), `${t.name} description ends with the notice`);
     assert.equal(t.inputSchema.type, 'object');
@@ -68,12 +68,14 @@ test('tool definitions: exactly the ten tools, plain JSON Schema, data-not-instr
   const comment = TOOLS.find((t) => t.name === 'comment');
   assert.deepEqual(comment.inputSchema.required, ['type', 'id', 'body']);
   assert.deepEqual(comment.inputSchema.properties.type.enum, ['project', 'task'], 'comments go on projects and tasks only');
+  assert.match(comment.description, /To mention someone, write @ and their id/);
+  assert.match(comment.description, /Mention only people the user asked you to mention/);
   const upd = TOOLS.find((t) => t.name === 'update');
   assert.ok(upd.inputSchema.required.includes('version'));
   assert.match(upd.description, /version/);
   assert.match(upd.description, /latest get or list/);
   assert.match(upd.description, /conflict.*current record/i);
-  for (const name of ['update', 'delete', 'restore', 'tag']) {
+  for (const name of ['update', 'delete', 'restore', 'link', 'checklist', 'tag']) {
     const t = TOOLS.find((x) => x.name === name);
     assert.equal(t.inputSchema.properties.version.type, 'integer', `${name}.version is an integer`);
     assert.ok(t.inputSchema.required.includes('version'), `${name} requires version`);
@@ -143,13 +145,13 @@ test('callTool: fetch rejection becomes an error result without the token', asyn
 test('list_tasks / list_projects map array filters to comma-separated query params', async () => {
   const { client, calls } = makeClient(() => json(200, { items: [], limit: 500, offset: 0 }));
   await callTool('list_tasks', {
-    project_id: 'p1', status: ['To do', 'Doing'], owner: 'me', tag: 'bug', q: 'gif',
+    project_id: 'p1', status: ['To do', 'Doing'], priority: ['High', 'Low'], owner: 'me', tag: 'bug', q: 'gif', due: 'overdue', closed_since: '2026-11-01',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: true,
   }, client);
   assert.equal(calls[0].method, 'GET');
   assert.equal(calls[0].path, '/api/tasks');
   assert.deepEqual(calls[0].query, {
-    project: 'p1', status: 'To do,Doing', owner: 'me', tag: 'bug', q: 'gif',
+    project: 'p1', status: 'To do,Doing', priority: 'High,Low', owner: 'me', tag: 'bug', q: 'gif', due: 'overdue', closed_since: '2026-11-01',
     due_before: '2026-12-31', due_after: '2026-01-01', include_trashed: 'true',
   });
   await callTool('list_projects', { status: ['Active'], include_trashed: false }, client);
@@ -229,7 +231,15 @@ test('update rejects fields of the other type and tags before calling the API', 
   r = await callTool('update', { type: 'task', id: 't1', version: 1, fields: { tags: ['a'] } }, client);
   assert.equal(r.isError, true);
   assert.match(text(r), /update\.fields\.tags: unknown field/);
+  r = await callTool('update', { type: 'project', id: 'p1', version: 1, fields: { priority: 'High' } }, client);
+  assert.match(text(r), /update\.fields\.priority: not a project field/);
   assert.equal(calls.length, 0);
+  // a task takes a priority name or null, passed through as is
+  r = await callTool('update', { type: 'task', id: 't1', version: 1, fields: { priority: null } }, client);
+  assert.equal(r.isError, undefined);
+  assert.deepEqual(calls[0].body, { priority: null, version: 1 });
+  await callTool('create', { type: 'task', fields: { title: 'X', priority: 'High' } }, client);
+  assert.deepEqual(calls[1].body, { title: 'X', priority: 'High' });
 });
 
 test('update on 409 returns isError with both versions and the full current record as JSON', async () => {
@@ -269,6 +279,24 @@ test('delete rejects an array of ids and only ever issues one DELETE', async () 
   assert.match(text(r), /delete\.version: is required/);
   r = await callTool('delete', { type: 'task', id: '', version: 1 }, client);
   assert.match(text(r), /delete\.id: must not be empty/);
+});
+
+test('duplicate posts the options to /duplicate and returns the project, the task count and the notes', async () => {
+  const { client, calls } = makeClient(({ method, path }) => (method === 'POST' && path === '/api/projects/p%201/duplicate'
+    ? json(201, { project: { id: 'p2', name: 'Launch (copy)', version: 1 }, tasks: [task(), task()], notes: ['1 item is private to you.'] }) : undefined));
+  let r = await callTool('duplicate', { id: 'p 1', reset_statuses: true, due_dates: 'shift', days: 7 }, client);
+  assert.equal(r.isError, undefined);
+  assert.deepEqual(calls[0].body, { reset_statuses: true, due_dates: 'shift', days: 7 });
+  assert.deepEqual(parsed(r), { project: { id: 'p2', name: 'Launch (copy)', version: 1 }, tasks_created: 2, notes: ['1 item is private to you.'] });
+  r = await callTool('duplicate', { id: 'gone' }, client);
+  assert.equal(text(r), NOT_FOUND_TEXT);
+  r = await callTool('duplicate', { id: ['a', 'b'] }, client);
+  assert.equal(r.isError, true, 'one id, never a list');
+  r = await callTool('duplicate', { id: '..' }, client);
+  assert.equal(r.isError, true);
+  r = await callTool('duplicate', { id: 'p 1', due_dates: 'later' }, client);
+  assert.match(text(r), /due_dates: must be one of/);
+  assert.equal(calls.length, 2, 'invalid arguments never reach the API');
 });
 
 test('restore posts version to /restore', async () => {
@@ -443,13 +471,16 @@ test('get returns only the newest comments of a long guestbook, and says how man
 });
 
 test('me: who the token acts as, with the time zone and today in it', async () => {
+  const site = { statuses: { project: ['Planned'], task: ['To do', 'Done'] }, closed_statuses: { project: [], task: ['Done'] }, priorities: ['High', 'Low'], auth: { provider: 'dev' } };
   const { client, calls } = makeClient(({ path }) => (path === '/api/me'
     ? json(200, { id: 'alice', name: 'Alice Lin', email: null, auth: 'token', can_edit: true, preferences: { theme: 'toolbar', comments_label: 'Comments', shortcuts: true, time_zone: 'Pacific/Kiritimati' } })
-    : null));
+    : path === '/api/config' ? json(200, site) : null));
   const out = parsed(await callTool('me', {}, client));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/api/me');
-  assert.deepEqual(Object.keys(out), ['id', 'name', 'can_edit', 'time_zone', 'today', 'now']);
+  assert.deepEqual(calls.map((c) => c.path), ['/api/me', '/api/config']);
+  assert.deepEqual(Object.keys(out), ['id', 'name', 'can_edit', 'time_zone', 'today', 'now', 'statuses', 'closed_statuses', 'priorities']);
+  assert.deepEqual(out.priorities, ['High', 'Low']);
+  assert.deepEqual(out.closed_statuses, site.closed_statuses);
+  assert.ok(!('auth' in out), 'only the vocabulary, not the rest of the config');
   assert.equal(out.time_zone, 'Pacific/Kiritimati');
   assert.equal(out.today, dateIn(new Date(out.now), 'Pacific/Kiritimati'));
   assert.match(out.today, /^\d{4}-\d{2}-\d{2}$/);
@@ -478,4 +509,64 @@ test('tag reads its target first, so a hidden or missing item leaves no new publ
   assert.equal(out.isError, true);
   assert.equal(text(out), NOT_FOUND_TEXT);
   assert.deepEqual(calls.map((c) => `${c.method} ${c.path}`), ['GET /api/tasks/nope']);
+});
+
+test('link: one add, update or remove per call, on the task, with its version; bad combinations never reach the API', async () => {
+  const withLinks = { ...task(), version: 2, links: [{ id: 'l1', url: 'https://example.test/', label: null, position: 0 }] };
+  const { client, calls } = makeClient(() => json(200, withLinks));
+  let r = await callTool('link', { id: 't1', version: 1, action: 'add', url: 'https://example.test/', label: 'Spec' }, client);
+  assert.equal(parsed(r).links[0].id, 'l1');
+  assert.deepEqual([calls[0].method, calls[0].path, calls[0].body], ['POST', '/api/tasks/t1/links', { version: 1, url: 'https://example.test/', label: 'Spec' }]);
+  await callTool('link', { id: 't1', version: 2, action: 'update', link_id: 'l1', label: null, position: 0 }, client);
+  assert.deepEqual([calls[1].method, calls[1].path, calls[1].body], ['PATCH', '/api/tasks/t1/links/l1', { version: 2, label: null, position: 0 }]);
+  await callTool('link', { id: 't1', version: 3, action: 'remove', link_id: 'l1' }, client);
+  assert.deepEqual([calls[2].method, calls[2].path, calls[2].body], ['DELETE', '/api/tasks/t1/links/l1', { version: 3 }]);
+  for (const bad of [
+    { id: 't1', version: 1, action: 'add' },
+    { id: 't1', version: 1, action: 'add', url: 'https://x.test/', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'update', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'remove', link_id: 'l1', url: 'https://x.test/' },
+    { id: 't1', version: 1, action: 'remove' },
+    { id: ['t1'], version: 1, action: 'remove', link_id: 'l1' },
+    { id: 't1', version: 1, action: 'fetch', link_id: 'l1' },
+  ]) assert.equal((await callTool('link', bad, client)).isError, true, JSON.stringify(bad));
+  assert.equal(calls.length, 3);
+  // a 409 names both versions, like update
+  const stale = makeClient(() => json(409, { error: { code: 'conflict', message: 'x' }, current: withLinks }));
+  r = await callTool('link', { id: 't1', version: 1, action: 'remove', link_id: 'l1' }, stale.client);
+  assert.match(text(r), /task t1 is at version 2 \(you sent 1\)/);
+});
+
+test('an id of "." or ".." is refused before any request: dot segments would turn a link route into the task route', async () => {
+  const { client, calls } = makeClient(() => json(200, task()));
+  for (const args of [
+    ['link', { id: 't1', version: 1, action: 'remove', link_id: '..' }],
+    ['link', { id: 't1', version: 1, action: 'update', link_id: '.', label: 'x' }],
+    ['link', { id: 't1', version: 1, action: 'remove', link_id: '%2E%2e' }],
+    ['delete', { type: 'task', id: '..', version: 1 }],
+    ['get', { type: 'task', id: '.' }],
+  ]) {
+    const r = await callTool(args[0], args[1], client);
+    assert.equal(r.isError, true, JSON.stringify(args));
+    assert.match(text(r), /is not an id/);
+  }
+  assert.equal(calls.length, 0);
+  // and through a real URL parser, a link route with a normal id stays a link route
+  assert.equal(new URL('http://x.test/api/tasks/t1/links/' + encodeURIComponent('a.b')).pathname, '/api/tasks/t1/links/a.b');
+});
+
+test('checklist: one add, update (rename, tick, untick, move) or remove per call; bad combinations never reach the API', async () => {
+  const { client, calls } = makeClient(() => json(200, { ...task(), checklist: [] }));
+  await callTool('checklist', { id: 't1', version: 1, action: 'add', text: 'Step one' }, client);
+  assert.deepEqual([calls[0].method, calls[0].path, calls[0].body], ['POST', '/api/tasks/t1/checklist', { version: 1, text: 'Step one' }]);
+  await callTool('checklist', { id: 't1', version: 2, action: 'update', item_id: 'c1', done: true }, client);
+  assert.deepEqual([calls[1].method, calls[1].path, calls[1].body], ['PATCH', '/api/tasks/t1/checklist/c1', { version: 2, done: true }]);
+  await callTool('checklist', { id: 't1', version: 3, action: 'remove', item_id: 'c1' }, client);
+  assert.deepEqual([calls[2].method, calls[2].path], ['DELETE', '/api/tasks/t1/checklist/c1']);
+  for (const bad of [
+    { id: 't1', version: 1, action: 'add' }, { id: 't1', version: 1, action: 'add', text: 'x', done: true },
+    { id: 't1', version: 1, action: 'update', item_id: 'c1' }, { id: 't1', version: 1, action: 'remove', item_id: 'c1', done: false },
+    { id: 't1', version: 1, action: 'remove', item_id: '..' }, { id: 't1', version: 1, action: 'update', item_id: 'c1', done: 'yes' },
+  ]) assert.equal((await callTool('checklist', bad, client)).isError, true, JSON.stringify(bad));
+  assert.equal(calls.length, 3);
 });

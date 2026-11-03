@@ -7,7 +7,7 @@ test('export: markdown attachment with the documented layout', async () => {
   const a = t.as('alice');
   const tag = (await a.post('/api/tags', { name: 'web' })).body;
   const p = (await a.post('/api/projects', { name: 'Ünïcode / Project!', description: 'Line one\n\nLine two', status: 'Active', tag_ids: [tag.id] })).body;
-  await a.post('/api/tasks', { title: 'Pipe | in title', project_id: p.id, due_date: '2026-11-05', notes: 'Some **notes**\nover lines' });
+  await a.post('/api/tasks', { title: 'Pipe | in title', project_id: p.id, priority: 'High', recurrence: 'weekly', due_date: '2026-11-05', notes: 'Some **notes**\nover lines' });
   await a.post('/api/tasks', { title: 'Second', project_id: p.id, status: 'Done' });
   const trashed = (await a.post('/api/tasks', { title: 'Trashed', project_id: p.id })).body;
   await a.delete(`/api/tasks/${trashed.id}`, { version: 1 });
@@ -19,8 +19,8 @@ test('export: markdown attachment with the documented layout', async () => {
   const md = r.text;
   assert.ok(md.startsWith('# Ünïcode / Project!\n\n| Field | Value |\n| --- | --- |\n| Status | Active |\n| Owner | Alice Lin |\n| Private | no |\n| Hits | 0 |\n| Tags | web |\n'));
   assert.ok(md.includes('Line one\n\nLine two\n'));
-  assert.ok(md.includes('| Pipe \\| in title | To do | Alice Lin | 2026-11-05 |  | no |'));
-  assert.ok(md.includes('| Second | Done | Alice Lin |  |  | no |'));
+  assert.ok(md.includes('| Pipe \\| in title | To do | High | Alice Lin | 2026-11-05 | weekly |  | no |'));
+  assert.ok(md.includes('| Second | Done |  | Alice Lin |  |  |  | no |'));
   assert.ok(md.includes('### Pipe | in title\n\nSome **notes**\nover lines\n'));
   assert.equal(md.includes('Trashed'), false);
   assert.ok(md.endsWith('---\nExported from Taskscape on 2026-11-02 by Alice Lin.\n'));

@@ -1,6 +1,8 @@
 import { json, readText } from '../lib/http.js';
 import { validationFailed, unsupportedMediaType } from '../lib/errors.js';
-import { planImport, runImport } from '../lib/import.js';
+import { planImport, planDuplicate, runImport } from '../lib/import.js';
+import { validateDuplicate } from '../lib/validate.js';
+import { body } from './_shared.js';
 
 /** @param {string|undefined} v  a boolean query flag; anything but true/false is 400 */
 function flag(name, v) {
@@ -26,5 +28,13 @@ export const routes = [
     if (dryRun) return json({ dry_run: true, ...plan });
     const made = await runImport(ctx.db, ctx.user, plan, ctx.config, ctx.now());
     return json({ ...made, comments_skipped: plan.comments_skipped, notes: plan.notes }, 201);
+  } },
+  // POST /api/projects/:id/duplicate: a new project from what the caller sees of this one, built from its records and
+  // run through the import's rules (lib/import.js planDuplicate()), in one transaction with an activity entry for everything created
+  { method: 'POST', path: '/api/projects/:id/duplicate', handler: async (req, ctx) => {
+    const opts = validateDuplicate(await body(req, ctx));
+    const plan = await planDuplicate(ctx.db, ctx.user, ctx.params.id, opts, ctx.config);
+    const made = await runImport(ctx.db, ctx.user, plan, ctx.config, ctx.now());
+    return json({ ...made, notes: plan.notes }, 201);
   } },
 ];

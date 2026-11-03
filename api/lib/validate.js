@@ -2,13 +2,14 @@ import { validationFailed } from './errors.js';
 import * as tagsRepo from './repo/tags.js';
 import { PREFERENCE_KEYS } from './repo/preferences.js';
 import { passwordProblem, PASSWORD_MAX } from './auth/passwords.js';
+import { RECURRENCES } from './recurrence.js';
 
-const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name'];
+const READ_ONLY = ['id', 'created_at', 'updated_at', 'deleted_at', 'hit_count', 'tags', 'project_name', 'links', 'checklist', 'recurred_from', 'recurred_to', 'closed_at'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
 /** @param {string} s */
-function validDate(s) {
+export function validDate(s) {
   if (!DATE_RE.test(s)) return false;
   const d = new Date(s + 'T00:00:00Z');
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
@@ -68,6 +69,15 @@ export function validateItem(body, config, kind, { partial }) {
       else if (body.project_id !== null && (typeof body.project_id !== 'string' || !body.project_id)) errors.project_id = 'must be a project id';
       else if (typeof body.project_id === 'string') out.project_id = body.project_id;
     }
+    if ('priority' in body) {
+      if (body.priority === null) out.priority = null;
+      else if (!config.priorities.includes(body.priority)) errors.priority = 'must be one of the configured priorities or null';
+      else out.priority = body.priority;
+    }
+    if ('recurrence' in body) {
+      if (body.recurrence === null || RECURRENCES.includes(body.recurrence)) out.recurrence = body.recurrence;
+      else errors.recurrence = `must be ${RECURRENCES.join(', ')}, or null`;
+    }
     if ('due_date' in body) {
       if (body.due_date === null) out.due_date = null;
       else if (typeof body.due_date !== 'string' || !validDate(body.due_date)) errors.due_date = 'must be YYYY-MM-DD or null';
@@ -87,6 +97,134 @@ export function validateItem(body, config, kind, { partial }) {
 export function validateVersionOnly(body) {
   if (!Number.isInteger(body.version) || body.version < 1) throw validationFailed({ version: 'is required and must be a positive integer' });
   return { version: body.version };
+}
+
+/** Control characters, the Unicode line and paragraph separators (a line break to some editors), and the bidirectional
+ * overrides and isolates, which could make a one-line label or item read as something else. */
+export const UNSAFE_LABEL_CHARS = /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]/;
+
+/** Longest link URL and label, in characters. */
+export const LINK_URL_MAX = 2000;
+export const LINK_LABEL_MAX = 200;
+
+/**
+ * A web link's URL: http: or https: only, no user name or password in it, at most LINK_URL_MAX characters.
+ * Returns the URL as the WHATWG parser writes it (so spaces and angle brackets are percent-encoded), or null.
+ * The server only stores it: nothing ever fetches it.
+ * @param {unknown} v
+ */
+export function cleanLinkUrl(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s || s.length > LINK_URL_MAX || /[\u0000-\u001f\u007f]/.test(s)) return null;
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password || !u.hostname) return null;
+  // a backslash survives in a query or fragment; encoded, it cannot escape the ">" of the export's <url>
+  const href = u.href.replace(/\\/g, '%5C');
+  return href.length > LINK_URL_MAX ? null : href;
+}
+
+/**
+ * A link body: `url` (required on create), optional `label` (one line; empty or null means none), and on PATCH
+ * an optional `position` (0-based among the task's live links), plus the task's `version`.
+ * @param {Record<string, unknown>} body
+ * @param {{partial: boolean}} opts
+ * @returns {{version: number} & Partial<{url: string, label: string|null, position: number}>}
+ */
+export function validateLink(body, { partial }) {
+  const errors = {};
+  const out = {};
+  if (!Number.isInteger(body.version) || body.version < 1) errors.version = 'is required and must be a positive integer';
+  else out.version = body.version;
+  if ('url' in body || !partial) {
+    const url = cleanLinkUrl(body.url);
+    if (url) out.url = url;
+    else errors.url = `must be an http or https URL of at most ${LINK_URL_MAX} characters, without a user name or password`;
+  }
+  if ('label' in body) {
+    if (body.label === null) out.label = null;
+    else if (typeof body.label !== 'string' || UNSAFE_LABEL_CHARS.test(body.label) || [...body.label.trim()].length > LINK_LABEL_MAX) errors.label = `must be one line of at most ${LINK_LABEL_MAX} characters without control characters, or null`;
+    else out.label = body.label.trim() || null;
+  } else if (!partial) out.label = null;
+  if ('position' in body) {
+    if (!partial) errors.position = 'can only be set when changing a link';
+    else if (!Number.isInteger(body.position) || body.position < 0) errors.position = 'must be a non-negative integer';
+    else out.position = body.position;
+  }
+  for (const k of Object.keys(body)) if (!['version', 'url', 'label', 'position'].includes(k)) errors.body = 'has a key that is not a link field'; // never echo the caller's key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
+}
+
+/** What a duplicate does with due dates. */
+export const DUE_DATE_MODES = ['keep', 'shift', 'clear'];
+/** The furthest a duplicate shifts due dates, in days, either way (about ten years). */
+export const MAX_SHIFT_DAYS = 3650;
+
+/**
+ * The body of POST /api/projects/:id/duplicate. The name is checked again, with every project rule, once it is the copy's.
+ * @param {Record<string, unknown>} body
+ * @returns {{name?: string, reset_statuses: boolean, due_dates: 'keep'|'shift'|'clear', days: number}}
+ */
+export function validateDuplicate(body) {
+  const errors = {};
+  const out = { reset_statuses: false, due_dates: 'keep', days: 0 };
+  if ('name' in body) {
+    if (typeof body.name !== 'string' || !body.name.trim()) errors.name = 'must be a non-empty string';
+    else out.name = body.name.trim();
+  }
+  if ('reset_statuses' in body) {
+    if (typeof body.reset_statuses !== 'boolean') errors.reset_statuses = 'must be true or false';
+    else out.reset_statuses = body.reset_statuses;
+  }
+  if ('due_dates' in body) {
+    if (!DUE_DATE_MODES.includes(/** @type {string} */ (body.due_dates))) errors.due_dates = 'must be keep, shift, or clear';
+    else out.due_dates = /** @type {'keep'|'shift'|'clear'} */ (body.due_dates);
+  }
+  if (out.due_dates === 'shift' && !errors.due_dates) {
+    if (!Number.isInteger(body.days) || body.days === 0 || Math.abs(/** @type {number} */ (body.days)) > MAX_SHIFT_DAYS) errors.days = `must be a whole number of days from -${MAX_SHIFT_DAYS} to ${MAX_SHIFT_DAYS}, not 0`;
+    else out.days = /** @type {number} */ (body.days);
+  } else if ('days' in body) errors.days = 'can only be set with due_dates: shift';
+  for (const k of Object.keys(body)) if (!['name', 'reset_statuses', 'due_dates', 'days'].includes(k)) errors.body = 'has a key that is not a duplicate option'; // never echo the caller's key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
+}
+
+/** Longest checklist item, in characters. */
+export const CHECKLIST_TEXT_MAX = 500;
+
+/**
+ * A checklist item body: `text` (required on create; one line, 1 to CHECKLIST_TEXT_MAX characters), and on PATCH
+ * optional `done` (boolean) and `position` (0-based among the task's live items), plus the task's `version`.
+ * @param {Record<string, unknown>} body
+ * @param {{partial: boolean}} opts
+ * @returns {{version: number} & Partial<{text: string, done: boolean, position: number}>}
+ */
+export function validateChecklistItem(body, { partial }) {
+  const errors = {};
+  const out = {};
+  if (!Number.isInteger(body.version) || body.version < 1) errors.version = 'is required and must be a positive integer';
+  else out.version = body.version;
+  if ('text' in body || !partial) {
+    const t = typeof body.text === 'string' ? body.text.trim() : '';
+    if (!t || UNSAFE_LABEL_CHARS.test(t) || [...t].length > CHECKLIST_TEXT_MAX) errors.text = `must be one line of 1 to ${CHECKLIST_TEXT_MAX} characters`;
+    else out.text = t;
+  }
+  if ('done' in body) {
+    if (typeof body.done !== 'boolean') errors.done = 'must be true or false';
+    else if (!partial) errors.done = 'can only be set when changing an item';
+    else out.done = body.done;
+  }
+  if ('position' in body) {
+    if (!partial) errors.position = 'can only be set when changing an item';
+    else if (!Number.isInteger(body.position) || body.position < 0) errors.position = 'must be a non-negative integer';
+    else out.position = body.position;
+  }
+  for (const k of Object.keys(body)) if (!['version', 'text', 'done', 'position'].includes(k)) errors.body = 'has a key that is not a checklist field'; // never echo the key
+  if (Object.keys(errors).length) throw validationFailed(errors);
+  return out;
 }
 
 /** Longest guestbook comment, in characters. */
@@ -237,9 +375,11 @@ export function validateNewUser(u) {
   return { id: /** @type {string} */ (u.id), name, email, groups: [...new Set(groups)] };
 }
 
+/** Tag names one list filter may name. */
+const MAX_TAG_FILTER = 50;
 const PROJECT_SORTS = ['updated_at', 'created_at', 'name', 'status', 'owner_name'];
-const TASK_SORTS = [...PROJECT_SORTS.filter((s) => s !== 'name'), 'title', 'due_date'];
-const ASC_DEFAULT = new Set(['name', 'title', 'due_date']);
+const TASK_SORTS = [...PROJECT_SORTS.filter((s) => s !== 'name'), 'title', 'due_date', 'priority'];
+const ASC_DEFAULT = new Set(['name', 'title', 'due_date', 'priority']);
 
 /**
  * Parse and validate list query parameters (docs/API.md §5).
@@ -260,8 +400,19 @@ export function parseListQuery(q, config, kind) {
     sort: q.sort || 'updated_at',
     dir: q.dir,
   };
+  // statuses and priorities are filtered against the config; tag names are not, so their number is capped
+  if (f.tag && f.tag.length > MAX_TAG_FILTER) errors.tag = `must name at most ${MAX_TAG_FILTER} tags`;
   if (kind === 'task') {
     f.project = q.project || undefined;
+    f.priority = csv(q.priority)?.filter((s) => config.priorities.includes(s));
+    if (q.due) { if (['overdue', 'today', 'week'].includes(q.due)) f.due = q.due; else errors.due = 'must be overdue, today, or week'; }
+    if (q.closed_since) {
+      const t = Date.parse(q.closed_since);
+      // a real calendar day (no 31 February rolled over into March), alone or as the date of a UTC timestamp
+      if (/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/.test(q.closed_since) && !Number.isNaN(t) && validDate(q.closed_since.slice(0, 10))
+        && new Date(t).toISOString().slice(0, 10) === q.closed_since.slice(0, 10)) f.closed_since = new Date(t).toISOString();
+      else errors.closed_since = 'must be an ISO 8601 UTC timestamp or YYYY-MM-DD';
+    }
     for (const k of ['due_before', 'due_after']) {
       if (q[k]) { if (validDate(q[k])) f[k] = q[k]; else errors[k] = 'must be YYYY-MM-DD'; }
     }

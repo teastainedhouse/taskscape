@@ -68,7 +68,7 @@ export const routes = [
     /** @type {import('../lib/auth/index.js').Principal} */
     const user = { id: cred.user.id, name: cred.user.name, email: cred.user.email ?? undefined, groups: cred.user.groups,
       via: 'ui', auth: 'password', login_session_id: session.id };
-    return json(await meBody(ctx.db, ctx.config, user), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
+    return json(await meBody(ctx.db, ctx.config, user, ctx.now()), 200, { 'Set-Cookie': sessionCookie(cfg, session.plaintext) });
   } },
 
   // Unauthenticated so an expired or unknown cookie can still be cleared.

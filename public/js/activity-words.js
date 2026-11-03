@@ -9,10 +9,13 @@ const VIA = { ui: 'UI', mcp: 'Claude' };
 
 /** Human labels for changed fields; anything else uses the field name. */
 const FIELD_LABELS = {
-  title: 'title', name: 'name', status: 'status', owner_id: 'owner', owner_name: 'owner',
+  title: 'title', name: 'name', status: 'status', priority: 'priority', recurrence: 'repeats', owner_id: 'owner', owner_name: 'owner',
   due_date: 'due date', private: 'privacy', description: 'description', notes: 'notes',
   project_id: 'project', tags: 'tags', color: 'color',
 };
+
+/** A link as an entry names it: its label, else its URL. @param {any} l */
+const linkName = (l) => `"${String(l?.label || l?.url || 'link')}"`;
 
 /** @param {any} v */
 const show = (v) => (v == null || v === '' ? 'none' : Array.isArray(v) ? (v.length ? v.join(', ') : 'none') : String(v));
@@ -36,7 +39,8 @@ export function describeActivity(a, ctx = {}) {
   if (type === 'comment') {
     // the entry names the parent, never the text
     const where = title ? `${on?.type ?? 'item'} "${title}"` : `(${on?.type ?? 'item'} no longer visible)`;
-    what = { create: words.signed(where), trash: words.trashedOn(where), restore: words.restoredOn(where) }[a.action] ?? words.otherOn(a.action, where);
+    what = a.mentions_you && a.action === 'create' ? words.mentioned(where)
+      : { create: words.signed(where), trash: words.trashedOn(where), restore: words.restoredOn(where) }[a.action] ?? words.otherOn(a.action, where);
   } else switch (a.action) {
     case 'create':
       what = `created ${type} ${quoted}`;
@@ -64,6 +68,13 @@ export function describeActivity(a, ctx = {}) {
           case 'title': case 'name': phrases.push(`renamed it to "${show(to)}"`); break;
           case 'description': case 'notes': phrases.push(`edited the ${field}`); break;
           case 'tags': phrases.push(`tags: ${show(from)} → ${show(to)}`); break;
+          case 'link': phrases.push(!from ? `added the link ${linkName(to)}` : !to ? `removed the link ${linkName(from)}` : `changed the link ${linkName(from)} to ${linkName(to)}`); break;
+          case 'checklist_item': phrases.push(!from ? `added the checklist item "${show(to?.text)}"` : !to ? `removed the checklist item "${show(from?.text)}"`
+            : from.text !== to.text ? `renamed the checklist item "${show(from.text)}" to "${show(to.text)}"${from.done !== to.done ? (to.done ? ' and ticked it' : ' and unticked it') : ''}`
+              : `${to.done ? 'ticked' : 'unticked'} "${show(to.text)}"`); break;
+          case 'checklist_moved': phrases.push(`moved the checklist item "${show(d?.item?.text)}" ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
+          case 'recurred_to': if (to) phrases.push('it repeats, so the next one was created'); break; // a hidden copy's id comes back null
+          case 'link_moved': phrases.push(`moved the link ${linkName(d?.link)} ${Number(d?.to) < Number(d?.from) ? 'up' : 'down'}`); break;
           default: phrases.push(`${FIELD_LABELS[field] ?? field}: ${show(from)} → ${show(to)}`);
         }
       }

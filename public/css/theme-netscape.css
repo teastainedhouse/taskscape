@@ -168,8 +168,8 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 10%, var(--pape
 td input[type="text"] { width: 100%; min-width: 10em; }
 td input[type="date"] { min-width: 9em; }
 .row-actions button { padding: 1px 6px; font-size: 0.8em; }
-tr.overdue td.col-due_date, tr.overdue td.col-due { color: var(--overdue); font-weight: bold; }
-tr.overdue td.col-due_date::after { content: "(overdue)"; display: block; font-weight: normal; }
+tr.overdue td.col-due_date { color: var(--overdue); font-weight: bold; }
+td.col-due_date .overdue-mark { display: block; font-weight: normal; }
 tr.trashed td { color: var(--ink-muted); font-style: italic; }
 tr.filtered-out td { font-style: italic; }
 

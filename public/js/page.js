@@ -6,7 +6,7 @@
 // link the expiry notice to it, and show the Sign out button.
 
 import { get, post, ApiError, SESSION_EXPIRED_EVENT } from './api.js';
-import { el, setChildren, setTimeZone } from './dom.js';
+import { el, setChildren, setTimeZone, setToday } from './dom.js';
 import { mountDevBanner } from './dev-user.js';
 import { mountAvatar } from './avatar.js';
 import { refreshBadge } from './for-you.js';
@@ -75,7 +75,7 @@ export function applySiteTitle(siteTitle, pageTitle) {
 
 /** This page as login.html's `next`: the page name, query, and fragment (login.js validates it). */
 function loginHref() {
-  const page = location.pathname.split('/').pop() || 'index.html';
+  const page = location.pathname.split('/').pop() || 'today.html';
   return `login.html?next=${encodeURIComponent(page + location.search + location.hash)}`;
 }
 
@@ -148,13 +148,14 @@ export async function boot(opts) {
   /** Pages built before preferences existed still work: every key has a site default. */
   me.preferences = { theme: config.theme, comments_label: 'Comments', shortcuts: true, time_zone: 'UTC', chosen: {}, ...(config.preference_defaults ?? {}), ...(me.preferences ?? {}) };
   applyPreferences(config, me.preferences);
+  setToday(me.today); // overdue follows the server's rule and the person's zone, so the browser and the API agree
 
   applySiteTitle(config.site_title, opts?.title);
 
   mountDevBanner(document.getElementById('dev-banner'), me, config);
 
   // Mark the current nav link.
-  const here = location.pathname.split('/').pop() || 'index.html';
+  const here = location.pathname.split('/').pop() || 'today.html';
   for (const a of document.querySelectorAll('nav a')) {
     if ((a.getAttribute('href') || '').split('?')[0] === here) a.setAttribute('aria-current', 'page');
   }
